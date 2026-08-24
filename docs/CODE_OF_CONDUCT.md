@@ -47,7 +47,7 @@ individual is officially representing the project in public spaces.
 ## Enforcement
 
 Instances of unacceptable behavior may be reported to the project maintainers at
-[dev@andbaz.slmail.me](mailto:dev@andbaz.slmail.me). All reports will be reviewed
+[conduct@andbaz.net](mailto:conduct@andbaz.net). All reports will be reviewed
 and investigated promptly and fairly. Maintainers are obligated to respect the
 privacy and security of the reporter of any incident.
 
