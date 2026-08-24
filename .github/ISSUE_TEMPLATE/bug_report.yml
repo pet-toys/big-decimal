@@ -1,0 +1,68 @@
+name: Bug report
+description: Report incorrect or unexpected behavior in the package.
+title: "[Bug]: "
+labels: ["bug"]
+type: Bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. Please fill out the
+        sections below so the issue can be reproduced and triaged quickly.
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      description: Which package is affected?
+      options:
+        - PetToys.BigDecimal
+        - PetToys.BigDecimal.Npgsql
+        - PetToys.BigDecimal.ClickHouse
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what did you expect to happen instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: >-
+        A minimal code sample — the literal, parsed text, or column value that
+        goes in, the operation performed on it, and the result you observed.
+        For a database issue, include the column type (for example,
+        numeric(40,20) or Decimal128(20)) as well.
+      render: csharp
+    validations:
+      required: true
+  - type: input
+    id: package-version
+    attributes:
+      label: Package version
+      description: Which version of the selected package are you using?
+      placeholder: "10.0.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: target-framework
+    attributes:
+      label: Target framework
+      description: Which target framework does the affected project use?
+      options:
+        - net8.0
+        - net9.0
+        - net10.0
+        - Other (describe below)
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else that might help — logs, environment details, screenshots.
+    validations:
+      required: false

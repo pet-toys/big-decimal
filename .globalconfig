@@ -1,0 +1,105 @@
+is_global = true
+# VERSION 1.2
+
+dotnet_separate_import_directive_groups = false
+dotnet_sort_system_directives_first = true
+dotnet_style_prefer_collection_expression = when_types_exactly_match
+csharp_style_prefer_primary_constructors = true
+csharp_space_after_keywords_in_control_flow_statements = true
+
+roslynator_blank_line_between_using_directives = never
+roslynator_trailing_comma_style = omit_when_single_line
+roslynator_blank_line_between_closing_brace_and_switch_section = false
+
+
+# CA1848: Use the LoggerMessage delegates
+dotnet_diagnostic.CA1848.severity = suggestion
+
+# IDE0008: Use explicit type
+csharp_style_var_for_built_in_types = true
+csharp_style_var_elsewhere = true
+csharp_style_var_when_type_is_apparent = true
+
+# IDE0011: Add braces
+csharp_prefer_braces = when_multiline
+
+# IDE0021: Use block body for constructor
+dotnet_diagnostic.IDE0021.severity = none
+
+# IDE0022: Use expression body for method
+dotnet_diagnostic.IDE0022.severity = none
+
+# IDE0045: Convert to conditional expression
+dotnet_style_prefer_conditional_expression_over_assignment = false
+
+# IDE0046: Convert to conditional expression
+dotnet_style_prefer_conditional_expression_over_return = false
+
+# IDE0051: Remove unnecessary using directives
+dotnet_diagnostic.IDE0005.severity = warning
+
+# IDE0055: Fix formatting
+dotnet_diagnostic.IDE0055.severity = warning
+
+# IDE0076: Remove invalid global 'SuppressMessageAttribute'
+dotnet_diagnostic.IDE0076.severity = warning
+
+# IDE0077: Avoid legacy format target in global 'SuppressMessageAttribute'
+dotnet_diagnostic.IDE0077.severity = warning
+
+# IDE0079: Remove unnecessary suppression
+dotnet_diagnostic.IDE0079.severity = warning
+
+# IDE0130: Namespace does not match folder structure
+dotnet_diagnostic.IDE0130.severity = warning
+
+# IDE0161: Use file-scoped namespace
+dotnet_diagnostic.IDE0161.severity = warning
+
+# IDE0290: Use primary constructor
+dotnet_diagnostic.IDE0290.severity = warning
+
+# IDE0305: Simplify collection initialization
+dotnet_diagnostic.IDE0305.severity = none
+
+# Add blank line after using directive list
+dotnet_diagnostic.rcs0003.severity = warning
+
+# Add blank line between closing brace and next statement
+dotnet_diagnostic.rcs0008.severity = warning
+
+# Add blank line between declarations
+dotnet_diagnostic.rcs0010.severity = warning
+
+# Add/remove blank line between using directives
+dotnet_diagnostic.rcs0015.severity = warning
+
+# Add/remove trailing comma
+dotnet_diagnostic.rcs1260.severity = warning
+
+# Include/omit new line at the end of a file
+roslynator_new_line_at_end_of_file = true
+
+# Add/remove blank line after file scoped namespace declaration
+roslynator_blank_line_after_file_scoped_namespace_declaration = true
+
+# Normalize whitespace at the beginning of a file
+dotnet_diagnostic.rcs0057.severity = warning
+
+# Add/remove blank line between closing brace and switch section
+dotnet_diagnostic.rcs0063.severity = warning
+dotnet_diagnostic.rcs1036.severity = none
+
+# Declare each type in separate file
+dotnet_diagnostic.rcs1060.severity = warning
+
+# SYSLIB1006: Multiple logging methods cannot use the same event id within a class
+dotnet_diagnostic.SYSLIB1006.severity = warning
+
+# CA2007: Consider calling ConfigureAwait on the awaited task
+# Reusable library code must not capture the caller's SynchronizationContext, so
+# every await needs ConfigureAwait(false). The rule is off by default at this
+# analysis level; raise it to a warning. Release builds promote warnings to
+# errors (TreatWarningsAsErrors), so a missing ConfigureAwait(false) fails CI.
+# The test project opts out in its GlobalSuppressions.cs.
+dotnet_diagnostic.CA2007.severity = warning

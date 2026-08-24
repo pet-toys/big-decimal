@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>$(TargetFrameworkVersions)</TargetFrameworks>
+  </PropertyGroup>
+
+  <PropertyGroup Label="NuGet package">
+    <Description>A 256-bit decimal floating-point value type for the large PostgreSQL numeric and ClickHouse Decimal values that .NET decimal cannot represent.</Description>
+    <PackageTags>bigdecimal;decimal;numeric;numerics;arbitrary-precision</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PetToys.BigDecimal.Tests" />
+    <InternalsVisibleTo Include="PetToys.BigDecimal.ClickHouse" />
+    <InternalsVisibleTo Include="PetToys.BigDecimal.Npgsql" />
+  </ItemGroup>
+
+</Project>
