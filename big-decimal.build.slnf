@@ -1,0 +1,10 @@
+{
+  "solution": {
+    "path": "big-decimal.slnx",
+    "projects": [
+      "src/PetToys.BigDecimal/PetToys.BigDecimal.csproj",
+      "src/PetToys.BigDecimal.ClickHouse/PetToys.BigDecimal.ClickHouse.csproj",
+      "src/PetToys.BigDecimal.Npgsql/PetToys.BigDecimal.Npgsql.csproj"
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+# PetToys.BigDecimal.Npgsql
+
+[![NuGet Version][nuget-v-badge]][nuget-url] [![NuGet Downloads][nuget-dt-badge]][nuget-url] [![Unit Test][test-badge]][test-url] [![Target frameworks][dotnet-badge]][nuget-url] [![License][license-badge]][license-url]
+
+PostgreSQL helpers for [`PetToys.BigDecimal`][core-url]: they map the arbitrary
+`numeric` values that PostgreSQL allows — and that `decimal` cannot hold —
+onto `BigDecimal` when reading and writing through [Npgsql][npgsql-home].
+
+Bring your own configured `NpgsqlConnection` or data source; this package only
+deals with the value mapping.
+
+## Installation
+
+```sh
+dotnet add package PetToys.BigDecimal.Npgsql
+```
+
+The core [`PetToys.BigDecimal`][core-url] package comes along as a dependency.
+
+## Links
+
+- [Source and documentation][repo-url]
+- [Report an issue][issues-url]
+
+## License
+
+Provided under the [Apache License, Version 2.0][license-url].
+
+[repo-url]: https://github.com/pet-toys/big-decimal
+[issues-url]: https://github.com/pet-toys/big-decimal/issues
+[nuget-url]: https://www.nuget.org/packages/PetToys.BigDecimal.Npgsql/
+[nuget-v-badge]: https://img.shields.io/nuget/v/PetToys.BigDecimal.Npgsql?style=flat-square&logo=nuget&label=version
+[nuget-dt-badge]: https://img.shields.io/nuget/dt/PetToys.BigDecimal.Npgsql?style=flat-square&logo=nuget
+[test-badge]: https://img.shields.io/github/actions/workflow/status/pet-toys/big-decimal/test.yml?branch=dev&style=flat-square&logo=github&label=test
+[test-url]: https://github.com/pet-toys/big-decimal/actions?query=workflow%3Atest+branch%3Adev
+[dotnet-badge]: https://img.shields.io/badge/.NET-8.0%20%7C%209.0%20%7C%2010.0-512BD4?style=flat-square&logo=dotnet
+[license-badge]: https://img.shields.io/github/license/pet-toys/big-decimal?style=flat-square&color=blue
+[license-url]: https://www.apache.org/licenses/LICENSE-2.0
+[core-url]: https://www.nuget.org/packages/PetToys.BigDecimal/
+[npgsql-home]: https://www.npgsql.org/

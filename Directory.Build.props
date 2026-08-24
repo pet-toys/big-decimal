@@ -1,0 +1,61 @@
+﻿<Project>
+  <PropertyGroup>
+    <Authors>andbaz</Authors>
+    <Copyright>Copyright © 2026 - $([System.DateTime]::UtcNow.ToString(`yyyy`)) $(Authors). All rights reserved.</Copyright>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TargetFrameworkVersions>net8.0;net9.0;net10.0</TargetFrameworkVersions>
+    <LangVersion>14.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AnalysisLevel>10.0-Recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <NoWarn>1591</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Label="NuGet package">
+    <PackageId>$(MSBuildProjectName)</PackageId>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/pet-toys/big-decimal.git</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/pet-toys/big-decimal</PackageProjectUrl>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+  </PropertyGroup>
+
+
+  <PropertyGroup>
+    <StrongNameKeyId>PetToys</StrongNameKeyId>
+    <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)assets\key.snk</AssemblyOriginatorKeyFile>
+    <SignAssembly>true</SignAssembly>
+    <DelaySign>false</DelaySign>
+    <PublicSign>true</PublicSign>
+    <PublicKey>002400000e800000140200000602000000240000525341310010000001000100097e6091d3d5af4289c11be66f34cf648e62957592c14ee05d898f40f4757334be5f803b3dff3199d566bcd35128997ef6e54fbc7dc0306ce8ad7935fcea58f74671bb4a3486a26105e0c830e1a03f35c0ff9753564eb34c7d3432f385b725885ee16943048c0040ca090e357b85258eb4da9e942570f64c6e6a2f37910177858b5d7823d9a8f30232d2b763827f1361b84caa24d5e0625bcadf3362ab4008921d3e21b6ef7a6254db8bf40ab2ba2a6c3f9e5ae43ebff6537bb6ff14d2dd869f485795c109b77a5db57e6064f6694d2d830e9857e380c29818ba61f8cfa7a294a56cff9c45c9284fa1705fcf024435269eac0f44c5ab33ad8ac45f297b326ac58845023564331273a9d71fed0429c0efa60e26d291dd78ce552b328b28b19ccd73f3f0c33e03c71fe8fcf0fc28c3468f25acda0fbdbb11875d6522fa37e369c6ce24f476457e26ec6c510b0f8bce25a04919737f2261e875b788997645cbc88f408b693f89ba6c3a644a84a79f80866d2531d31eea25dd5c32f88bf0da1a962a763f66450385f59ecfa49e156b38dd7f4f23b5ee326cca178963cc9a31865bf207c77f61a1943fe27af382999206f38f3485f9d68cfc0ef5cf0f22fac5b2c0f0bd967221bd2b23c82c5231dbddaeee341bfb1de964b586771e9d89193fb998d23b4457d5c8a0e573343538c5a4908f90725104c93a927c76fcbb73b296b2c7c9</PublicKey>
+    <PublicKeyToken>16532cd584ecbafb</PublicKeyToken>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'!='Debug'">
+    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+    <Optimize>True</Optimize>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <DefineConstants Condition="$([MSBuild]::IsOSPlatform('Windows'))">OS_WINDOWS</DefineConstants>
+    <DefineConstants Condition="$([MSBuild]::IsOSPlatform('Linux'))">OS_LINUX</DefineConstants>
+    <DefineConstants Condition="$([MSBuild]::IsOSPlatform('FreeBSD'))">OS_FREEBSD</DefineConstants>
+    <DefineConstants Condition="$([MSBuild]::IsOSPlatform('OSX'))">OS_MAC</DefineConstants>
+  </PropertyGroup>
+
+</Project>

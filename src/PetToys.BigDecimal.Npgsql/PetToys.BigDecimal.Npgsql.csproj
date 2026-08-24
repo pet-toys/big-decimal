@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>$(TargetFrameworkVersions)</TargetFrameworks>
+  </PropertyGroup>
+
+  <PropertyGroup Label="NuGet package">
+    <Description>PostgreSQL helpers that map numeric columns to PetToys.BigDecimal when reading and writing through Npgsql.</Description>
+    <PackageTags>bigdecimal;decimal;numeric;postgresql;postgres;npgsql</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PetToys.BigDecimal.Npgsql.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PetToys.BigDecimal\PetToys.BigDecimal.csproj" />
+  </ItemGroup>
+
+</Project>

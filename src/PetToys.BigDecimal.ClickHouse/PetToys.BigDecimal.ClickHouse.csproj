@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>$(TargetFrameworkVersions)</TargetFrameworks>
+  </PropertyGroup>
+
+  <PropertyGroup Label="NuGet package">
+    <Description>ClickHouse helpers that map Decimal32, Decimal64, Decimal128, and Decimal256 columns to PetToys.BigDecimal when reading and writing through ClickHouse.Driver.</Description>
+    <PackageTags>bigdecimal;decimal;clickhouse;numerics</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PetToys.BigDecimal.ClickHouse.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ClickHouse.Driver" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PetToys.BigDecimal\PetToys.BigDecimal.csproj" />
+  </ItemGroup>
+
+</Project>

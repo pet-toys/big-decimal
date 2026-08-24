@@ -1,0 +1,147 @@
+name: build-deploy
+
+on:
+  release:
+    types:
+    - published
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: true
+  SolutionToPack: "big-decimal.build.slnf"
+  ReleaseNotesProject: "src/PetToys.BigDecimal/PetToys.BigDecimal.csproj"
+  PackagesSubfolder: "nuget"
+  ArtifactName: packages
+  GitHubPackageSource: "https://nuget.pkg.github.com/pet-toys/index.json"
+  NuGetOrgPackageSource: "https://api.nuget.org/v3/index.json"
+  DevRepositoryUrl: "https://github.com/orgs/pet-toys/packages?repo_name=big-decimal"
+  ProdRepositoryUrl: "https://www.nuget.org/packages/PetToys.BigDecimal"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: test
+    uses: ./.github/workflows/test.yml
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: |
+      startsWith(github.event.release.tag_name, 'v')
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      with:
+        global-json-file: global.json
+
+    - name: Version
+      env:
+        TAG_NAME: ${{ github.event.release.tag_name }}
+      run: echo "PACKAGE_VERSION=${TAG_NAME#v}" >> "$GITHUB_ENV"
+
+    - name: Restore
+      run: dotnet restore ${{ env.SolutionToPack }}
+
+    - name: Build
+      run: dotnet build ${{ env.SolutionToPack }} --configuration Release --no-restore -p:Version=${{ env.PACKAGE_VERSION }}
+
+    - name: Pack
+      run: dotnet pack ${{ env.SolutionToPack }} --configuration Release  --no-build --include-symbols --output ${{ github.workspace }}/${{ env.PackagesSubfolder }} -p:PackageVersion=${{ env.PACKAGE_VERSION }}
+
+    - name: Sync release notes to the GitHub release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TAG_NAME: ${{ github.event.release.tag_name }}
+      run: |
+        dotnet msbuild ${{ env.ReleaseNotesProject }} --target:ExportPackageReleaseNotes -p:ReleaseNotesExportPath="${{ runner.temp }}/release-notes.txt"
+        gh release edit "$TAG_NAME" --notes-file "${{ runner.temp }}/release-notes.txt"
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: ${{ env.ArtifactName }}
+        if-no-files-found: error
+        path: |
+          ${{ github.workspace }}/${{ env.PackagesSubfolder }}/*.nupkg
+          ${{ github.workspace }}/${{ env.PackagesSubfolder }}/*.snupkg
+          nuget.config
+          global.json
+
+  deploy-github:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: development
+      url: ${{ env.DevRepositoryUrl }}
+    if: |
+      github.event.repository.fork == false &&
+      github.event.release.prerelease == true
+    permissions:
+      packages: write
+
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: ${{ env.ArtifactName }}
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      with:
+        global-json-file: global.json
+
+    - name: Push to github
+      working-directory: ${{ env.PackagesSubfolder }}
+      env:
+        NUGET_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        dotnet nuget push "*.nupkg" -k "$NUGET_AUTH_TOKEN" -s ${{ env.GitHubPackageSource }} --skip-duplicate
+
+  deploy-nuget:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ env.ProdRepositoryUrl }}
+    if: |
+      github.event.repository.fork == false &&
+      github.event.release.prerelease == false
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: ${{ env.ArtifactName }}
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      with:
+        global-json-file: global.json
+
+    - name: NuGet login
+      id: login
+      uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+      with:
+        user: ${{ secrets.NUGET_USER }}
+
+    - name: Push to nuget.org
+      working-directory: ${{ env.PackagesSubfolder }}
+      env:
+        NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+      run: |
+        dotnet nuget push "*.nupkg" -k "$NUGET_API_KEY" -s ${{ env.NuGetOrgPackageSource }} --skip-duplicate
