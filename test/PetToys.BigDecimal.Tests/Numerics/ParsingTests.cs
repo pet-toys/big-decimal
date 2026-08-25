@@ -147,7 +147,9 @@ public sealed class ParsingTests
             Consume(operation());
         }
 
-        GC.Collect();
+        // No GC.Collect() here: the counter below is a monotonic per-thread total that a
+        // collection does not touch, while a gen2 collection trims ArrayPool<T>.Shared and
+        // would make the next rent allocate a fresh buffer inside the measured window.
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var i = 0; i < 64; i++)
         {
