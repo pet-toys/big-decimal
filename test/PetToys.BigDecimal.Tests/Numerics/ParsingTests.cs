@@ -1,13 +1,14 @@
 using System;
 using System.Globalization;
 using System.Numerics;
-using System.Runtime.CompilerServices;
 using System.Text;
 using AwesomeAssertions;
+using PetToys.BigDecimal.Numerics.Harness;
 using Xunit;
 
 namespace PetToys.BigDecimal.Numerics;
 
+[Collection(AmbientCulture.Name)]
 public sealed class ParsingTests
 {
     private static string Text(BigDecimal value) => value.ToString(CultureInfo.InvariantCulture);
@@ -15,10 +16,8 @@ public sealed class ParsingTests
     [Fact]
     public void TheOverloadsWithoutAProvider_AllUseTheCurrentCulture()
     {
-        var original = CultureInfo.CurrentCulture;
-        try
+        using (CultureScope.For(CultureCase.CommaDecimal))
         {
-            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("de-DE");
             var expected = BigDecimal.Parse("1.5", CultureInfo.InvariantCulture);
 
             BigDecimal.TryParse("1,5", out var fromString).Should().BeTrue();
@@ -28,10 +27,6 @@ public sealed class ParsingTests
             fromString.Should().Be(expected);
             fromChars.Should().Be(expected);
             fromUtf8.Should().Be(expected, "the UTF-8 overload must not silently read a comma as a group separator");
-        }
-        finally
-        {
-            CultureInfo.CurrentCulture = original;
         }
     }
 
@@ -135,32 +130,13 @@ public sealed class ParsingTests
     {
         var utf8 = Encoding.UTF8.GetBytes("0." + new string('1', 500));
 
-        Measure(() => BigDecimal.Parse(utf8, CultureInfo.InvariantCulture)).Should().Be(0);
-        Measure(() => BigDecimal.TryParse(utf8, CultureInfo.InvariantCulture, out var value) ? value : default)
+        Allocations.Measure(() => Allocations.Sink = BigDecimal.Parse(utf8, CultureInfo.InvariantCulture), 64)
+            .Should().Be(0);
+        Allocations.Measure(
+                () => Allocations.OtherSink = BigDecimal.TryParse(utf8, CultureInfo.InvariantCulture, out var value) ? value.Scale : -1,
+                64)
             .Should().Be(0);
     }
-
-    private static long Measure(Func<BigDecimal> operation)
-    {
-        for (var i = 0; i < 16; i++)
-        {
-            Consume(operation());
-        }
-
-        // No GC.Collect() here: the counter below is a monotonic per-thread total that a
-        // collection does not touch, while a gen2 collection trims ArrayPool<T>.Shared and
-        // would make the next rent allocate a fresh buffer inside the measured window.
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 64; i++)
-        {
-            Consume(operation());
-        }
-
-        return GC.GetAllocatedBytesForCurrentThread() - before;
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void Consume(BigDecimal value) => _ = value.Scale;
 
     [Fact]
     public void Exponents_ShiftTheScale()
