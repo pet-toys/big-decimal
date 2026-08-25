@@ -8,6 +8,7 @@ using Xunit;
 
 namespace PetToys.BigDecimal.Numerics;
 
+[Collection(AmbientCulture.Name)]
 public sealed class ParsingTests
 {
     private static string Text(BigDecimal value) => value.ToString(CultureInfo.InvariantCulture);

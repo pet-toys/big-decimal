@@ -26,7 +26,7 @@ public static class CultureMatrix
         Build(".", ",", [3]),
         Build(",", ".", [3]),
         Build(".", ",", [3, 2]),
-        Build(",", " ", [3]),
+        Build(",", "\u00A0", [3]),
     ];
 
     /// <summary>Returns the culture for a case.</summary>

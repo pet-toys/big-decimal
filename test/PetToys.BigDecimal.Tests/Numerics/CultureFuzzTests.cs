@@ -11,6 +11,7 @@ namespace PetToys.BigDecimal.Numerics;
 /// Runs parsing and formatting under a matrix of cultures whose separators and group sizes are set
 /// by the harness rather than read from the operating system.
 /// </summary>
+[Collection(AmbientCulture.Name)]
 public sealed class CultureFuzzTests
 {
     private static readonly string[] Specifiers =
