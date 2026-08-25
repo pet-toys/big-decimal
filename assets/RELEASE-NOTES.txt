@@ -1,0 +1,14 @@
+Unreleased
+----------
+- BigDecimal.WithScale sets a value to a requested scale, padding with zeros as
+  well as rounding, so a value can be presented at the scale a database column
+  declares. Round remains narrowing-only.
+- The representable range is documented and settled: a magnitude of 0..2^256-1
+  with a scale of 0..255, so 77 significant digits always fit and the range
+  runs from 1e-255 to roughly 1.157e77. Earlier text quoting 76 digits was
+  wrong.
+- Reading a power of ten no longer allocates, which makes the package claim of
+  never allocating true again: addition, multiplication, division, rounding,
+  parsing and WithScale all allocate nothing.
+- The public surface carries XML documentation, and the build now fails on an
+  undocumented public member.
