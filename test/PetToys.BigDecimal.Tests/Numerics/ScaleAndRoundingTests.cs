@@ -1,8 +1,8 @@
 using System;
 using System.Globalization;
 using System.Numerics;
-using System.Runtime.CompilerServices;
 using AwesomeAssertions;
+using PetToys.BigDecimal.Numerics.Harness;
 using Xunit;
 
 namespace PetToys.BigDecimal.Numerics;
@@ -227,30 +227,8 @@ public sealed class ScaleAndRoundingTests
         var value = Parse("1.5");
         var wide = Parse("1.234567");
 
-        Measure(() => value.WithScale(18)).Should().Be(0);
-        Measure(() => wide.WithScale(2)).Should().Be(0);
-        Measure(() => value.WithScale(1)).Should().Be(0);
+        Allocations.Measure(() => Allocations.Sink = value.WithScale(18), 256).Should().Be(0);
+        Allocations.Measure(() => Allocations.Sink = wide.WithScale(2), 256).Should().Be(0);
+        Allocations.Measure(() => Allocations.Sink = value.WithScale(1), 256).Should().Be(0);
     }
-
-    private static long Measure(Func<BigDecimal> operation)
-    {
-        for (var i = 0; i < 16; i++)
-        {
-            Consume(operation());
-        }
-
-        // No GC.Collect() here: the counter below is a monotonic per-thread total that a
-        // collection does not touch, while a gen2 collection trims ArrayPool<T>.Shared and
-        // would make the next rent allocate a fresh buffer inside the measured window.
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 256; i++)
-        {
-            Consume(operation());
-        }
-
-        return GC.GetAllocatedBytesForCurrentThread() - before;
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void Consume(BigDecimal value) => _ = value.Scale;
 }
