@@ -15,7 +15,7 @@ body:
       label: Package
       description: Which package is affected?
       options:
-        - PetToys.BigDecimal
+        - PetToys.BigDecimal.Core
         - PetToys.BigDecimal.Npgsql
         - PetToys.BigDecimal.ClickHouse
     validations:

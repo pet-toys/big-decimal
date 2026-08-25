@@ -2,6 +2,11 @@
 
   <PropertyGroup>
     <TargetFrameworks>$(TargetFrameworkVersions)</TargetFrameworks>
+    <!-- The .Core suffix names the package, not the API. Types stay in
+         PetToys.BigDecimal.Numerics so that the sibling integration packages
+         and the namespace they share are unaffected by how this one is
+         published; pinning RootNamespace is also what keeps IDE0130 quiet. -->
+    <RootNamespace>PetToys.BigDecimal</RootNamespace>
   </PropertyGroup>
 
   <PropertyGroup Label="NuGet package">
@@ -10,7 +15,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="PetToys.BigDecimal.Tests" />
+    <InternalsVisibleTo Include="PetToys.BigDecimal.Core.Tests" />
     <InternalsVisibleTo Include="PetToys.BigDecimal.ClickHouse" />
     <InternalsVisibleTo Include="PetToys.BigDecimal.Npgsql" />
   </ItemGroup>

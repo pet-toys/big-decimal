@@ -20,7 +20,7 @@ are rounded half-to-even rather than throwing.
 
 | Package | Version | Downloads | What it does |
 | ------- | ------- | --------- | ------------ |
-| [`PetToys.BigDecimal`][core-url] | [![NuGet Version][core-v-badge]][core-url] | [![NuGet Downloads][core-dt-badge]][core-url] | The `BigDecimal` type itself. No runtime dependencies. |
+| [`PetToys.BigDecimal.Core`][core-url] | [![NuGet Version][core-v-badge]][core-url] | [![NuGet Downloads][core-dt-badge]][core-url] | The `BigDecimal` type itself. No runtime dependencies. |
 | [`PetToys.BigDecimal.Npgsql`][npgsql-url] | [![NuGet Version][npgsql-v-badge]][npgsql-url] | [![NuGet Downloads][npgsql-dt-badge]][npgsql-url] | Helpers for reading and writing PostgreSQL `numeric` through [Npgsql][npgsql-home]. |
 | [`PetToys.BigDecimal.ClickHouse`][ch-url] | [![NuGet Version][ch-v-badge]][ch-url] | [![NuGet Downloads][ch-dt-badge]][ch-url] | Helpers for the ClickHouse `Decimal32/64/128/256` family through [ClickHouse.Driver][ch-driver]. |
 
@@ -30,7 +30,7 @@ Dapper support for ClickHouse.
 ## Installation
 
 ```sh
-dotnet add package PetToys.BigDecimal
+dotnet add package PetToys.BigDecimal.Core
 ```
 
 Add the integration package for the database you talk to:
@@ -56,9 +56,9 @@ Provided under the [Apache License, Version 2.0][license-url].
 [dotnet-badge]: https://img.shields.io/badge/.NET-8.0%20%7C%209.0%20%7C%2010.0-512BD4?style=flat-square&logo=dotnet
 [license-badge]: https://img.shields.io/github/license/pet-toys/big-decimal?style=flat-square&color=blue
 [license-url]: https://www.apache.org/licenses/LICENSE-2.0
-[core-url]: https://www.nuget.org/packages/PetToys.BigDecimal/
-[core-v-badge]: https://img.shields.io/nuget/v/PetToys.BigDecimal?style=flat-square&logo=nuget&label=version
-[core-dt-badge]: https://img.shields.io/nuget/dt/PetToys.BigDecimal?style=flat-square&logo=nuget
+[core-url]: https://www.nuget.org/packages/PetToys.BigDecimal.Core/
+[core-v-badge]: https://img.shields.io/nuget/v/PetToys.BigDecimal.Core?style=flat-square&logo=nuget&label=version
+[core-dt-badge]: https://img.shields.io/nuget/dt/PetToys.BigDecimal.Core?style=flat-square&logo=nuget
 [npgsql-url]: https://www.nuget.org/packages/PetToys.BigDecimal.Npgsql/
 [npgsql-v-badge]: https://img.shields.io/nuget/v/PetToys.BigDecimal.Npgsql?style=flat-square&logo=nuget&label=version
 [npgsql-dt-badge]: https://img.shields.io/nuget/dt/PetToys.BigDecimal.Npgsql?style=flat-square&logo=nuget

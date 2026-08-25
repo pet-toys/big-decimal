@@ -1,4 +1,4 @@
-﻿# PetToys.BigDecimal
+﻿# PetToys.BigDecimal.Core
 
 [![NuGet Version][nuget-v-badge]][nuget-url] [![NuGet Downloads][nuget-dt-badge]][nuget-url] [![Unit Test][test-badge]][test-url] [![Target frameworks][dotnet-badge]][nuget-url] [![License][license-badge]][license-url]
 
@@ -55,8 +55,12 @@ BigDecimal.Round(price, 18);         // 1.5 — Round never pads
 ## Installation
 
 ```sh
-dotnet add package PetToys.BigDecimal
+dotnet add package PetToys.BigDecimal.Core
 ```
+
+The `.Core` suffix belongs to the package, not to the API: the type is
+`PetToys.BigDecimal.Numerics.BigDecimal`, the same namespace the database
+packages put their helpers in.
 
 ## Links
 
@@ -69,9 +73,9 @@ Provided under the [Apache License, Version 2.0][license-url].
 
 [repo-url]: https://github.com/pet-toys/big-decimal
 [issues-url]: https://github.com/pet-toys/big-decimal/issues
-[nuget-url]: https://www.nuget.org/packages/PetToys.BigDecimal/
-[nuget-v-badge]: https://img.shields.io/nuget/v/PetToys.BigDecimal?style=flat-square&logo=nuget&label=version
-[nuget-dt-badge]: https://img.shields.io/nuget/dt/PetToys.BigDecimal?style=flat-square&logo=nuget
+[nuget-url]: https://www.nuget.org/packages/PetToys.BigDecimal.Core/
+[nuget-v-badge]: https://img.shields.io/nuget/v/PetToys.BigDecimal.Core?style=flat-square&logo=nuget&label=version
+[nuget-dt-badge]: https://img.shields.io/nuget/dt/PetToys.BigDecimal.Core?style=flat-square&logo=nuget
 [test-badge]: https://img.shields.io/github/actions/workflow/status/pet-toys/big-decimal/test.yml?branch=dev&style=flat-square&logo=github&label=test
 [test-url]: https://github.com/pet-toys/big-decimal/actions?query=workflow%3Atest+branch%3Adev
 [dotnet-badge]: https://img.shields.io/badge/.NET-8.0%20%7C%209.0%20%7C%2010.0-512BD4?style=flat-square&logo=dotnet

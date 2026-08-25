@@ -9,13 +9,13 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
   DOTNET_NOLOGO: true
   SolutionToPack: "big-decimal.build.slnf"
-  ReleaseNotesProject: "src/PetToys.BigDecimal/PetToys.BigDecimal.csproj"
+  ReleaseNotesProject: "src/PetToys.BigDecimal.Core/PetToys.BigDecimal.Core.csproj"
   PackagesSubfolder: "nuget"
   ArtifactName: packages
   GitHubPackageSource: "https://nuget.pkg.github.com/pet-toys/index.json"
   NuGetOrgPackageSource: "https://api.nuget.org/v3/index.json"
   DevRepositoryUrl: "https://github.com/orgs/pet-toys/packages?repo_name=big-decimal"
-  ProdRepositoryUrl: "https://www.nuget.org/packages/PetToys.BigDecimal"
+  ProdRepositoryUrl: "https://www.nuget.org/packages/PetToys.BigDecimal.Core"
 
 permissions:
   contents: read

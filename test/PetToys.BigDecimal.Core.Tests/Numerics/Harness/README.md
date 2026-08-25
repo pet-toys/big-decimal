@@ -1,8 +1,8 @@
 # Test harness
 
-Shared machinery for the tests in `test/PetToys.BigDecimal.Tests`. Three things
-live here: reference oracles, a value generator, and the measurement and culture
-helpers the deterministic suites use.
+Shared machinery for the tests in `test/PetToys.BigDecimal.Core.Tests`. Three
+things live here: reference oracles, a value generator, and the measurement and
+culture helpers the deterministic suites use.
 
 ## The rule the oracles answer to
 
