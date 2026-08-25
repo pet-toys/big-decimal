@@ -39,13 +39,13 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/PetToys.BigDecimal.ClickHouse/PetToys.BigDecimal.ClickHouse.csproj" Id="a030b96c-4db6-405b-ba4b-ae245b944939" />
+    <Project Path="src/PetToys.BigDecimal.Core/PetToys.BigDecimal.Core.csproj" Id="e3ed5e88-2584-41e0-9226-2a1deee6dce4" />
     <Project Path="src/PetToys.BigDecimal.Npgsql/PetToys.BigDecimal.Npgsql.csproj" Id="80df2c13-a419-4cb8-b895-e8364c16c8ab" />
-    <Project Path="src/PetToys.BigDecimal/PetToys.BigDecimal.csproj" Id="e3ed5e88-2584-41e0-9226-2a1deee6dce4" />
   </Folder>
   <Folder Name="/test/">
     <File Path="test/Directory.Packages.props" />
     <Project Path="test/PetToys.BigDecimal.ClickHouse.Tests/PetToys.BigDecimal.ClickHouse.Tests.csproj" Id="96111a3f-594f-4f44-99b5-ec068adbf3d8" />
+    <Project Path="test/PetToys.BigDecimal.Core.Tests/PetToys.BigDecimal.Core.Tests.csproj" Id="8ca470e5-990e-4769-903a-d644730f5403" />
     <Project Path="test/PetToys.BigDecimal.Npgsql.Tests/PetToys.BigDecimal.Npgsql.Tests.csproj" Id="b244f612-4406-4fb3-a5cf-38a52be7ccc3" />
-    <Project Path="test/PetToys.BigDecimal.Tests/PetToys.BigDecimal.Tests.csproj" Id="8ca470e5-990e-4769-903a-d644730f5403" />
   </Folder>
 </Solution>

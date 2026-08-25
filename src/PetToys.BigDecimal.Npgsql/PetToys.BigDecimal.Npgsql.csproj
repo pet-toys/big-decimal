@@ -5,7 +5,7 @@
   </PropertyGroup>
 
   <PropertyGroup Label="NuGet package">
-    <Description>PostgreSQL helpers that map numeric columns to PetToys.BigDecimal when reading and writing through Npgsql.</Description>
+    <Description>PostgreSQL helpers that map numeric columns to PetToys.BigDecimal.Core when reading and writing through Npgsql.</Description>
     <PackageTags>bigdecimal;decimal;numeric;postgresql;postgres;npgsql</PackageTags>
   </PropertyGroup>
 
@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\PetToys.BigDecimal\PetToys.BigDecimal.csproj" />
+    <ProjectReference Include="..\PetToys.BigDecimal.Core\PetToys.BigDecimal.Core.csproj" />
   </ItemGroup>
 
 </Project>

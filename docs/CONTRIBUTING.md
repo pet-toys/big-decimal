@@ -21,9 +21,16 @@ packages and one test project each:
 
 | Project | Package |
 | ------- | ------- |
-| `src/PetToys.BigDecimal` | The `BigDecimal` type. No runtime dependencies. |
+| `src/PetToys.BigDecimal.Core` | The `BigDecimal` type. No runtime dependencies. |
 | `src/PetToys.BigDecimal.Npgsql` | PostgreSQL `numeric` helpers, on top of Npgsql. |
 | `src/PetToys.BigDecimal.ClickHouse` | ClickHouse `Decimal*` helpers, on top of ClickHouse.Driver. |
+
+`PetToys.BigDecimal.Core` is the only project whose folder name is not its
+namespace root: it and its test project pin `RootNamespace` to
+`PetToys.BigDecimal`, because the `.Core` suffix distinguishes the package and
+would be noise in the API. A new file there belongs in the namespace its folder
+implies below that root — `Numerics/Foo.cs` in `PetToys.BigDecimal.Numerics` —
+and a `Release` build fails on IDE0130 if it is not.
 
 Two solution filters narrow the build: `big-decimal.build.slnf` (the packages
 only, which is what the release pipeline packs) and `big-decimal.tests.slnf`

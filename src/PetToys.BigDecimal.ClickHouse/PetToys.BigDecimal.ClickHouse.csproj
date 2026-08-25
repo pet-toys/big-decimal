@@ -5,7 +5,7 @@
   </PropertyGroup>
 
   <PropertyGroup Label="NuGet package">
-    <Description>ClickHouse helpers that map Decimal32, Decimal64, Decimal128, and Decimal256 columns to PetToys.BigDecimal when reading and writing through ClickHouse.Driver.</Description>
+    <Description>ClickHouse helpers that map Decimal32, Decimal64, Decimal128, and Decimal256 columns to PetToys.BigDecimal.Core when reading and writing through ClickHouse.Driver.</Description>
     <PackageTags>bigdecimal;decimal;clickhouse;numerics</PackageTags>
   </PropertyGroup>
 
@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\PetToys.BigDecimal\PetToys.BigDecimal.csproj" />
+    <ProjectReference Include="..\PetToys.BigDecimal.Core\PetToys.BigDecimal.Core.csproj" />
   </ItemGroup>
 
 </Project>

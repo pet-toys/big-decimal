@@ -5,6 +5,8 @@
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!-- Mirrors the namespace of the project under test, which is not the
+         project name: see the comment in PetToys.BigDecimal.Core.csproj. -->
     <RootNamespace>PetToys.BigDecimal</RootNamespace>
   </PropertyGroup>
 
@@ -16,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\PetToys.BigDecimal\PetToys.BigDecimal.csproj" />
+    <ProjectReference Include="..\..\src\PetToys.BigDecimal.Core\PetToys.BigDecimal.Core.csproj" />
   </ItemGroup>
 
 </Project>

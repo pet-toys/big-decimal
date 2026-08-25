@@ -2,7 +2,8 @@
 
   <!-- Everything below is identical for every package in this repository; the
        project files carry only what differs (Description, PackageTags, the
-       references, and InternalsVisibleTo). -->
+       references, InternalsVisibleTo, and — where the project name and the
+       namespace diverge — RootNamespace). -->
 
   <PropertyGroup Label="NuGet package" Condition="'$(IsPackable)' != 'false'">
     <PackageReleaseNotes>(Please write the package release notes in "RELEASE-NOTES.txt".)</PackageReleaseNotes>
