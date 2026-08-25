@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Text;
 using AwesomeAssertions;
 using Xunit;
@@ -96,6 +97,68 @@ public sealed class ParsingTests
                 value.Scale);
         }
     }
+
+    [Theory]
+    [InlineData("en-US", "1,234")]
+    [InlineData("en-US", "1,234.56")]
+    [InlineData("en-US", "1,23")]
+    [InlineData("en-US", "12,34,567")]
+    [InlineData("en-US", "1,2,3")]
+    [InlineData("en-US", "1,,234")]
+    [InlineData("en-US", ",234")]
+    [InlineData("en-US", "1,234,")]
+    [InlineData("en-US", "1234,")]
+    [InlineData("en-US", ",")]
+    [InlineData("en-US", "1,234.5,6")]
+    [InlineData("en-US", "-1,234")]
+    [InlineData("en-US", "1,234e2")]
+    [InlineData("de-DE", "1.234,56")]
+    [InlineData("de-DE", "1.23")]
+    [InlineData("de-DE", "1..234")]
+    [InlineData("de-DE", "1.2.3")]
+    public void GroupSeparators_AreAcceptedExactlyWhereDecimalAcceptsThem(string culture, string text)
+    {
+        var info = CultureInfo.GetCultureInfo(culture);
+
+        var expected = decimal.TryParse(text, NumberStyles.Number, info, out var reference);
+        var actual = BigDecimal.TryParse(text, NumberStyles.Number, info, out var value);
+
+        actual.Should().Be(expected, "'{0}' under {1}", text, culture);
+        if (expected)
+        {
+            Text(value).Should().Be(reference.ToString(CultureInfo.InvariantCulture));
+        }
+    }
+
+    [Fact]
+    public void ALongUtf8Payload_ParsesWithoutAllocating()
+    {
+        var utf8 = Encoding.UTF8.GetBytes("0." + new string('1', 500));
+
+        Measure(() => BigDecimal.Parse(utf8, CultureInfo.InvariantCulture)).Should().Be(0);
+        Measure(() => BigDecimal.TryParse(utf8, CultureInfo.InvariantCulture, out var value) ? value : default)
+            .Should().Be(0);
+    }
+
+    private static long Measure(Func<BigDecimal> operation)
+    {
+        for (var i = 0; i < 16; i++)
+        {
+            Consume(operation());
+        }
+
+        GC.Collect();
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var i = 0; i < 64; i++)
+        {
+            Consume(operation());
+        }
+
+        return GC.GetAllocatedBytesForCurrentThread() - before;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void Consume(BigDecimal value) => _ = value.Scale;
 
     [Fact]
     public void Exponents_ShiftTheScale()

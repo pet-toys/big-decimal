@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Globalization;
 using System.Text;
 
@@ -74,7 +75,17 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
             return Parse(chars[..written], style, provider);
         }
 
-        return Parse(Encoding.UTF8.GetString(utf8Text).AsSpan(), style, provider);
+        var rented = ArrayPool<char>.Shared.Rent(utf8Text.Length);
+        try
+        {
+            return Encoding.UTF8.TryGetChars(utf8Text, rented, out var decoded)
+                ? Parse(rented.AsSpan(0, decoded), style, provider)
+                : throw new FormatException("The value could not be parsed as a BigDecimal.");
+        }
+        finally
+        {
+            ArrayPool<char>.Shared.Return(rented);
+        }
     }
 
     /// <summary>Tries to parse a decimal number for the current culture.</summary>
@@ -135,7 +146,21 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
             return TryParse(chars[..written], style, provider, out result);
         }
 
-        return TryParse(Encoding.UTF8.GetString(utf8Text).AsSpan(), style, provider, out result);
+        var rented = ArrayPool<char>.Shared.Rent(utf8Text.Length);
+        try
+        {
+            if (!Encoding.UTF8.TryGetChars(utf8Text, rented, out var decoded))
+            {
+                result = default;
+                return false;
+            }
+
+            return TryParse(rented.AsSpan(0, decoded), style, provider, out result);
+        }
+        finally
+        {
+            ArrayPool<char>.Shared.Return(rented);
+        }
     }
 
     private static bool TryTranscode(ReadOnlySpan<byte> utf8Text, Span<char> destination, out int written)
@@ -279,7 +304,7 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
                 continue;
             }
 
-            if (allowThousands && !seenPoint && StartsWith(input, groupSeparator))
+            if (allowThousands && seenDigit && !seenPoint && StartsWith(input, groupSeparator))
             {
                 input = input[groupSeparator.Length..];
                 continue;
