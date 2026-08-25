@@ -1,4 +1,4 @@
-# BigDecimal for .NET
+﻿# BigDecimal for .NET
 
 [![Unit Test][test-badge]][test-url] [![Target frameworks][dotnet-badge]][repo-url] [![License][license-badge]][license-url]
 
@@ -6,12 +6,15 @@
 > `Decimal*` columns hold values `decimal` cannot represent — this is the type
 > that maps them, plus the helpers that read and write them.
 
-`BigDecimal` is a stack-only decimal floating-point value with a 256-bit
-mantissa and a decimal scale of 0..255, covering at least 76 significant
-decimal digits. The whole state lives in the struct, so it never allocates.
-Inside `decimal`'s own domain it deliberately mirrors `decimal`: trailing zeros
-survive arithmetic and formatting, equality is numeric (`1.0 == 1.00`), and
-excess fractional digits are rounded half-to-even rather than throwing.
+`BigDecimal` is a stack-only decimal value: a 256-bit magnitude, a sign, and a
+scale of 0 to 255. Every value of at most 77 significant digits is
+representable, the largest representable magnitude has 78 digits, and the range
+runs from 1e-255 to roughly 1.157e77 — enough for every ClickHouse `Decimal*`
+value and every PostgreSQL `numeric(p, s)` up to 77 digits of precision. The
+whole state lives in the struct, so it never allocates. Inside `decimal`'s own
+domain it deliberately mirrors `decimal`: trailing zeros survive arithmetic and
+formatting, equality is numeric (`1.0 == 1.00`), and excess fractional digits
+are rounded half-to-even rather than throwing.
 
 ## Packages
 
