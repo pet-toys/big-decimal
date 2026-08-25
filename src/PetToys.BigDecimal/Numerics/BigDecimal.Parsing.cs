@@ -118,7 +118,7 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
     /// <summary>Tries to parse a decimal number from UTF-8 bytes, for the current culture.</summary>
     /// <returns><see langword="true"/> when the text was parsed; otherwise <see langword="false"/>.</returns>
     public static bool TryParse(ReadOnlySpan<byte> utf8Text, out BigDecimal result) =>
-        TryParse(utf8Text, DefaultStyles, CultureInfo.InvariantCulture, out result);
+        TryParse(utf8Text, DefaultStyles, CultureInfo.CurrentCulture, out result);
 
     /// <summary>Tries to parse a decimal number from UTF-8 bytes, for the given culture.</summary>
     /// <returns><see langword="true"/> when the text was parsed; otherwise <see langword="false"/>.</returns>
@@ -210,6 +210,7 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
         var seenDigit = false;
         var seenPoint = false;
         var truncated = false;
+        var sticky = false;
         var exponent = 0;
 
         var decimalSeparator = info.NumberDecimalSeparator;
@@ -257,7 +258,11 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
                 else
                 {
                     truncated = true;
-                    if (!seenPoint)
+                    if (seenPoint)
+                    {
+                        sticky |= c != '0';
+                    }
+                    else
                     {
                         exponent++;
                     }
@@ -304,6 +309,12 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
         if (chunkDigits > 0)
         {
             length = Words.MulAddSmall(magnitude, length, Words.Pow10[chunkDigits], chunk);
+        }
+
+        if (sticky)
+        {
+            length = Words.MulAddSmall(magnitude, length, 10, 1);
+            scale++;
         }
 
         scale -= exponent;

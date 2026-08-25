@@ -18,6 +18,10 @@ namespace PetToys.BigDecimal.Numerics;
 /// </remarks>
 public sealed class BigDecimalJsonConverter : JsonConverter<BigDecimal>
 {
+    private const string InvalidValue = "The JSON value is not a valid BigDecimal.";
+
+    private const int StackCopyBytes = BigDecimal.MaxCharsPlain + 32;
+
     /// <summary>Reads a value from JSON.</summary>
     /// <returns>The value the token carries.</returns>
     /// <exception cref="System.Text.Json.JsonException">The token is not a string or number holding a value this type accepts.</exception>
@@ -75,32 +79,48 @@ public sealed class BigDecimalJsonConverter : JsonConverter<BigDecimal>
 
     private static BigDecimal ReadValue(ref Utf8JsonReader reader)
     {
-        var utf8 = reader.HasValueSequence || reader.ValueIsEscaped
-            ? default
-            : reader.ValueSpan;
-
-        if (!utf8.IsEmpty)
+        if (!reader.HasValueSequence && !reader.ValueIsEscaped)
         {
-            if (BigDecimal.TryParse(utf8, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
+            return FromUtf8(reader.ValueSpan);
+        }
+
+        var length = reader.HasValueSequence ? reader.ValueSequence.Length : reader.ValueSpan.Length;
+        if (length > int.MaxValue)
+        {
+            throw new JsonException(InvalidValue);
+        }
+
+        byte[]? rented = null;
+        try
+        {
+            var copy = length <= StackCopyBytes
+                ? stackalloc byte[StackCopyBytes]
+                : (rented = ArrayPool<byte>.Shared.Rent((int)length));
+
+            var written = reader.TokenType is JsonTokenType.String or JsonTokenType.PropertyName
+                ? reader.CopyString(copy)
+                : CopySequence(reader.ValueSequence, copy);
+
+            if (written < 0)
             {
-                return parsed;
+                throw new JsonException(InvalidValue);
             }
 
-            throw new JsonException("The JSON value is not a valid BigDecimal.");
+            return FromUtf8(copy[..written]);
         }
-
-        Span<byte> copy = stackalloc byte[BigDecimal.MaxCharsPlain + 32];
-        var length = reader.HasValueSequence
-            ? CopySequence(reader.ValueSequence, copy)
-            : reader.CopyString(copy);
-
-        if (length >= 0 && BigDecimal.TryParse(copy[..length], NumberStyles.Float, CultureInfo.InvariantCulture, out var result))
+        finally
         {
-            return result;
+            if (rented is not null)
+            {
+                ArrayPool<byte>.Shared.Return(rented);
+            }
         }
-
-        throw new JsonException("The JSON value is not a valid BigDecimal.");
     }
+
+    private static BigDecimal FromUtf8(ReadOnlySpan<byte> utf8) =>
+        BigDecimal.TryParse(utf8, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+            ? value
+            : throw new JsonException(InvalidValue);
 
     private static int CopySequence(ReadOnlySequence<byte> sequence, Span<byte> destination)
     {
