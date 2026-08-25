@@ -5,6 +5,7 @@
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <RootNamespace>PetToys.BigDecimal</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
