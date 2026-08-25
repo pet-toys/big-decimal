@@ -28,8 +28,10 @@ Pull requests target the default branch.
   needs `ConfigureAwait(false)`.
 - The public API carries XML documentation.
 - Every assembly is strong-named and public-signed; leave the signing properties alone.
-- `assets/RELEASE-NOTES.txt` is maintained by the release tooling - do not edit it
-  by hand.
+- `assets/RELEASE-NOTES.txt` is the source for the packed `<releaseNotes>` and for
+  the GitHub release body: publishing a release replaces whatever the release form
+  says with the top section of this file. Update it in the pull request that
+  prepares a release, newest version on top; never in an unrelated change.
 - Package metadata that differs per package (`Description`, `PackageTags`) belongs
   in the project file; only settings shared by every package belong in
   `Directory.Build.props`.
