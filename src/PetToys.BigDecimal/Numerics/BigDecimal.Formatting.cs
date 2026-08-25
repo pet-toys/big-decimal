@@ -436,9 +436,9 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
             ThrowUnsupportedFormat(format);
         }
 
-        var rented = new char[size];
-        return TryFormat(rented, out var written, format, provider)
-            ? new string(rented, 0, written)
+        var buffer = new char[size];
+        return TryFormat(buffer, out var written, format, provider)
+            ? new string(buffer, 0, written)
             : throw new FormatException($"The format string '{format}' is not supported.");
     }
 }
