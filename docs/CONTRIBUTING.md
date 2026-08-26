@@ -96,7 +96,8 @@ guidelines below capture the conventions that are not fully machine-checked:
 - Use language keywords (`int`, `string`) rather than framework type names
   (`Int32`, `String`).
 - Use boolean-style prefixes (`Is`, `Has`, `Can`, `Any`) for boolean members.
-- Always use braces, even for single-statement `if`, `for`, and `foreach`.
+- Use braces around any statement that spans more than one line; a statement
+  written on the same line as its `if`, `for`, or `foreach` needs none.
 - Do not use Hungarian notation.
 
 Nullable reference types are enabled project-wide, so do not add `#nullable`

@@ -1,12 +1,13 @@
 # EditorConfig is the single source of truth for code style and analyzer
-# severity in this repository. Nested files under test/ and bench/ relax the
-# rules that do not apply to code shipping no public API.
+# severity in this repository. Nested files -- under test/, and under bench/
+# where a repository has one -- relax the rules that do not apply to code
+# shipping no public API.
 #
-# This repository is the pilot for the fleet-wide move off .globalconfig; the
-# version below tracks the ruleset itself, so a repository that lags behind is
+# The ruleset below is shared by every pet-toys package and hand-synced. The
+# version tracks the ruleset itself, so a repository that has fallen behind is
 # visible at a glance.
 #
-# VERSION 2.0 (supersedes .globalconfig VERSION 1.3, replaced in full)
+# VERSION 2.1 (supersedes .globalconfig VERSION 1.3, replaced in full)
 
 root = true
 
@@ -69,7 +70,8 @@ roslynator_blank_line_between_using_directives = never
 # Style: language constructs
 #------------------------------------------------------------------------------
 
-# Require braces only when the statement spans multiple lines (IDE0011).
+# Require braces around a statement that spans more than one line; a statement
+# written on the same line as its keyword needs none (IDE0011).
 csharp_prefer_braces = when_multiline
 
 # Declare namespaces with a file-scoped declaration (IDE0161).
@@ -143,6 +145,10 @@ dotnet_diagnostic.IDE0005.severity = warning
 
 # IDE0007: Use var instead of explicit type.
 dotnet_diagnostic.IDE0007.severity = warning
+
+# IDE0011: Add braces. Enforces the csharp_prefer_braces policy above, which
+# without a severity here was a preference nothing checked.
+dotnet_diagnostic.IDE0011.severity = warning
 
 # IDE0021: Use expression body for constructors -- off, the author decides.
 dotnet_diagnostic.IDE0021.severity = none
