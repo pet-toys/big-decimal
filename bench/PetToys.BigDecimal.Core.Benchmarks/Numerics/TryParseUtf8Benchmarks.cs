@@ -8,9 +8,12 @@ namespace PetToys.BigDecimal.Numerics;
 /// Non-throwing parsing from a UTF-8 span, against <see cref="decimal"/>.
 /// </summary>
 /// <remarks>
-/// The input is prepared in <see cref="Setup"/>, which also parses it once with the throwing
-/// overload, so a mistyped operand fails at setup rather than turning into a silently unparsed
-/// benchmark. Only the parse itself is inside the measured method.
+/// The input is prepared in <see cref="Setup"/>, which parses it once as each type, through the
+/// throwing overload rather than the non-throwing one measured here. That asymmetry is deliberate:
+/// a failed <c>TryParse</c> returns <see langword="false"/> and leaves zero behind, so an operand
+/// neither type could parse would not stop the run — it would quietly have the baseline measure a
+/// rejection instead of a parse, which is faster, and flatter the ratio. Only the parse itself is
+/// inside the measured method.
 /// </remarks>
 public class TryParseUtf8Benchmarks
 {
@@ -24,9 +27,10 @@ public class TryParseUtf8Benchmarks
     [GlobalSetup]
     public void Setup()
     {
-        var text = Operands.Value(Shape);
-        _ = BigDecimal.Parse(text, CultureInfo.InvariantCulture);
-        _utf8 = Encoding.UTF8.GetBytes(text);
+        var utf8 = Encoding.UTF8.GetBytes(Operands.Value(Shape));
+        _ = BigDecimal.Parse(utf8, CultureInfo.InvariantCulture);
+        _ = decimal.Parse(utf8, CultureInfo.InvariantCulture);
+        _utf8 = utf8;
     }
 
     /// <summary>The same parse on <see cref="decimal"/>, which the 3x budget is stated against.</summary>

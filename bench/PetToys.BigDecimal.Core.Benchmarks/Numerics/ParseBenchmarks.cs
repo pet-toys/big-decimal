@@ -7,9 +7,11 @@ namespace PetToys.BigDecimal.Numerics;
 /// Parsing from a <c>char</c> span, against <see cref="decimal"/>.
 /// </summary>
 /// <remarks>
-/// The input is prepared in <see cref="Setup"/>, which also parses it once with the throwing
-/// overload, so a mistyped operand fails at setup rather than turning into a silently unparsed
-/// benchmark. Only the parse itself is inside the measured method.
+/// The input is prepared in <see cref="Setup"/>, which parses it once as each type, through the
+/// same overload the benchmark measures. Validating only one of the two would leave the other free
+/// to fail part-way through the run, which is the opposite of what a setup is for: a baseline that
+/// throws mid-suite costs a re-run, and the operand set is meant to be editable. Only the parse
+/// itself is inside the measured method.
 /// </remarks>
 public class ParseBenchmarks
 {
@@ -25,6 +27,7 @@ public class ParseBenchmarks
     {
         var text = Operands.Value(Shape);
         _ = BigDecimal.Parse(text, CultureInfo.InvariantCulture);
+        _ = decimal.Parse(text, CultureInfo.InvariantCulture);
         _text = text;
     }
 

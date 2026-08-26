@@ -8,9 +8,11 @@ namespace PetToys.BigDecimal.Numerics;
 /// Parsing from a UTF-8 span, against <see cref="decimal"/>.
 /// </summary>
 /// <remarks>
-/// The input is prepared in <see cref="Setup"/>, which also parses it once with the throwing
-/// overload, so a mistyped operand fails at setup rather than turning into a silently unparsed
-/// benchmark. Only the parse itself is inside the measured method.
+/// The input is prepared in <see cref="Setup"/>, which parses it once as each type, through the
+/// same overload the benchmark measures. Validating only one of the two would leave the other free
+/// to fail part-way through the run, which is the opposite of what a setup is for: a baseline that
+/// throws mid-suite costs a re-run, and the operand set is meant to be editable. Only the parse
+/// itself is inside the measured method.
 /// </remarks>
 public class ParseUtf8Benchmarks
 {
@@ -24,9 +26,10 @@ public class ParseUtf8Benchmarks
     [GlobalSetup]
     public void Setup()
     {
-        var text = Operands.Value(Shape);
-        _ = BigDecimal.Parse(text, CultureInfo.InvariantCulture);
-        _utf8 = Encoding.UTF8.GetBytes(text);
+        var utf8 = Encoding.UTF8.GetBytes(Operands.Value(Shape));
+        _ = BigDecimal.Parse(utf8, CultureInfo.InvariantCulture);
+        _ = decimal.Parse(utf8, CultureInfo.InvariantCulture);
+        _utf8 = utf8;
     }
 
     /// <summary>The same parse on <see cref="decimal"/>, which the 3x budget is stated against.</summary>
