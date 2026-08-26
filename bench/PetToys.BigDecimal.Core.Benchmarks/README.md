@@ -16,8 +16,8 @@ named:
 dotnet run -c Release -f net10.0 --project bench/PetToys.BigDecimal.Core.Benchmarks -- --filter "*"
 ```
 
-A full run is 142 benchmarks and takes roughly an hour. Most of the time you
-want one group:
+A full run is 146 benchmarks and took just over an hour when the baseline was
+taken. Most of the time you want one group:
 
 ```bash
 dotnet run -c Release -f net10.0 --project bench/PetToys.BigDecimal.Core.Benchmarks -- --filter "*DivideBenchmarks*"
