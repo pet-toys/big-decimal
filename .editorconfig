@@ -181,6 +181,13 @@ dotnet_diagnostic.IDE0305.severity = none
 # than RCS00xx -- and runs only because a severity is assigned here. Deleting a
 # line turns the rule off; it does not fall back to a default. The roslynator_*
 # options above merely tune the rules that are enabled.
+#
+# Each line below is captioned with the rule's own title, verbatim, so it can be
+# looked up against the Roslynator documentation. Several of those titles name a
+# choice rather than a behaviour -- "Add/remove", "Normalize" -- and it is the
+# roslynator_* option above that settles which way the rule goes. Where the two
+# captions read differently for one rule, that is the reason: the title says
+# what the rule governs, the option says what this repository chose.
 #------------------------------------------------------------------------------
 
 # RCS0003: Add blank line after using directive list.
