@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>$(TargetFrameworkVersions)</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <!-- Mirrors the namespace of the project under measurement, which is not the
+         project name. Inside a namespace such as PetToys.BigDecimal.Benchmarks the
+         identifier BigDecimal binds to the namespace rather than to the type, and a
+         using-alias does not override that; pinning RootNamespace is also what keeps
+         IDE0130 quiet. See the comment in PetToys.BigDecimal.Core.csproj. -->
+    <RootNamespace>PetToys.BigDecimal</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PetToys.BigDecimal.Core\PetToys.BigDecimal.Core.csproj" />
+  </ItemGroup>
+
+</Project>
