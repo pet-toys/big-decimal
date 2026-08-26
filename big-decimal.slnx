@@ -37,6 +37,11 @@
     <File Path="docs/CONTRIBUTING.md" />
     <File Path="docs/SECURITY.md" />
   </Folder>
+  <Folder Name="/bench/">
+    <File Path="bench/Directory.Build.props" />
+    <File Path="bench/Directory.Packages.props" />
+    <Project Path="bench/PetToys.BigDecimal.Core.Benchmarks/PetToys.BigDecimal.Core.Benchmarks.csproj" Id="ec8721be-b950-4aa2-b193-53e5089e65da" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/PetToys.BigDecimal.ClickHouse/PetToys.BigDecimal.ClickHouse.csproj" Id="a030b96c-4db6-405b-ba4b-ae245b944939" />
     <Project Path="src/PetToys.BigDecimal.Core/PetToys.BigDecimal.Core.csproj" Id="e3ed5e88-2584-41e0-9226-2a1deee6dce4" />

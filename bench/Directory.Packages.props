@@ -1,0 +1,11 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove(Directory.Packages.props, $(MSBuildThisFileDirectory)..))" />
+  <ItemGroup>
+    <!-- Closed at the next minor rather than left open like the rest of the
+         repository: BenchmarkDotNet is pre-1.0, so the minor is its breaking
+         segment, and an open upper bound would claim a compatibility that has
+         not been established. Restore resolves either form to the lower bound;
+         what differs is what the range says. -->
+    <PackageVersion Include="BenchmarkDotNet" Version="[0.15.8,0.16.0)" />
+  </ItemGroup>
+</Project>

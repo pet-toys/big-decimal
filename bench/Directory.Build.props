@@ -1,0 +1,15 @@
+﻿<Project>
+
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!--
+    Benchmark projects publish no API, so they document none. BenchmarkDotNet requires public
+    classes and public methods, and every one of them would otherwise demand an XML comment and
+    fail the Release build under TreatWarningsAsErrors. GenerateDocumentationFile itself stays
+    on: IDE0005 is only reported on build while a documentation file is being generated.
+  -->
+  <PropertyGroup Label="Documentation">
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+
+</Project>
