@@ -39,13 +39,24 @@ quickest way to write a filter that matches what you meant.
 
 ## Where the output lands
 
-`BenchmarkDotNet.Artifacts/results/` under the working directory you ran from,
-in several formats. The one that matters is `*-report-github.md`: it is the
-format [`BASELINE.md`](BASELINE.md) is a copy of, and it opens with the
-processor, operating system, SDK and runtime of the run.
+`BenchmarkDotNet.Artifacts/results/` beside the built benchmark assembly, which
+for the command above is
+`bench/PetToys.BigDecimal.Core.Benchmarks/bin/Release/net10.0/`. Several formats
+land there; the one that matters is `*-report-github.md`, the format
+[`BASELINE.md`](BASELINE.md) is a copy of, and it opens with the processor,
+operating system, SDK and runtime of the run.
 
-The artifacts directory is git-ignored. `BASELINE.md` is a deliberate copy kept
-outside it.
+The location is pinned by the configuration rather than left at BenchmarkDotNet's
+default, which is the working directory the run was launched from. Two runs
+launched from two directories would otherwise leave two artifact sets that
+neither overwrites nor mentions the other, and a week later the stale one looks
+exactly like the fresh one. Pinning it to the assembly also keeps the target
+frameworks apart, which is what you want: a `net8.0` run is not a `net10.0`
+run's result.
+
+The artifacts directory is git-ignored, as is everything under `bin/`.
+`BASELINE.md` is a deliberate copy kept outside it, and it is the only run
+output this repository keeps.
 
 ## Reading a run
 

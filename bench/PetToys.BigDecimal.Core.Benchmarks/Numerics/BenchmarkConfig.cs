@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Diagnosers;
 
@@ -21,6 +23,16 @@ namespace PetToys.BigDecimal.Numerics;
 /// a copy of needs no addition — the default configuration already emits it.
 /// </para>
 /// <para>
+/// The artifacts path is pinned to the directory the benchmark assembly was built into, rather
+/// than left at its default of the current working directory. The default puts a run's output
+/// wherever the caller happened to be standing, so running from the repository root and running
+/// from the project folder produce two artifact directories that neither knows about the other;
+/// the results of the second run do not overwrite the first, they sit beside it, and the stale
+/// set is indistinguishable from the fresh one a week later. Keying it to the assembly also
+/// separates the target frameworks, which is right: a net8.0 run and a net10.0 run are not each
+/// other's results.
+/// </para>
+/// <para>
 /// The job is left at its default. A shorter one is available from the command line for a quick
 /// pass, but the baseline is taken with the default: a reference measured over fewer iterations
 /// than the runs compared against it is not a reference.
@@ -32,5 +44,6 @@ public static class BenchmarkConfig
     /// <returns>The configuration to hand to the switcher.</returns>
     public static IConfig Create() =>
         ManualConfig.Create(DefaultConfig.Instance)
-            .AddDiagnoser(MemoryDiagnoser.Default);
+            .AddDiagnoser(MemoryDiagnoser.Default)
+            .WithArtifactsPath(Path.Combine(AppContext.BaseDirectory, "BenchmarkDotNet.Artifacts"));
 }
