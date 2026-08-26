@@ -77,9 +77,20 @@ Classes with no `Baseline` method carry no budget and print no ratio. Those are
 the operations no criterion is stated over, and the three- and four-word widths,
 which `decimal` cannot represent at all.
 
-`Allocated` is reported here but enforced in the test suite. If a row shows a
-non-zero allocation, the fix is not in this project — the suite has an inventory
-test that should have failed first.
+`Allocated` is reported here and enforced in the test suite, but only for the
+operations the suite's allocation inventory covers, and that is not all of them.
+`TryFormat` appears in the inventory three times and every one of them passes
+the default format specifier; one further case elsewhere in the suite uses
+`F250`. No grouped format is measured anywhere. That is why the recorded
+baseline shows 64 bytes on the `N` specifier with a green suite behind it: the
+allocation is real, it is a known defect, and no test covers the path it is on.
+
+So a non-zero `Allocated` row means one of two things, and they call for
+opposite reactions. If the operation is in the inventory, the fix is not in this
+project — a test should have failed first, and a benchmark finding it instead is
+itself the more interesting result. If the operation is outside the inventory,
+this project is the only thing measuring it, and closing the gap means adding
+the case to the inventory as well as fixing the allocation.
 
 ## Comparing against the baseline
 
