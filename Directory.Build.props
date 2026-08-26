@@ -11,6 +11,10 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <AnalysisLevel>10.0-Recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- Stays on for every project, test and benchmark ones included: IDE0005
+         is reported on build only while a documentation file is generated.
+         Projects that publish no API silence CS1591 in their own
+         .editorconfig instead of turning this off. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>

@@ -32,10 +32,8 @@ public sealed class BigDecimalJsonConverter : JsonConverter<BigDecimal>
             case JsonTokenType.String:
             case JsonTokenType.Number:
                 return ReadValue(ref reader);
-
             case JsonTokenType.Null:
                 throw new JsonException("Cannot convert null to BigDecimal.");
-
             default:
                 throw new JsonException($"Unexpected token {reader.TokenType} when reading a BigDecimal.");
         }

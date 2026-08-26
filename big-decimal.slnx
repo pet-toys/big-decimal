@@ -1,8 +1,8 @@
 <Solution>
   <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
     <File Path=".gitattributes" />
     <File Path=".gitignore" />
-    <File Path=".globalconfig" />
     <File Path="big-decimal.build.slnf" />
     <File Path="big-decimal.tests.slnf" />
     <File Path="Directory.Build.props" />
@@ -38,7 +38,7 @@
     <File Path="docs/SECURITY.md" />
   </Folder>
   <Folder Name="/bench/">
-    <File Path="bench/Directory.Build.props" />
+    <File Path="bench/.editorconfig" />
     <File Path="bench/Directory.Packages.props" />
     <Project Path="bench/PetToys.BigDecimal.Core.Benchmarks/PetToys.BigDecimal.Core.Benchmarks.csproj" Id="ec8721be-b950-4aa2-b193-53e5089e65da" />
   </Folder>
@@ -48,6 +48,7 @@
     <Project Path="src/PetToys.BigDecimal.Npgsql/PetToys.BigDecimal.Npgsql.csproj" Id="80df2c13-a419-4cb8-b895-e8364c16c8ab" />
   </Folder>
   <Folder Name="/test/">
+    <File Path="test/.editorconfig" />
     <File Path="test/Directory.Packages.props" />
     <Project Path="test/PetToys.BigDecimal.ClickHouse.Tests/PetToys.BigDecimal.ClickHouse.Tests.csproj" Id="96111a3f-594f-4f44-99b5-ec068adbf3d8" />
     <Project Path="test/PetToys.BigDecimal.Core.Tests/PetToys.BigDecimal.Core.Tests.csproj" Id="8ca470e5-990e-4769-903a-d644730f5403" />
