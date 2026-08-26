@@ -74,13 +74,10 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
         {
             case 'F' or 'N':
                 return TryFormatFixed(destination, out charsWritten, info, precision ?? info.NumberDecimalDigits, specifier == 'N');
-
             case 'E':
                 return TryFormatExponential(destination, out charsWritten, info, precision ?? 6, format[0] == 'e');
-
             case 'G':
                 return TryFormatPlain(destination, out charsWritten, info);
-
             default:
                 ThrowUnsupportedFormat(format);
                 charsWritten = 0;

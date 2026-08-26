@@ -1,0 +1,32 @@
+# Test projects. Everything not listed here is inherited from the repository
+# root; this file only relaxes what does not apply to code that ships no
+# public API and never runs under a synchronization context.
+
+###############################################################################
+# C#
+###############################################################################
+
+[*.cs]
+
+#------------------------------------------------------------------------------
+# Severity: code quality (CA)
+#------------------------------------------------------------------------------
+
+# CA1707: Identifiers should not contain underscores -- off, tests are named
+# Method_State_ExpectedResult.
+dotnet_diagnostic.CA1707.severity = none
+
+# CA2007: Consider calling ConfigureAwait on the awaited task -- off, test code
+# does not run under a synchronization context, so ConfigureAwait(false) adds
+# noise without benefit.
+dotnet_diagnostic.CA2007.severity = none
+
+#------------------------------------------------------------------------------
+# Severity: compiler (CS)
+#------------------------------------------------------------------------------
+
+# CS1591: Missing XML comment for publicly visible type or member -- off, test
+# projects publish no API, so they document none. GenerateDocumentationFile
+# itself stays on: IDE0005 is only reported on build while a documentation file
+# is being generated.
+dotnet_diagnostic.CS1591.severity = none
