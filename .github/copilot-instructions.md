@@ -26,7 +26,14 @@ Pull requests target the default branch.
   directives.
 - Outside Debug, warnings are errors. `CA2007` is on: every `await` in library code
   needs `ConfigureAwait(false)`.
-- The public API carries XML documentation.
+- Analyzer severities and code style live in `.editorconfig`; nested
+  `.editorconfig` files under `test/` and `bench/` carry the per-folder relaxations.
+  Do not add a `.globalconfig`, a `GlobalSuppressions.cs` for a rule-wide opt-out,
+  or a `NoWarn` for a diagnostic `.editorconfig` can set.
+- The public API carries XML documentation. `CS1591` is suppressed for `test/` and
+  `bench/` only, so an undocumented public member fails the build.
+- Braces are required around a statement spanning more than one line; a statement
+  written on the same line as its controlling keyword needs none.
 - Every assembly is strong-named and public-signed; leave the signing properties alone.
 - `assets/RELEASE-NOTES.txt` is the source for the packed `<releaseNotes>` and for
   the GitHub release body: publishing a release replaces whatever the release form
