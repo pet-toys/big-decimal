@@ -97,7 +97,8 @@ guidelines below capture the conventions that are not fully machine-checked:
   (`Int32`, `String`).
 - Use boolean-style prefixes (`Is`, `Has`, `Can`, `Any`) for boolean members.
 - Use braces around any statement that spans more than one line; a statement
-  written on the same line as its `if`, `for`, or `foreach` needs none.
+  written on the same line as its controlling keyword (`if`, `while`, `using`,
+  `lock`, and the rest) needs none.
 - Do not use Hungarian notation.
 
 Nullable reference types are enabled project-wide, so do not add `#nullable`

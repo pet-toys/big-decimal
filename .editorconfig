@@ -147,7 +147,7 @@ dotnet_diagnostic.IDE0005.severity = warning
 dotnet_diagnostic.IDE0007.severity = warning
 
 # IDE0011: Add braces. Enforces the csharp_prefer_braces policy above, which
-# without a severity here was a preference nothing checked.
+# stayed a preference until a severity was assigned here.
 dotnet_diagnostic.IDE0011.severity = warning
 
 # IDE0021: Use expression body for constructors -- off, the author decides.
