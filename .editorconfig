@@ -229,6 +229,9 @@ dotnet_diagnostic.RCS1060.severity = warning
 # RCS1260: Add/remove trailing comma.
 dotnet_diagnostic.RCS1260.severity = warning
 
+# RCS1261: Resource can be disposed asynchronously.
+dotnet_diagnostic.RCS1261.severity = warning
+
 #------------------------------------------------------------------------------
 # Severity: source generators (SYSLIB)
 #------------------------------------------------------------------------------

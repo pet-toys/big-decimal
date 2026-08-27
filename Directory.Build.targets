@@ -39,12 +39,20 @@
     </PropertyGroup>
   </Target>
 
-  <!-- CI reuses the same notes to set the GitHub release body:
-       dotnet msbuild ... -t:ExportPackageReleaseNotes -p:ReleaseNotesExportPath=<file> -->
-  <Target Name="ExportPackageReleaseNotes" DependsOnTargets="PreparePackageReleaseNotesFromFile"
-          Condition="'$(ReleaseNotesExportPath)' != ''">
+  <!-- Preview the notes the package will carry:
+       dotnet msbuild <project> -t:ExportPackageReleaseNotes
+       The destination defaults into obj/, so no caller has to invent a path:
+       MSBuild roots a POSIX one, which is what a Git Bash shell hands it, on
+       the current drive, and the file lands outside the repository.
+       CI overrides the property and reads the GitHub release body from it. -->
+  <Target Name="ExportPackageReleaseNotes" DependsOnTargets="PreparePackageReleaseNotesFromFile">
+    <PropertyGroup Condition="'$(ReleaseNotesExportPath)' == ''">
+      <ReleaseNotesExportPath>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'release-notes.txt'))</ReleaseNotesExportPath>
+    </PropertyGroup>
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(ReleaseNotesExportPath)'))" />
     <WriteLinesToFile File="$(ReleaseNotesExportPath)" Lines="$(PackageReleaseNotes)"
                       Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <Message Importance="high" Text="Release notes exported to $(ReleaseNotesExportPath)" />
   </Target>
 
 </Project>
