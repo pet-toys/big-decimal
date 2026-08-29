@@ -7,7 +7,7 @@
 # version tracks the ruleset itself, so a repository that has fallen behind is
 # visible at a glance.
 #
-# VERSION 2.1 (supersedes .globalconfig VERSION 1.3, replaced in full)
+# VERSION 2.2
 
 root = true
 
@@ -228,6 +228,9 @@ dotnet_diagnostic.RCS1060.severity = warning
 
 # RCS1260: Add/remove trailing comma.
 dotnet_diagnostic.RCS1260.severity = warning
+
+# RCS1261: Resource can be disposed asynchronously.
+dotnet_diagnostic.RCS1261.severity = warning
 
 #------------------------------------------------------------------------------
 # Severity: source generators (SYSLIB)
