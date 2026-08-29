@@ -11,7 +11,10 @@ Pull requests target the default branch.
 - The SDK version is pinned in `global.json`; do not bypass it.
 - `dotnet restore`, then
   `dotnet test --no-restore --configuration Release --filter Category!=Integration`.
-- Tests marked `Category=Integration` need Docker and are excluded from the default run.
+- Tests that need something external either carry `[Trait("Category", "Integration")]`
+  and are filtered out of the run above, or self-skip through a `DockerRequired*`
+  attribute when no Docker engine is present. Follow whichever the repository
+  already uses.
 
 ## Conventions
 
@@ -24,16 +27,15 @@ Pull requests target the default branch.
   `[x.y.z,)` range notation.
 - Nullable is enabled and implicit usings are disabled - write explicit `using`
   directives.
-- Outside Debug, warnings are errors. `CA2007` is on: every `await` in library code
-  needs `ConfigureAwait(false)`.
-- Analyzer severities and code style live in `.editorconfig`; nested
-  `.editorconfig` files under `test/` and `bench/` carry the per-folder relaxations.
-  Do not add a `.globalconfig`, a `GlobalSuppressions.cs` for a rule-wide opt-out,
-  or a `NoWarn` for a diagnostic `.editorconfig` can set.
-- The public API carries XML documentation. `CS1591` is suppressed for `test/` and
-  `bench/` only, so an undocumented public member fails the build.
-- Braces are required around a statement spanning more than one line; a statement
-  written on the same line as its controlling keyword needs none.
+- Outside Debug, warnings are errors, so anything an analyzer reports fails the
+  build.
+- Code style and analyzer severities are defined in `.editorconfig` and nowhere
+  else - read it instead of guessing, including the nested `.editorconfig` files
+  under `test/` and `bench/` that carry the per-folder relaxations. Every severity
+  line there is captioned with the rule it enables. Do not add a `.globalconfig`,
+  a `GlobalSuppressions.cs` for a rule-wide opt-out, or a `NoWarn` for a
+  diagnostic `.editorconfig` can set.
+- The public API carries XML documentation.
 - Every assembly is strong-named and public-signed; leave the signing properties alone.
 - `assets/RELEASE-NOTES.txt` is the source for the packed `<releaseNotes>` and for
   the GitHub release body: publishing a release replaces whatever the release form
