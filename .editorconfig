@@ -7,7 +7,7 @@
 # version tracks the ruleset itself, so a repository that has fallen behind is
 # visible at a glance.
 #
-# VERSION 2.1 (supersedes .globalconfig VERSION 1.3, replaced in full)
+# VERSION 2.2
 
 root = true
 
