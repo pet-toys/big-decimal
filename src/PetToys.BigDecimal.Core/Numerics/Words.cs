@@ -242,17 +242,18 @@ internal static class Words
     /// </remarks>
     private static int CountFives(ulong value, int cap)
     {
-        var low = 0;
-        var high = Math.Min(cap, MaxFivesPerWord);
+        var bound = Math.Min(cap, MaxFivesPerWord);
 
         // The cap is usually the answer. A value widened to a column's scale carries exactly as
         // many fives as the zeros it was given, and the twos that set the cap came from the same
         // widening, so one test settles it and the search below never runs.
-        if (high <= 0 || value % Pow5Values[high] == 0)
+        if (bound <= 0 || value % Pow5Values[bound] == 0)
         {
-            return high;
+            return bound;
         }
 
+        var low = 0;
+        var high = bound - 1;
         while (low < high)
         {
             var middle = (low + high + 1) / 2;
@@ -546,6 +547,20 @@ internal static class Words
         return digits;
     }
 
+    /// <summary>Divides one magnitude by another, leaving the remainder in the numerator.</summary>
+    /// <remarks>
+    /// Every quotient word this reports is one it wrote, and it reads none above that, so the
+    /// caller does not have to clear the quotient buffer first and nothing above the returned
+    /// length means anything. The numerator is consumed: the remainder is written over its low
+    /// words and the rest are cleared.
+    /// </remarks>
+    /// <param name="numerator">The dividend, overwritten with the remainder.</param>
+    /// <param name="numLen">The number of significant words in <paramref name="numerator"/>.</param>
+    /// <param name="divisor">The divisor, normalized and non-zero.</param>
+    /// <param name="divLen">The number of significant words in <paramref name="divisor"/>.</param>
+    /// <param name="quotient">Receives the quotient. It need not be cleared.</param>
+    /// <param name="remainderLen">The number of significant words of the remainder.</param>
+    /// <returns>The number of significant words in <paramref name="quotient"/>.</returns>
     internal static int DivRem(
         Span<ulong> numerator,
         int numLen,

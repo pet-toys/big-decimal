@@ -206,6 +206,7 @@ public readonly partial struct BigDecimal
 
         var scale = left.Scale - right.Scale;
         var floorLift = Math.Max(-scale, 0);
+        var floorScale = scale + floorLift;
 
         // Look for an exact quotient before lifting the dividend to full precision. Lifting first
         // and stripping afterwards produces the same value, but it manufactures one trailing zero
@@ -218,7 +219,7 @@ public readonly partial struct BigDecimal
         // answer.
         if (TryDivideExactly(left, num, den, denLen, quotient, floorLift, out var exactLen))
         {
-            return Pack(quotient, exactLen, negative, scale + floorLift);
+            return Pack(quotient, exactLen, negative, floorScale);
         }
 
         // Failing that, the divisor's own factors: one that is 2^x times 5^y divides exactly at
@@ -234,7 +235,7 @@ public readonly partial struct BigDecimal
                 && TryDivideExactly(left, num, den, denLen, quotient, exactLift, out exactLen))
             {
                 var exactScale = scale + exactLift;
-                exactLen = StripTrailingZeros(quotient, exactLen, ref exactScale, Math.Max(scale, 0));
+                exactLen = StripTrailingZeros(quotient, exactLen, ref exactScale, floorScale);
                 return Pack(quotient, exactLen, negative, exactScale);
             }
         }
