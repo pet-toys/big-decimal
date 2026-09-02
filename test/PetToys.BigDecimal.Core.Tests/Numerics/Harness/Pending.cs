@@ -34,17 +34,4 @@ public static class Pending
 
     /// <summary>Owned by the numeric conversion contracts work.</summary>
     public const string NumericContracts = "Pending the numeric conversion contracts work.";
-
-    /// <summary>
-    /// Owned by the work that rewrites the division primitive. All three of <c>/</c>, <c>%</c> and
-    /// <see cref="BigDecimal.Divide(BigDecimal, BigDecimal, int, System.MidpointRounding)"/> return
-    /// wrong values — not values off by a unit in the last place — once the two scales have been
-    /// aligned into a wide dividend. Found by the randomised suite here, first around nine 64-bit
-    /// words and then, in a soak, at eight as well: the region the primitive is still correct in
-    /// was not cleanly characterised, so no boundary is claimed and the three differential tests
-    /// are skipped whole rather than narrowed to a line nobody can defend.
-    /// </summary>
-    public const string DivisionPrecision =
-        "Pending the division rewrite: division and remainder are wrong for a wide "
-        + "scale-aligned dividend.";
 }

@@ -1,9 +1,11 @@
 # Baseline
 
-Taken on 2026-08-26. This file is a copy of the run's own GitHub-markdown
-export, one section per benchmark class, with this note prefixed. The
-environment block below is the export's own and was identical in all sixteen
-sections, so it is stated once rather than sixteen times.
+Taken on 2026-09-02, replacing the run of 2026-08-26 in full. This file is a
+copy of the run's own GitHub-markdown export, one section per benchmark class,
+with this note prefixed. The environment block below is the export's own and
+was identical in all sixteen sections, so it is stated once rather than sixteen
+times. It is the same machine the previous baseline was taken on, so the
+durations here are comparable against that one and not only the ratios.
 
 ```
 BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.9168/25H2/2025Update/HudsonValley2)
@@ -26,310 +28,350 @@ the operations no criterion is stated over, and the three- and four-word widths
 
 ## What the budgets say, and what this run measured
 
-Four criteria are stated over these operations. Three of them are missed, and
-the numbers below are as measured — no operand was chosen after the fact to
-make one pass.
+Four criteria are stated over these operations. Two are now met that were not,
+one was already met, and the numbers below are as measured: no operand was
+chosen after the fact to make one pass, and no favourable repeat run was
+substituted for the one this file records.
 
 | Criterion | Budget | Worst measured | Verdict |
 | --------- | ------ | -------------- | ------- |
-| Add, subtract, multiply within 3x, one or two words | 3x | Add 3.87x, Subtract 3.73x, Multiply 2.94x | **missed** by add and subtract |
-| Divide within 10x | 10x | 4.61x | met |
-| An exact division costs no more than an inexact one | ratio 1 | 485.3 ns against 56.6 ns, **8.6x dearer** | **missed** |
-| Parse and TryFormat within 3x | 3x | Parse 1.21x; TryFormat 4.43x char, 4.71x UTF-8 | **missed** by TryFormat |
+| Add, subtract, multiply within 3x, one or two words | 3x | Add 3.16x, Subtract 2.87x, Multiply 2.92x | subtract and multiply met, add on the boundary |
+| Divide within 10x | 10x | 6.98x | met |
+| An exact division costs no more than an inexact one | ratio 1 | 21.6 ns against 84.2 ns, **0.26x** | met |
+| Parse and TryFormat within 3x | 3x | Parse 1.20x; TryFormat 3.87x char, 4.62x UTF-8 | **missed** by TryFormat |
 | Zero allocations on every operation | 0 B | 64 B on the `N` specifier, both overloads | **missed** |
 
 Read against the ratios rather than the headline:
 
-- **Add and subtract miss narrowly and only in places.** Add is 3.87x at one
-  word aligned and 2.60x at one word misaligned; subtract runs 2.94x to 3.73x.
-  A budget is met only if the worst shape is inside it, so both are missed, but
-  the gap is a fraction rather than a factor.
-- **Multiply is inside at 2.94x** at its worst, and it is the one arithmetic
-  criterion this run does not fault.
-- **Division is comfortable at 4.61x** against a 10x budget. The division
-  primitive is not the problem the criteria describe.
-- **Exactness is.** The same dividend divided exactly costs 485.3 ns against
-  56.6 ns inexact, so the criterion is missed by 8.6x in the wrong direction.
-  The cause is the trailing-zero strip, which performs one full multi-word
-  division per zero removed.
-- **Parsing is the comfortable result**, 1.15x to 1.21x across all four
-  overloads, and two of the eight rows are faster than `decimal`.
-- **Formatting misses on the `N` specifier alone.** `F9` and `G` run 1.62x to
-  2.62x, inside the budget; `N2` runs 3.28x to 4.71x and is also the only
+- **Exactness is settled, and by a distance.** The same dividend divided
+  exactly costs 21.6 ns against 84.2 ns inexact, where the previous baseline had
+  it at 485.3 ns against 56.6 ns and the criterion inverted by 8.6x. The
+  quotient is no longer manufactured at full precision and then stripped of the
+  trailing zeros that lifting produced: an exact quotient is looked for first,
+  from the divisor's factors and from a trial division at the scale difference.
+- **Subtract is inside at 2.87x** at its worst, against 3.73x before. Multiply
+  is inside at 2.92x and was not touched by the change that produced this run.
+- **Add sits on the boundary.** It measures 2.73x to 3.16x here, against 3.87x
+  before, and the worst shapes are the two aligned ones. Repeat runs of the
+  same binary put those same shapes anywhere between 2.36x and 3.16x, so the
+  criterion is neither comfortably met nor clearly missed. See the caveat below.
+- **Division is inside at 6.98x** against a 10x budget, and it is dearer than
+  the 4.61x of the previous baseline. That is the price of the two checks for
+  an exact quotient: an inexact division runs both and benefits from neither.
+  The budget has the room, and the alternative, continuing the long division
+  from the trial's remainder rather than restarting it, is written down as an
+  open question rather than attempted here.
+- **Remainder runs 1.06x to 4.25x**, better at every shape than the 1.11x to
+  5.87x before it.
+- **Parsing is the comfortable result**, 0.89x to 1.20x across all four
+  overloads, with three of the eight rows faster than `decimal`. The two-word
+  `Parse` baseline was bimodal in the previous run and is not in this one.
+- **Formatting misses on the `N` specifier alone.** `F9` and `G` run 1.52x to
+  2.53x, inside the budget; `N2` runs 3.13x to 4.62x and is also the only
   format that allocates.
-- **The allocation is 64 bytes on `N`, in both overloads**, which is the one
-  criterion stated without qualification. It is two reads of
-  `NumberFormatInfo.NumberGroupSizes` on a single line, a property whose getter
-  clones its array on every read.
+- **The allocation is 64 bytes on `N`, in both overloads**, unchanged and
+  untouched. It is two reads of `NumberFormatInfo.NumberGroupSizes` on a single
+  line, a property whose getter clones its array on every read. It belongs to
+  the formatting work, along with the miss above.
 
-Two rows outside every budget are worth carrying forward. `GetHashCode` costs
-12.3 ns to 19.0 ns against `decimal`'s 0.7 ns, and 96 ns to 109 ns on a value
-carrying trailing zeros — the shape `WithScale` produces when a value is widened
-to a column's scale. `ToBinaryFloat` costs 169 ns to 219 ns, the dearest
-operation in the suite.
+Outside the budgets, hashing is the row that moved. `GetHashCode` costs 9.4 ns
+to 11.2 ns on a value with no trailing zeros, against 12.3 ns to 19.0 ns
+before, because such a value now performs no division of its magnitude at all.
+On a value carrying eleven trailing zeros, which is what `WithScale` produces
+when a caller widens to a column's scale, it costs 15.8 ns to 23.4 ns against
+96.4 ns to 109.4 ns before. Four widening rows are new to this run and they are
+the shape of the curve rather than one point on it: one zero, eleven, nineteen
+and twenty-five. One to nineteen costs 1.34x to 1.46x, where removing a zero at
+a time would cost about nineteen times; twenty-five crosses into a second
+division and costs one step more, roughly double.
 
-## A caveat on one pair of rows
+`ToBinaryFloat` remains the dearest operation in the suite at 141 ns to 171 ns,
+down from 169 ns to 219 ns, and no criterion is stated over it.
 
-`ParseBenchmarks` at two words is the only unreliable measurement here.
-BenchmarkDotNet reports its `decimal` baseline as bimodal (mValue 3.24) and the
-report carries a `Median` column for it; the error bars are wide enough that
-its ratio should not be quoted. `TryParseBenchmarks` measures the same operands
-through the same path and is clean at 0.89x, so the conclusion for parsing does
-not rest on the noisy pair.
+## A caveat on the addition rows
 
+`AddBenchmarks` at the aligned shapes is the measurement to distrust here. The
+same binary, run three times on this machine under `DefaultJob`, reports one
+word aligned at 2.25x, 3.02x and 3.14x, and two words aligned at 2.36x, 2.51x
+and 3.16x. The error bars within each run are a fraction of a percent, so the
+spread is between runs rather than inside them: it is code layout and JIT
+tiering, not the operands and not the machine being busy.
 
-## Add — budget 3x
+The number recorded above is this run's, which is the worst of the three. Read
+it as an operation that has moved from 3.87x to the region of 3x and now sits
+on the line, rather than as one that is inside or outside the budget. What
+remains of its cost is fixed rather than proportional: `CopyMagnitude` clears
+every word of the working buffer above the four it writes, and the aligned
+shape is where `decimal` is fastest and so where any fixed cost reads worst.
+Narrowing that buffer to what an aligned addition needs was tried and made
+things worse, because a `stackalloc` whose length is not a constant becomes a
+dynamic allocation and cost the misaligned shapes more than it saved the
+aligned ones.
 
-| Method   | Shape    | Pairing    | Mean      | Error     | StdDev    | Ratio | RatioSD | Allocated | Alloc Ratio |
-|--------- |--------- |----------- |----------:|----------:|----------:|------:|--------:|----------:|------------:|
-| **Baseline** | **OneWord**  | **Aligned**    |  **4.055 ns** | **0.0250 ns** | **0.0222 ns** |  **1.00** |    **0.01** |         **-** |          **NA** |
-| Measured | OneWord  | Aligned    | 15.681 ns | 0.1249 ns | 0.1168 ns |  3.87 |    0.03 |         - |          NA |
-|          |          |            |           |           |           |       |         |           |             |
-| **Baseline** | **OneWord**  | **Misaligned** |  **5.186 ns** | **0.0329 ns** | **0.0308 ns** |  **1.00** |    **0.01** |         **-** |          **NA** |
-| Measured | OneWord  | Misaligned | 13.493 ns | 0.1428 ns | 0.1335 ns |  2.60 |    0.03 |         - |          NA |
-|          |          |            |           |           |           |       |         |           |             |
-| **Baseline** | **TwoWords** | **Aligned**    |  **4.009 ns** | **0.0109 ns** | **0.0097 ns** |  **1.00** |    **0.00** |         **-** |          **NA** |
-| Measured | TwoWords | Aligned    | 10.961 ns | 0.0512 ns | 0.0479 ns |  2.73 |    0.01 |         - |          NA |
-|          |          |            |           |           |           |       |         |           |             |
-| **Baseline** | **TwoWords** | **Misaligned** |  **5.303 ns** | **0.0135 ns** | **0.0126 ns** |  **1.00** |    **0.00** |         **-** |          **NA** |
-| Measured | TwoWords | Misaligned | 18.597 ns | 0.2066 ns | 0.1932 ns |  3.51 |    0.04 |         - |          NA |
-
-## Subtract — budget 3x
-
-| Method   | Shape    | Pairing    | Mean      | Error     | StdDev    | Ratio | RatioSD | Allocated | Alloc Ratio |
-|--------- |--------- |----------- |----------:|----------:|----------:|------:|--------:|----------:|------------:|
-| **Baseline** | **OneWord**  | **Aligned**    |  **4.210 ns** | **0.0073 ns** | **0.0068 ns** |  **1.00** |    **0.00** |         **-** |          **NA** |
-| Measured | OneWord  | Aligned    | 15.674 ns | 0.1787 ns | 0.1584 ns |  3.72 |    0.04 |         - |          NA |
-|          |          |            |           |           |           |       |         |           |             |
-| **Baseline** | **OneWord**  | **Misaligned** |  **5.114 ns** | **0.0380 ns** | **0.0318 ns** |  **1.00** |    **0.01** |         **-** |          **NA** |
-| Measured | OneWord  | Misaligned | 15.035 ns | 0.0727 ns | 0.0680 ns |  2.94 |    0.02 |         - |          NA |
-|          |          |            |           |           |           |       |         |           |             |
-| **Baseline** | **TwoWords** | **Aligned**    |  **4.161 ns** | **0.0101 ns** | **0.0090 ns** |  **1.00** |    **0.00** |         **-** |          **NA** |
-| Measured | TwoWords | Aligned    | 15.519 ns | 0.2247 ns | 0.2102 ns |  3.73 |    0.05 |         - |          NA |
-|          |          |            |           |           |           |       |         |           |             |
-| **Baseline** | **TwoWords** | **Misaligned** |  **5.477 ns** | **0.1226 ns** | **0.1147 ns** |  **1.00** |    **0.03** |         **-** |          **NA** |
-| Measured | TwoWords | Misaligned | 18.210 ns | 0.1694 ns | 0.1584 ns |  3.33 |    0.07 |         - |          NA |
-
-## Multiply — budget 3x
+## Add - budget 3x
 
 | Method   | Shape    | Pairing    | Mean      | Error     | StdDev    | Ratio | RatioSD | Allocated | Alloc Ratio |
 |--------- |--------- |----------- |----------:|----------:|----------:|------:|--------:|----------:|------------:|
-| **Baseline** | **OneWord**  | **Aligned**    |  **3.577 ns** | **0.0058 ns** | **0.0046 ns** |  **1.00** |    **0.00** |         **-** |          **NA** |
-| Measured | OneWord  | Aligned    | 10.429 ns | 0.0406 ns | 0.0380 ns |  2.92 |    0.01 |         - |          NA |
+| **Baseline** | **OneWord**  | **Aligned**    |  **4.209 ns** | **0.0120 ns** | **0.0112 ns** |  **1.00** |    **0.00** |         **-** |          **NA** |
+| Measured | OneWord  | Aligned    | 11.980 ns | 0.0602 ns | 0.0563 ns |  2.85 |    0.01 |         - |          NA |
 |          |          |            |           |           |           |       |         |           |             |
-| **Baseline** | **OneWord**  | **Misaligned** |  **3.584 ns** | **0.0170 ns** | **0.0142 ns** |  **1.00** |    **0.01** |         **-** |          **NA** |
-| Measured | OneWord  | Misaligned | 10.526 ns | 0.0270 ns | 0.0225 ns |  2.94 |    0.01 |         - |          NA |
+| **Baseline** | **OneWord**  | **Misaligned** |  **5.067 ns** | **0.0091 ns** | **0.0076 ns** |  **1.00** |    **0.00** |         **-** |          **NA** |
+| Measured | OneWord  | Misaligned | 21.044 ns | 0.0781 ns | 0.0652 ns |  4.15 |    0.01 |         - |          NA |
 |          |          |            |           |           |           |       |         |           |             |
-| **Baseline** | **TwoWords** | **Aligned**    |  **4.461 ns** | **0.0405 ns** | **0.0379 ns** |  **1.00** |    **0.01** |         **-** |          **NA** |
-| Measured | TwoWords | Aligned    | 12.113 ns | 0.0525 ns | 0.0466 ns |  2.72 |    0.02 |         - |          NA |
+| **Baseline** | **TwoWords** | **Aligned**    |  **3.983 ns** | **0.0108 ns** | **0.0096 ns** |  **1.00** |    **0.00** |         **-** |          **NA** |
+| Measured | TwoWords | Aligned    | 11.975 ns | 0.0457 ns | 0.0405 ns |  3.01 |    0.01 |         - |          NA |
 |          |          |            |           |           |           |       |         |           |             |
-| **Baseline** | **TwoWords** | **Misaligned** |  **4.407 ns** | **0.0132 ns** | **0.0124 ns** |  **1.00** |    **0.00** |         **-** |          **NA** |
-| Measured | TwoWords | Misaligned | 12.202 ns | 0.1398 ns | 0.1239 ns |  2.77 |    0.03 |         - |          NA |
+| **Baseline** | **TwoWords** | **Misaligned** |  **5.290 ns** | **0.0129 ns** | **0.0121 ns** |  **1.00** |    **0.00** |         **-** |          **NA** |
+| Measured | TwoWords | Misaligned | 20.245 ns | 0.0983 ns | 0.0821 ns |  3.83 |    0.02 |         - |          NA |
 
-## Divide — budget 10x
-
-| Method   | Shape    | Pairing    | Mean     | Error    | StdDev   | Ratio | RatioSD | Allocated | Alloc Ratio |
-|--------- |--------- |----------- |---------:|---------:|---------:|------:|--------:|----------:|------------:|
-| **Baseline** | **OneWord**  | **Aligned**    | **16.44 ns** | **0.237 ns** | **0.403 ns** |  **1.00** |    **0.03** |         **-** |          **NA** |
-| Measured | OneWord  | Aligned    | 75.79 ns | 0.439 ns | 0.389 ns |  4.61 |    0.11 |         - |          NA |
-|          |          |            |          |          |          |       |         |           |             |
-| **Baseline** | **OneWord**  | **Misaligned** | **20.33 ns** | **0.305 ns** | **0.285 ns** |  **1.00** |    **0.02** |         **-** |          **NA** |
-| Measured | OneWord  | Misaligned | 73.48 ns | 0.341 ns | 0.302 ns |  3.61 |    0.05 |         - |          NA |
-|          |          |            |          |          |          |       |         |           |             |
-| **Baseline** | **TwoWords** | **Aligned**    | **17.73 ns** | **0.075 ns** | **0.062 ns** |  **1.00** |    **0.00** |         **-** |          **NA** |
-| Measured | TwoWords | Aligned    | 79.48 ns | 0.383 ns | 0.359 ns |  4.48 |    0.02 |         - |          NA |
-|          |          |            |          |          |          |       |         |           |             |
-| **Baseline** | **TwoWords** | **Misaligned** | **19.42 ns** | **0.097 ns** | **0.091 ns** |  **1.00** |    **0.01** |         **-** |          **NA** |
-| Measured | TwoWords | Misaligned | 72.94 ns | 0.280 ns | 0.248 ns |  3.76 |    0.02 |         - |          NA |
-
-## Remainder — budget 10x
+## Subtract - budget 3x
 
 | Method   | Shape    | Pairing    | Mean      | Error     | StdDev    | Ratio | RatioSD | Allocated | Alloc Ratio |
 |--------- |--------- |----------- |----------:|----------:|----------:|------:|--------:|----------:|------------:|
-| **Baseline** | **OneWord**  | **Aligned**    |  **4.964 ns** | **0.0294 ns** | **0.0275 ns** |  **1.00** |    **0.01** |         **-** |          **NA** |
-| Measured | OneWord  | Aligned    | 29.146 ns | 0.4281 ns | 0.4004 ns |  5.87 |    0.08 |         - |          NA |
+| **Baseline** | **OneWord**  | **Aligned**    |  **4.220 ns** | **0.0245 ns** | **0.0218 ns** |  **1.00** |    **0.01** |         **-** |          **NA** |
+| Measured | OneWord  | Aligned    | 13.056 ns | 0.0456 ns | 0.0427 ns |  3.09 |    0.02 |         - |          NA |
 |          |          |            |           |           |           |       |         |           |             |
-| **Baseline** | **OneWord**  | **Misaligned** |  **6.547 ns** | **0.0699 ns** | **0.0583 ns** |  **1.00** |    **0.01** |         **-** |          **NA** |
-| Measured | OneWord  | Misaligned | 30.310 ns | 0.3317 ns | 0.3102 ns |  4.63 |    0.06 |         - |          NA |
+| **Baseline** | **OneWord**  | **Misaligned** |  **5.060 ns** | **0.0068 ns** | **0.0063 ns** |  **1.00** |    **0.00** |         **-** |          **NA** |
+| Measured | OneWord  | Misaligned | 23.912 ns | 0.1115 ns | 0.1043 ns |  4.73 |    0.02 |         - |          NA |
 |          |          |            |           |           |           |       |         |           |             |
-| **Baseline** | **TwoWords** | **Aligned**    | **23.490 ns** | **0.0235 ns** | **0.0196 ns** |  **1.00** |    **0.00** |         **-** |          **NA** |
-| Measured | TwoWords | Aligned    | 26.008 ns | 0.1112 ns | 0.1040 ns |  1.11 |    0.00 |         - |          NA |
+| **Baseline** | **TwoWords** | **Aligned**    |  **4.215 ns** | **0.0238 ns** | **0.0186 ns** |  **1.00** |    **0.01** |         **-** |          **NA** |
+| Measured | TwoWords | Aligned    | 12.835 ns | 0.0407 ns | 0.0318 ns |  3.05 |    0.01 |         - |          NA |
 |          |          |            |           |           |           |       |         |           |             |
-| **Baseline** | **TwoWords** | **Misaligned** | **25.197 ns** | **0.0538 ns** | **0.0420 ns** |  **1.00** |    **0.00** |         **-** |          **NA** |
-| Measured | TwoWords | Misaligned | 27.979 ns | 0.1050 ns | 0.0931 ns |  1.11 |    0.00 |         - |          NA |
+| **Baseline** | **TwoWords** | **Misaligned** |  **5.289 ns** | **0.0214 ns** | **0.0200 ns** |  **1.00** |    **0.01** |         **-** |          **NA** |
+| Measured | TwoWords | Misaligned | 23.688 ns | 0.1066 ns | 0.0997 ns |  4.48 |    0.02 |         - |          NA |
 
-## Exact division — budget not dearer than inexact
+## Multiply - budget 3x
 
-| Method   | Exact | Mean       | Error     | StdDev    | Ratio | RatioSD | Allocated | Alloc Ratio |
-|--------- |------ |-----------:|----------:|----------:|------:|--------:|----------:|------------:|
-| **Baseline** | **False** |  **19.316 ns** | **0.2488 ns** | **0.2327 ns** |  **1.00** |    **0.02** |         **-** |          **NA** |
-| Measured | False |  56.596 ns | 0.2631 ns | 0.2461 ns |  2.93 |    0.04 |         - |          NA |
-|          |       |            |           |           |       |         |           |             |
-| **Baseline** | **True**  |   **9.178 ns** | **0.0396 ns** | **0.0351 ns** |  **1.00** |    **0.01** |         **-** |          **NA** |
-| Measured | True  | 485.320 ns | 4.7409 ns | 4.4347 ns | 52.88 |    0.51 |         - |          NA |
+| Method   | Shape    | Pairing    | Mean      | Error     | StdDev    | Ratio | Allocated | Alloc Ratio |
+|--------- |--------- |----------- |----------:|----------:|----------:|------:|----------:|------------:|
+| **Baseline** | **OneWord**  | **Aligned**    |  **3.568 ns** | **0.0147 ns** | **0.0137 ns** |  **1.00** |         **-** |          **NA** |
+| Measured | OneWord  | Aligned    | 10.422 ns | 0.0367 ns | 0.0326 ns |  2.92 |         - |          NA |
+|          |          |            |           |           |           |       |           |             |
+| **Baseline** | **OneWord**  | **Misaligned** |  **3.569 ns** | **0.0075 ns** | **0.0067 ns** |  **1.00** |         **-** |          **NA** |
+| Measured | OneWord  | Misaligned | 10.422 ns | 0.0494 ns | 0.0438 ns |  2.92 |         - |          NA |
+|          |          |            |           |           |           |       |           |             |
+| **Baseline** | **TwoWords** | **Aligned**    |  **4.421 ns** | **0.0094 ns** | **0.0083 ns** |  **1.00** |         **-** |          **NA** |
+| Measured | TwoWords | Aligned    | 12.108 ns | 0.0426 ns | 0.0399 ns |  2.74 |         - |          NA |
+|          |          |            |           |           |           |       |           |             |
+| **Baseline** | **TwoWords** | **Misaligned** |  **4.423 ns** | **0.0118 ns** | **0.0098 ns** |  **1.00** |         **-** |          **NA** |
+| Measured | TwoWords | Misaligned | 12.057 ns | 0.0537 ns | 0.0502 ns |  2.73 |         - |          NA |
 
-## Parse — budget 3x
+## Divide - budget 10x
 
-| Method   | Shape    | Mean      | Error     | StdDev    | Median    | Ratio | RatioSD | Allocated | Alloc Ratio |
-|--------- |--------- |----------:|----------:|----------:|----------:|------:|--------:|----------:|------------:|
-| **Baseline** | **OneWord**  |  **53.49 ns** |  **0.191 ns** |  **0.179 ns** |  **53.46 ns** |  **1.00** |    **0.00** |         **-** |          **NA** |
-| Measured | OneWord  |  62.21 ns |  0.320 ns |  0.284 ns |  62.20 ns |  1.16 |    0.01 |         - |          NA |
-|          |          |           |           |           |           |       |         |           |             |
-| **Baseline** | **TwoWords** | **137.85 ns** | **13.122 ns** | **38.691 ns** | **162.22 ns** |  **1.10** |    **0.48** |         **-** |          **NA** |
-| Measured | TwoWords | 122.49 ns |  8.606 ns | 25.376 ns | 137.55 ns |  0.98 |    0.38 |         - |          NA |
+| Method   | Shape    | Pairing    | Mean      | Error    | StdDev   | Ratio | RatioSD | Allocated | Alloc Ratio |
+|--------- |--------- |----------- |----------:|---------:|---------:|------:|--------:|----------:|------------:|
+| **Baseline** | **OneWord**  | **Aligned**    |  **16.23 ns** | **0.237 ns** | **0.222 ns** |  **1.00** |    **0.02** |         **-** |          **NA** |
+| Measured | OneWord  | Aligned    | 109.35 ns | 0.671 ns | 0.595 ns |  6.74 |    0.10 |         - |          NA |
+|          |          |            |           |          |          |       |         |           |             |
+| **Baseline** | **OneWord**  | **Misaligned** |  **20.23 ns** | **0.205 ns** | **0.191 ns** |  **1.00** |    **0.01** |         **-** |          **NA** |
+| Measured | OneWord  | Misaligned |  98.56 ns | 0.756 ns | 0.707 ns |  4.87 |    0.06 |         - |          NA |
+|          |          |            |           |          |          |       |         |           |             |
+| **Baseline** | **TwoWords** | **Aligned**    |  **17.65 ns** | **0.040 ns** | **0.034 ns** |  **1.00** |    **0.00** |         **-** |          **NA** |
+| Measured | TwoWords | Aligned    | 123.20 ns | 0.653 ns | 0.579 ns |  6.98 |    0.03 |         - |          NA |
+|          |          |            |           |          |          |       |         |           |             |
+| **Baseline** | **TwoWords** | **Misaligned** |  **19.59 ns** | **0.172 ns** | **0.153 ns** |  **1.00** |    **0.01** |         **-** |          **NA** |
+| Measured | TwoWords | Misaligned | 105.42 ns | 0.719 ns | 0.672 ns |  5.38 |    0.05 |         - |          NA |
 
-## TryParse — budget 3x
+## Remainder - budget 10x
 
-| Method   | Shape    | Mean     | Error    | StdDev   | Ratio | RatioSD | Allocated | Alloc Ratio |
-|--------- |--------- |---------:|---------:|---------:|------:|--------:|----------:|------------:|
-| **Baseline** | **OneWord**  | **54.66 ns** | **0.656 ns** | **0.614 ns** |  **1.00** |    **0.02** |         **-** |          **NA** |
-| Measured | OneWord  | 63.00 ns | 0.425 ns | 0.398 ns |  1.15 |    0.01 |         - |          NA |
-|          |          |          |          |          |       |         |           |             |
-| **Baseline** | **TwoWords** | **87.09 ns** | **0.359 ns** | **0.335 ns** |  **1.00** |    **0.01** |         **-** |          **NA** |
-| Measured | TwoWords | 77.61 ns | 0.625 ns | 0.554 ns |  0.89 |    0.01 |         - |          NA |
+| Method   | Shape    | Pairing    | Mean      | Error     | StdDev    | Ratio | RatioSD | Allocated | Alloc Ratio |
+|--------- |--------- |----------- |----------:|----------:|----------:|------:|--------:|----------:|------------:|
+| **Baseline** | **OneWord**  | **Aligned**    |  **4.857 ns** | **0.0292 ns** | **0.0244 ns** |  **1.00** |    **0.01** |         **-** |          **NA** |
+| Measured | OneWord  | Aligned    | 18.743 ns | 0.0573 ns | 0.0508 ns |  3.86 |    0.02 |         - |          NA |
+|          |          |            |           |           |           |       |         |           |             |
+| **Baseline** | **OneWord**  | **Misaligned** |  **6.322 ns** | **0.0650 ns** | **0.0608 ns** |  **1.00** |    **0.01** |         **-** |          **NA** |
+| Measured | OneWord  | Misaligned | 26.849 ns | 0.1624 ns | 0.1519 ns |  4.25 |    0.05 |         - |          NA |
+|          |          |            |           |           |           |       |         |           |             |
+| **Baseline** | **TwoWords** | **Aligned**    | **23.490 ns** | **0.0777 ns** | **0.0726 ns** |  **1.00** |    **0.00** |         **-** |          **NA** |
+| Measured | TwoWords | Aligned    | 28.464 ns | 0.1715 ns | 0.1521 ns |  1.21 |    0.01 |         - |          NA |
+|          |          |            |           |           |           |       |         |           |             |
+| **Baseline** | **TwoWords** | **Misaligned** | **24.949 ns** | **0.0913 ns** | **0.0854 ns** |  **1.00** |    **0.00** |         **-** |          **NA** |
+| Measured | TwoWords | Misaligned | 26.329 ns | 0.1005 ns | 0.0940 ns |  1.06 |    0.01 |         - |          NA |
 
-## Parse (UTF-8) — budget 3x
+## Exact division - budget not dearer than inexact
+
+| Method   | Exact | Mean      | Error     | StdDev    | Ratio | RatioSD | Allocated | Alloc Ratio |
+|--------- |------ |----------:|----------:|----------:|------:|--------:|----------:|------------:|
+| **Baseline** | **False** | **19.249 ns** | **0.1396 ns** | **0.1238 ns** |  **1.00** |    **0.01** |         **-** |          **NA** |
+| Measured | False | 84.205 ns | 0.4704 ns | 0.4400 ns |  4.37 |    0.04 |         - |          NA |
+|          |       |           |           |           |       |         |           |             |
+| **Baseline** | **True**  |  **9.201 ns** | **0.0396 ns** | **0.0309 ns** |  **1.00** |    **0.00** |         **-** |          **NA** |
+| Measured | True  | 21.565 ns | 0.1260 ns | 0.1179 ns |  2.34 |    0.01 |         - |          NA |
+
+## Parse - budget 3x
 
 | Method   | Shape    | Mean     | Error    | StdDev   | Ratio | Allocated | Alloc Ratio |
 |--------- |--------- |---------:|---------:|---------:|------:|----------:|------------:|
-| **Baseline** | **OneWord**  | **53.53 ns** | **0.186 ns** | **0.174 ns** |  **1.00** |         **-** |          **NA** |
-| Measured | OneWord  | 64.73 ns | 0.419 ns | 0.392 ns |  1.21 |         - |          NA |
+| **Baseline** | **OneWord**  | **53.55 ns** | **0.210 ns** | **0.197 ns** |  **1.00** |         **-** |          **NA** |
+| Measured | OneWord  | 57.11 ns | 0.478 ns | 0.424 ns |  1.07 |         - |          NA |
 |          |          |          |          |          |       |           |             |
-| **Baseline** | **TwoWords** | **87.52 ns** | **0.338 ns** | **0.316 ns** |  **1.00** |         **-** |          **NA** |
-| Measured | TwoWords | 90.86 ns | 0.626 ns | 0.585 ns |  1.04 |         - |          NA |
+| **Baseline** | **TwoWords** | **86.00 ns** | **0.402 ns** | **0.356 ns** |  **1.00** |         **-** |          **NA** |
+| Measured | TwoWords | 77.06 ns | 0.359 ns | 0.336 ns |  0.90 |         - |          NA |
 
-## TryParse (UTF-8) — budget 3x
+## TryParse - budget 3x
 
-| Method   | Shape    | Mean     | Error    | StdDev   | Ratio | RatioSD | Allocated | Alloc Ratio |
-|--------- |--------- |---------:|---------:|---------:|------:|--------:|----------:|------------:|
-| **Baseline** | **OneWord**  | **55.05 ns** | **0.142 ns** | **0.133 ns** |  **1.00** |    **0.00** |         **-** |          **NA** |
-| Measured | OneWord  | 66.86 ns | 0.970 ns | 0.860 ns |  1.21 |    0.02 |         - |          NA |
-|          |          |          |          |          |       |         |           |             |
-| **Baseline** | **TwoWords** | **87.13 ns** | **0.376 ns** | **0.333 ns** |  **1.00** |    **0.01** |         **-** |          **NA** |
-| Measured | TwoWords | 87.31 ns | 0.909 ns | 0.851 ns |  1.00 |    0.01 |         - |          NA |
+| Method   | Shape    | Mean     | Error    | StdDev   | Ratio | Allocated | Alloc Ratio |
+|--------- |--------- |---------:|---------:|---------:|------:|----------:|------------:|
+| **Baseline** | **OneWord**  | **53.91 ns** | **0.270 ns** | **0.239 ns** |  **1.00** |         **-** |          **NA** |
+| Measured | OneWord  | 56.89 ns | 0.330 ns | 0.293 ns |  1.06 |         - |          NA |
+|          |          |          |          |          |       |           |             |
+| **Baseline** | **TwoWords** | **86.88 ns** | **0.486 ns** | **0.455 ns** |  **1.00** |         **-** |          **NA** |
+| Measured | TwoWords | 77.11 ns | 0.231 ns | 0.205 ns |  0.89 |         - |          NA |
 
-## TryFormat — budget 3x
+## Parse (UTF-8) - budget 3x
 
-| Method   | Shape    | Format | Mean      | Error    | StdDev   | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
-|--------- |--------- |------- |----------:|---------:|---------:|------:|--------:|-------:|----------:|------------:|
-| **Baseline** | **OneWord**  | **F9**     |  **42.03 ns** | **0.175 ns** | **0.163 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
-| Measured | OneWord  | F9     |  95.33 ns | 0.785 ns | 0.696 ns |  2.27 |    0.02 |      - |         - |          NA |
-|          |          |        |           |          |          |       |         |        |           |             |
-| **Baseline** | **OneWord**  | **G**      |  **36.96 ns** | **0.176 ns** | **0.164 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
-| Measured | OneWord  | G      |  87.99 ns | 1.044 ns | 0.977 ns |  2.38 |    0.03 |      - |         - |          NA |
-|          |          |        |           |          |          |       |         |        |           |             |
-| **Baseline** | **OneWord**  | **N2**     |  **44.95 ns** | **0.225 ns** | **0.211 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
-| Measured | OneWord  | N2     | 199.01 ns | 1.184 ns | 1.108 ns |  4.43 |    0.03 | 0.0050 |      64 B |          NA |
-|          |          |        |           |          |          |       |         |        |           |             |
-| **Baseline** | **TwoWords** | **F9**     |  **65.76 ns** | **0.510 ns** | **0.477 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
-| Measured | TwoWords | F9     | 106.71 ns | 1.353 ns | 1.265 ns |  1.62 |    0.02 |      - |         - |          NA |
-|          |          |        |           |          |          |       |         |        |           |             |
-| **Baseline** | **TwoWords** | **G**      |  **58.63 ns** | **0.391 ns** | **0.366 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
-| Measured | TwoWords | G      |  95.01 ns | 1.906 ns | 2.195 ns |  1.62 |    0.04 |      - |         - |          NA |
-|          |          |        |           |          |          |       |         |        |           |             |
-| **Baseline** | **TwoWords** | **N2**     |  **73.04 ns** | **0.457 ns** | **0.405 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
-| Measured | TwoWords | N2     | 239.27 ns | 1.280 ns | 1.198 ns |  3.28 |    0.02 | 0.0048 |      64 B |          NA |
+| Method   | Shape    | Mean     | Error    | StdDev   | Ratio | Allocated | Alloc Ratio |
+|--------- |--------- |---------:|---------:|---------:|------:|----------:|------------:|
+| **Baseline** | **OneWord**  | **54.37 ns** | **0.263 ns** | **0.246 ns** |  **1.00** |         **-** |          **NA** |
+| Measured | OneWord  | 65.09 ns | 0.487 ns | 0.456 ns |  1.20 |         - |          NA |
+|          |          |          |          |          |       |           |             |
+| **Baseline** | **TwoWords** | **88.23 ns** | **0.406 ns** | **0.380 ns** |  **1.00** |         **-** |          **NA** |
+| Measured | TwoWords | 87.19 ns | 0.619 ns | 0.549 ns |  0.99 |         - |          NA |
 
-## TryFormat (UTF-8) — budget 3x
+## TryParse (UTF-8) - budget 3x
+
+| Method   | Shape    | Mean     | Error    | StdDev   | Ratio | Allocated | Alloc Ratio |
+|--------- |--------- |---------:|---------:|---------:|------:|----------:|------------:|
+| **Baseline** | **OneWord**  | **55.29 ns** | **0.204 ns** | **0.191 ns** |  **1.00** |         **-** |          **NA** |
+| Measured | OneWord  | 63.80 ns | 0.441 ns | 0.412 ns |  1.15 |         - |          NA |
+|          |          |          |          |          |       |           |             |
+| **Baseline** | **TwoWords** | **87.09 ns** | **0.574 ns** | **0.537 ns** |  **1.00** |         **-** |          **NA** |
+| Measured | TwoWords | 86.19 ns | 0.349 ns | 0.309 ns |  0.99 |         - |          NA |
+
+## TryFormat - budget 3x
 
 | Method   | Shape    | Format | Mean      | Error    | StdDev   | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
 |--------- |--------- |------- |----------:|---------:|---------:|------:|--------:|-------:|----------:|------------:|
-| **Baseline** | **OneWord**  | **F9**     |  **41.11 ns** | **0.144 ns** | **0.135 ns** |  **1.00** |    **0.00** |      **-** |         **-** |          **NA** |
-| Measured | OneWord  | F9     | 105.90 ns | 0.549 ns | 0.513 ns |  2.58 |    0.01 |      - |         - |          NA |
+| **Baseline** | **OneWord**  | **F9**     |  **42.46 ns** | **0.279 ns** | **0.261 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
+| Measured | OneWord  | F9     |  94.66 ns | 0.717 ns | 0.636 ns |  2.23 |    0.02 |      - |         - |          NA |
 |          |          |        |           |          |          |       |         |        |           |             |
-| **Baseline** | **OneWord**  | **G**      |  **36.36 ns** | **0.215 ns** | **0.201 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
-| Measured | OneWord  | G      |  95.45 ns | 1.002 ns | 0.937 ns |  2.62 |    0.03 |      - |         - |          NA |
+| **Baseline** | **OneWord**  | **G**      |  **37.31 ns** | **0.114 ns** | **0.095 ns** |  **1.00** |    **0.00** |      **-** |         **-** |          **NA** |
+| Measured | OneWord  | G      |  87.65 ns | 0.739 ns | 0.691 ns |  2.35 |    0.02 |      - |         - |          NA |
 |          |          |        |           |          |          |       |         |        |           |             |
-| **Baseline** | **OneWord**  | **N2**     |  **42.44 ns** | **0.184 ns** | **0.172 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
-| Measured | OneWord  | N2     | 199.91 ns | 0.964 ns | 0.901 ns |  4.71 |    0.03 | 0.0050 |      64 B |          NA |
+| **Baseline** | **OneWord**  | **N2**     |  **45.44 ns** | **0.197 ns** | **0.184 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
+| Measured | OneWord  | N2     | 175.95 ns | 0.519 ns | 0.460 ns |  3.87 |    0.02 | 0.0050 |      64 B |          NA |
 |          |          |        |           |          |          |       |         |        |           |             |
-| **Baseline** | **TwoWords** | **F9**     |  **68.59 ns** | **0.330 ns** | **0.292 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
-| Measured | TwoWords | F9     | 118.60 ns | 0.809 ns | 0.756 ns |  1.73 |    0.01 |      - |         - |          NA |
+| **Baseline** | **TwoWords** | **F9**     |  **65.57 ns** | **0.576 ns** | **0.511 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
+| Measured | TwoWords | F9     | 104.92 ns | 0.425 ns | 0.332 ns |  1.60 |    0.01 |      - |         - |          NA |
 |          |          |        |           |          |          |       |         |        |           |             |
-| **Baseline** | **TwoWords** | **G**      |  **55.55 ns** | **0.352 ns** | **0.329 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
-| Measured | TwoWords | G      | 105.32 ns | 1.571 ns | 1.469 ns |  1.90 |    0.03 |      - |         - |          NA |
+| **Baseline** | **TwoWords** | **G**      |  **58.42 ns** | **0.422 ns** | **0.374 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
+| Measured | TwoWords | G      |  88.95 ns | 0.227 ns | 0.213 ns |  1.52 |    0.01 |      - |         - |          NA |
 |          |          |        |           |          |          |       |         |        |           |             |
-| **Baseline** | **TwoWords** | **N2**     |  **71.52 ns** | **0.516 ns** | **0.483 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
-| Measured | TwoWords | N2     | 267.69 ns | 1.940 ns | 1.620 ns |  3.74 |    0.03 | 0.0048 |      64 B |          NA |
+| **Baseline** | **TwoWords** | **N2**     |  **72.95 ns** | **0.517 ns** | **0.483 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
+| Measured | TwoWords | N2     | 228.18 ns | 1.189 ns | 1.112 ns |  3.13 |    0.02 | 0.0050 |      64 B |          NA |
 
-## Scale changes — no budget
+## TryFormat (UTF-8) - budget 3x
+
+| Method   | Shape    | Format | Mean      | Error    | StdDev   | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|--------- |--------- |------- |----------:|---------:|---------:|------:|--------:|-------:|----------:|------------:|
+| **Baseline** | **OneWord**  | **F9**     |  **41.26 ns** | **0.223 ns** | **0.197 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
+| Measured | OneWord  | F9     | 101.46 ns | 1.186 ns | 1.110 ns |  2.46 |    0.03 |      - |         - |          NA |
+|          |          |        |           |          |          |       |         |        |           |             |
+| **Baseline** | **OneWord**  | **G**      |  **36.58 ns** | **0.401 ns** | **0.375 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
+| Measured | OneWord  | G      |  92.56 ns | 0.640 ns | 0.599 ns |  2.53 |    0.03 |      - |         - |          NA |
+|          |          |        |           |          |          |       |         |        |           |             |
+| **Baseline** | **OneWord**  | **N2**     |  **45.36 ns** | **0.122 ns** | **0.108 ns** |  **1.00** |    **0.00** |      **-** |         **-** |          **NA** |
+| Measured | OneWord  | N2     | 209.51 ns | 0.904 ns | 0.802 ns |  4.62 |    0.02 | 0.0050 |      64 B |          NA |
+|          |          |        |           |          |          |       |         |        |           |             |
+| **Baseline** | **TwoWords** | **F9**     |  **64.00 ns** | **0.378 ns** | **0.335 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
+| Measured | TwoWords | F9     | 115.97 ns | 0.868 ns | 0.811 ns |  1.81 |    0.02 |      - |         - |          NA |
+|          |          |        |           |          |          |       |         |        |           |             |
+| **Baseline** | **TwoWords** | **G**      |  **56.90 ns** | **0.355 ns** | **0.314 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
+| Measured | TwoWords | G      |  99.85 ns | 0.713 ns | 0.632 ns |  1.75 |    0.01 |      - |         - |          NA |
+|          |          |        |           |          |          |       |         |        |           |             |
+| **Baseline** | **TwoWords** | **N2**     |  **70.60 ns** | **0.729 ns** | **0.682 ns** |  **1.00** |    **0.01** |      **-** |         **-** |          **NA** |
+| Measured | TwoWords | N2     | 253.73 ns | 1.898 ns | 1.775 ns |  3.59 |    0.04 | 0.0048 |      64 B |          NA |
+
+## Scale changes - no budget
 
 | Method            | Shape    | Mean      | Error     | StdDev    | Allocated |
 |------------------ |--------- |----------:|----------:|----------:|----------:|
-| **RoundToEven**       | **OneWord**  | **11.796 ns** | **0.0454 ns** | **0.0425 ns** |         **-** |
-| RoundAwayFromZero | OneWord  | 11.588 ns | 0.0641 ns | 0.0600 ns |         - |
-| RoundReference    | OneWord  |  3.805 ns | 0.0144 ns | 0.0128 ns |         - |
-| Narrow            | OneWord  | 12.985 ns | 0.0442 ns | 0.0414 ns |         - |
-| Widen             | OneWord  |  5.460 ns | 0.0281 ns | 0.0235 ns |         - |
-| **RoundToEven**       | **TwoWords** | **14.595 ns** | **0.0815 ns** | **0.0722 ns** |         **-** |
-| RoundAwayFromZero | TwoWords | 14.535 ns | 0.0803 ns | 0.0751 ns |         - |
-| RoundReference    | TwoWords |  4.588 ns | 0.1205 ns | 0.1649 ns |         - |
-| Narrow            | TwoWords | 16.278 ns | 0.0528 ns | 0.0494 ns |         - |
-| Widen             | TwoWords |  5.541 ns | 0.0383 ns | 0.0359 ns |         - |
+| **RoundToEven**       | **OneWord**  | **11.484 ns** | **0.0458 ns** | **0.0406 ns** |         **-** |
+| RoundAwayFromZero | OneWord  | 11.550 ns | 0.0488 ns | 0.0457 ns |         - |
+| RoundReference    | OneWord  |  3.587 ns | 0.0142 ns | 0.0132 ns |         - |
+| Narrow            | OneWord  | 12.716 ns | 0.0664 ns | 0.0621 ns |         - |
+| Widen             | OneWord  |  5.196 ns | 0.0187 ns | 0.0175 ns |         - |
+| **RoundToEven**       | **TwoWords** | **14.689 ns** | **0.0952 ns** | **0.0891 ns** |         **-** |
+| RoundAwayFromZero | TwoWords | 14.513 ns | 0.0889 ns | 0.0832 ns |         - |
+| RoundReference    | TwoWords |  4.440 ns | 0.0133 ns | 0.0104 ns |         - |
+| Narrow            | TwoWords | 15.915 ns | 0.0856 ns | 0.0714 ns |         - |
+| Widen             | TwoWords |  7.759 ns | 0.0871 ns | 0.0727 ns |         - |
 
-## Ordering and hashing — no budget
+## Ordering and hashing - no budget
 
-| Method           | Shape    | Pairing    | Mean        | Error     | StdDev    | Allocated |
-|----------------- |--------- |----------- |------------:|----------:|----------:|----------:|
-| **Compare**          | **OneWord**  | **Aligned**    |   **5.8696 ns** | **0.0370 ns** | **0.0309 ns** |         **-** |
-| CompareReference | OneWord  | Aligned    |   1.5117 ns | 0.0158 ns | 0.0140 ns |         - |
-| Hash             | OneWord  | Aligned    |  12.3442 ns | 0.0421 ns | 0.0394 ns |         - |
-| HashReference    | OneWord  | Aligned    |   0.7333 ns | 0.0328 ns | 0.0307 ns |         - |
-| HashWidened      | OneWord  | Aligned    |  96.4133 ns | 0.6479 ns | 0.6060 ns |         - |
-| **Compare**          | **OneWord**  | **Misaligned** |   **9.8217 ns** | **0.0379 ns** | **0.0354 ns** |         **-** |
-| CompareReference | OneWord  | Misaligned |   2.0233 ns | 0.0101 ns | 0.0089 ns |         - |
-| Hash             | OneWord  | Misaligned |  13.2759 ns | 0.1466 ns | 0.1371 ns |         - |
-| HashReference    | OneWord  | Misaligned |   0.6836 ns | 0.0201 ns | 0.0188 ns |         - |
-| HashWidened      | OneWord  | Misaligned |  98.9482 ns | 2.0005 ns | 1.8713 ns |         - |
-| **Compare**          | **TwoWords** | **Aligned**    |   **5.5286 ns** | **0.1396 ns** | **0.1371 ns** |         **-** |
-| CompareReference | TwoWords | Aligned    |   1.5425 ns | 0.0154 ns | 0.0136 ns |         - |
-| Hash             | TwoWords | Aligned    |  19.0422 ns | 0.2864 ns | 0.2679 ns |         - |
-| HashReference    | TwoWords | Aligned    |   0.6813 ns | 0.0305 ns | 0.0285 ns |         - |
-| HashWidened      | TwoWords | Aligned    | 109.4373 ns | 0.5124 ns | 0.4793 ns |         - |
-| **Compare**          | **TwoWords** | **Misaligned** |  **14.7228 ns** | **0.2229 ns** | **0.2085 ns** |         **-** |
-| CompareReference | TwoWords | Misaligned |   2.0170 ns | 0.0194 ns | 0.0162 ns |         - |
-| Hash             | TwoWords | Misaligned |  18.8095 ns | 0.1071 ns | 0.0950 ns |         - |
-| HashReference    | TwoWords | Misaligned |   0.6492 ns | 0.0163 ns | 0.0152 ns |         - |
-| HashWidened      | TwoWords | Misaligned | 108.3984 ns | 0.2531 ns | 0.2367 ns |         - |
+| Method              | Shape    | Pairing    | Mean       | Error     | StdDev    | Allocated |
+|-------------------- |--------- |----------- |-----------:|----------:|----------:|----------:|
+| **Compare**             | **OneWord**  | **Aligned**    |  **5.9518 ns** | **0.0634 ns** | **0.0562 ns** |         **-** |
+| CompareReference    | OneWord  | Aligned    |  1.5106 ns | 0.0146 ns | 0.0122 ns |         - |
+| Hash                | OneWord  | Aligned    |  9.5026 ns | 0.0634 ns | 0.0562 ns |         - |
+| HashReference       | OneWord  | Aligned    |  0.7034 ns | 0.0247 ns | 0.0231 ns |         - |
+| HashWidenedOne      | OneWord  | Aligned    | 13.0652 ns | 0.0426 ns | 0.0399 ns |         - |
+| HashWidened         | OneWord  | Aligned    | 15.8440 ns | 0.1059 ns | 0.0884 ns |         - |
+| HashWidenedNineteen | OneWord  | Aligned    | 17.5713 ns | 0.0897 ns | 0.0796 ns |         - |
+| HashWidenedBeyond   | OneWord  | Aligned    | 38.0066 ns | 0.2526 ns | 0.2239 ns |         - |
+| **Compare**             | **OneWord**  | **Misaligned** | **14.5116 ns** | **0.1664 ns** | **0.1475 ns** |         **-** |
+| CompareReference    | OneWord  | Misaligned |  2.0253 ns | 0.0166 ns | 0.0148 ns |         - |
+| Hash                | OneWord  | Misaligned |  9.3843 ns | 0.0587 ns | 0.0521 ns |         - |
+| HashReference       | OneWord  | Misaligned |  0.7204 ns | 0.0324 ns | 0.0303 ns |         - |
+| HashWidenedOne      | OneWord  | Misaligned | 13.3037 ns | 0.0893 ns | 0.0792 ns |         - |
+| HashWidened         | OneWord  | Misaligned | 16.6878 ns | 0.1853 ns | 0.1733 ns |         - |
+| HashWidenedNineteen | OneWord  | Misaligned | 18.1170 ns | 0.2378 ns | 0.2108 ns |         - |
+| HashWidenedBeyond   | OneWord  | Misaligned | 37.7728 ns | 0.3786 ns | 0.3541 ns |         - |
+| **Compare**             | **TwoWords** | **Aligned**    |  **5.4630 ns** | **0.0544 ns** | **0.0508 ns** |         **-** |
+| CompareReference    | TwoWords | Aligned    |  1.5347 ns | 0.0133 ns | 0.0118 ns |         - |
+| Hash                | TwoWords | Aligned    | 11.1833 ns | 0.1228 ns | 0.1149 ns |         - |
+| HashReference       | TwoWords | Aligned    |  0.7463 ns | 0.0197 ns | 0.0185 ns |         - |
+| HashWidenedOne      | TwoWords | Aligned    | 16.6738 ns | 0.0933 ns | 0.0827 ns |         - |
+| HashWidened         | TwoWords | Aligned    | 23.3697 ns | 0.1362 ns | 0.1274 ns |         - |
+| HashWidenedNineteen | TwoWords | Aligned    | 24.3248 ns | 0.1377 ns | 0.1221 ns |         - |
+| HashWidenedBeyond   | TwoWords | Aligned    | 37.9548 ns | 0.3874 ns | 0.3624 ns |         - |
+| **Compare**             | **TwoWords** | **Misaligned** | **14.8641 ns** | **0.3041 ns** | **0.2845 ns** |         **-** |
+| CompareReference    | TwoWords | Misaligned |  2.0170 ns | 0.0138 ns | 0.0129 ns |         - |
+| Hash                | TwoWords | Misaligned | 11.0786 ns | 0.0684 ns | 0.0572 ns |         - |
+| HashReference       | TwoWords | Misaligned |  0.7318 ns | 0.0283 ns | 0.0265 ns |         - |
+| HashWidenedOne      | TwoWords | Misaligned | 17.1364 ns | 0.0877 ns | 0.0777 ns |         - |
+| HashWidened         | TwoWords | Misaligned | 23.3161 ns | 0.1646 ns | 0.1540 ns |         - |
+| HashWidenedNineteen | TwoWords | Misaligned | 24.3693 ns | 0.1880 ns | 0.1759 ns |         - |
+| HashWidenedBeyond   | TwoWords | Misaligned | 38.2908 ns | 0.2523 ns | 0.2360 ns |         - |
 
-## Conversions — no budget
+## Conversions - no budget
 
-| Method        | Shape    | Mean        | Error     | StdDev    | Median      | Allocated |
-|-------------- |--------- |------------:|----------:|----------:|------------:|----------:|
-| **ToReference**   | **OneWord**  |  **16.1475 ns** | **0.7680 ns** | **2.2645 ns** |  **16.9453 ns** |         **-** |
-| FromReference | OneWord  |   2.6946 ns | 0.0935 ns | 0.2756 ns |   2.7464 ns |         - |
-| ToBinaryFloat | OneWord  | 218.5895 ns | 4.1139 ns | 4.2247 ns | 220.4534 ns |         - |
-| FromInteger   | OneWord  |   0.3829 ns | 0.0485 ns | 0.1022 ns |   0.3897 ns |         - |
-| ToWords       | OneWord  |   2.8253 ns | 0.0938 ns | 0.1515 ns |   2.8220 ns |         - |
-| FromWords     | OneWord  |   2.3198 ns | 0.0405 ns | 0.0688 ns |   2.3266 ns |         - |
-| **ToReference**   | **TwoWords** |   **8.2666 ns** | **0.1965 ns** | **0.2556 ns** |   **8.2095 ns** |         **-** |
-| FromReference | TwoWords |   0.8517 ns | 0.0084 ns | 0.0075 ns |   0.8515 ns |         - |
-| ToBinaryFloat | TwoWords | 169.0010 ns | 1.0559 ns | 0.9877 ns | 169.0304 ns |         - |
-| FromInteger   | TwoWords |   0.1498 ns | 0.0124 ns | 0.0110 ns |   0.1499 ns |         - |
-| ToWords       | TwoWords |   1.0971 ns | 0.0185 ns | 0.0173 ns |   1.0974 ns |         - |
-| FromWords     | TwoWords |   2.1835 ns | 0.0502 ns | 0.0445 ns |   2.1831 ns |         - |
+| Method        | Shape    | Mean        | Error     | StdDev    | Allocated |
+|-------------- |--------- |------------:|----------:|----------:|----------:|
+| **ToReference**   | **OneWord**  |   **7.8459 ns** | **0.0822 ns** | **0.0769 ns** |         **-** |
+| FromReference | OneWord  |   0.8336 ns | 0.0227 ns | 0.0190 ns |         - |
+| ToBinaryFloat | OneWord  | 141.1323 ns | 1.2078 ns | 1.0707 ns |         - |
+| FromInteger   | OneWord  |   0.1333 ns | 0.0128 ns | 0.0120 ns |         - |
+| ToWords       | OneWord  |   1.5866 ns | 0.0416 ns | 0.0389 ns |         - |
+| FromWords     | OneWord  |   2.8825 ns | 0.0560 ns | 0.0468 ns |         - |
+| **ToReference**   | **TwoWords** |   **7.7438 ns** | **0.0864 ns** | **0.0766 ns** |         **-** |
+| FromReference | TwoWords |   0.8429 ns | 0.0142 ns | 0.0126 ns |         - |
+| ToBinaryFloat | TwoWords | 170.6017 ns | 0.6911 ns | 0.6465 ns |         - |
+| FromInteger   | TwoWords |   0.1172 ns | 0.0136 ns | 0.0120 ns |         - |
+| ToWords       | TwoWords |   1.0689 ns | 0.0264 ns | 0.0221 ns |         - |
+| FromWords     | TwoWords |   2.1658 ns | 0.0316 ns | 0.0280 ns |         - |
 
-## Three- and four-word operands — no budget
+## Three- and four-word operands - no budget
 
-| Method    | Shape      | Pairing    | Mean     | Error    | StdDev   | Allocated |
-|---------- |----------- |----------- |---------:|---------:|---------:|----------:|
-| **Add**       | **ThreeWords** | **Aligned**    | **15.93 ns** | **0.073 ns** | **0.065 ns** |         **-** |
-| Subtract  | ThreeWords | Aligned    | 16.47 ns | 0.159 ns | 0.141 ns |         - |
-| Multiply  | ThreeWords | Aligned    | 13.19 ns | 0.047 ns | 0.042 ns |         - |
-| Divide    | ThreeWords | Aligned    | 82.51 ns | 1.197 ns | 1.120 ns |         - |
-| Remainder | ThreeWords | Aligned    | 37.26 ns | 0.200 ns | 0.187 ns |         - |
-| **Add**       | **ThreeWords** | **Misaligned** | **19.50 ns** | **0.195 ns** | **0.182 ns** |         **-** |
-| Subtract  | ThreeWords | Misaligned | 16.91 ns | 0.150 ns | 0.141 ns |         - |
-| Multiply  | ThreeWords | Misaligned | 13.23 ns | 0.049 ns | 0.046 ns |         - |
-| Divide    | ThreeWords | Misaligned | 79.69 ns | 0.833 ns | 0.779 ns |         - |
-| Remainder | ThreeWords | Misaligned | 39.59 ns | 0.246 ns | 0.230 ns |         - |
-| **Add**       | **FourWords**  | **Aligned**    | **15.96 ns** | **0.082 ns** | **0.073 ns** |         **-** |
-| Subtract  | FourWords  | Aligned    | 12.12 ns | 0.074 ns | 0.069 ns |         - |
-| Multiply  | FourWords  | Aligned    | 52.72 ns | 0.574 ns | 0.537 ns |         - |
-| Divide    | FourWords  | Aligned    | 79.98 ns | 1.523 ns | 1.425 ns |         - |
-| Remainder | FourWords  | Aligned    | 37.99 ns | 0.440 ns | 0.412 ns |         - |
-| **Add**       | **FourWords**  | **Misaligned** | **17.49 ns** | **0.311 ns** | **0.275 ns** |         **-** |
-| Subtract  | FourWords  | Misaligned | 18.13 ns | 0.116 ns | 0.097 ns |         - |
-| Multiply  | FourWords  | Misaligned | 14.60 ns | 0.060 ns | 0.053 ns |         - |
-| Divide    | FourWords  | Misaligned | 74.77 ns | 0.428 ns | 0.401 ns |         - |
-| Remainder | FourWords  | Misaligned | 44.80 ns | 0.182 ns | 0.161 ns |         - |
+| Method    | Shape      | Pairing    | Mean      | Error    | StdDev   | Allocated |
+|---------- |----------- |----------- |----------:|---------:|---------:|----------:|
+| **Add**       | **ThreeWords** | **Aligned**    |  **12.40 ns** | **0.074 ns** | **0.066 ns** |         **-** |
+| Subtract  | ThreeWords | Aligned    |  11.80 ns | 0.098 ns | 0.091 ns |         - |
+| Multiply  | ThreeWords | Aligned    |  13.13 ns | 0.040 ns | 0.036 ns |         - |
+| Divide    | ThreeWords | Aligned    | 123.30 ns | 0.583 ns | 0.517 ns |         - |
+| Remainder | ThreeWords | Aligned    |  33.12 ns | 0.254 ns | 0.237 ns |         - |
+| **Add**       | **ThreeWords** | **Misaligned** |  **14.60 ns** | **0.084 ns** | **0.078 ns** |         **-** |
+| Subtract  | ThreeWords | Misaligned |  16.13 ns | 0.055 ns | 0.052 ns |         - |
+| Multiply  | ThreeWords | Misaligned |  13.17 ns | 0.046 ns | 0.043 ns |         - |
+| Divide    | ThreeWords | Misaligned | 116.64 ns | 0.608 ns | 0.569 ns |         - |
+| Remainder | ThreeWords | Misaligned |  32.26 ns | 0.237 ns | 0.198 ns |         - |
+| **Add**       | **FourWords**  | **Aligned**    |  **12.64 ns** | **0.112 ns** | **0.105 ns** |         **-** |
+| Subtract  | FourWords  | Aligned    |  11.21 ns | 0.064 ns | 0.057 ns |         - |
+| Multiply  | FourWords  | Aligned    |  51.82 ns | 0.550 ns | 0.514 ns |         - |
+| Divide    | FourWords  | Aligned    | 128.87 ns | 0.808 ns | 0.755 ns |         - |
+| Remainder | FourWords  | Aligned    |  35.64 ns | 0.252 ns | 0.210 ns |         - |
+| **Add**       | **FourWords**  | **Misaligned** |  **16.65 ns** | **0.105 ns** | **0.098 ns** |         **-** |
+| Subtract  | FourWords  | Misaligned |  16.98 ns | 0.084 ns | 0.079 ns |         - |
+| Multiply  | FourWords  | Misaligned |  14.48 ns | 0.074 ns | 0.065 ns |         - |
+| Divide    | FourWords  | Misaligned | 117.05 ns | 1.120 ns | 0.993 ns |         - |
+| Remainder | FourWords  | Misaligned |  37.80 ns | 0.298 ns | 0.264 ns |         - |
