@@ -112,6 +112,25 @@ public sealed class ValueRepresentationTests
         value.Scale.Should().Be(2);
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(18)]
+    [InlineData(19)]
+    [InlineData(20)]
+    [InlineData(38)]
+    [InlineData(45)]
+    public void GetHashCode_AgreesAcrossAChunkBoundary(int zeros)
+    {
+        // Trailing zeros come off in runs of nineteen, the widest power of ten a word holds, so
+        // the counts either side of that boundary are the ones a run-length mistake would show up
+        // on: a value widened past it has to hash exactly as the narrow one still does.
+        var narrow = Parse("1234567890.123456789");
+        var widened = narrow.WithScale(narrow.Scale + zeros);
+
+        widened.Scale.Should().Be(narrow.Scale + zeros);
+        widened.GetHashCode().Should().Be(narrow.GetHashCode());
+    }
+
     [Fact]
     public void TrailingZeros_SurviveAndStayObservable()
     {

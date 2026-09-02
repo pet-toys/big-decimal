@@ -8,6 +8,47 @@ internal static class Words
 {
     internal const ulong TenPow19 = 10_000_000_000_000_000_000UL;
 
+    /// <summary>
+    /// The most decimal zeros a single division can strip, bounded by the largest power of ten a
+    /// word holds.
+    /// </summary>
+    internal const int MaxZerosPerPass = 19;
+
+    /// <summary>The largest exponent of five a single word holds.</summary>
+    private const int MaxFivesPerWord = 27;
+
+    private static readonly ulong[] Pow5Values =
+    [
+        1UL,
+        5UL,
+        25UL,
+        125UL,
+        625UL,
+        3_125UL,
+        15_625UL,
+        78_125UL,
+        390_625UL,
+        1_953_125UL,
+        9_765_625UL,
+        48_828_125UL,
+        244_140_625UL,
+        1_220_703_125UL,
+        6_103_515_625UL,
+        30_517_578_125UL,
+        152_587_890_625UL,
+        762_939_453_125UL,
+        3_814_697_265_625UL,
+        19_073_486_328_125UL,
+        95_367_431_640_625UL,
+        476_837_158_203_125UL,
+        2_384_185_791_015_625UL,
+        11_920_928_955_078_125UL,
+        59_604_644_775_390_625UL,
+        298_023_223_876_953_125UL,
+        1_490_116_119_384_765_625UL,
+        7_450_580_596_923_828_125UL,
+    ];
+
     private static readonly ulong[] Pow10Values =
     [
         1UL,
@@ -33,6 +74,201 @@ internal static class Words
     ];
 
     internal static ReadOnlySpan<ulong> Pow10 => Pow10Values;
+
+    /// <summary>
+    /// Counts the trailing decimal zeros of a magnitude, up to <paramref name="limit"/> and to at
+    /// most <see cref="MaxZerosPerPass"/>, without dividing it.
+    /// </summary>
+    /// <remarks>
+    /// The count is the smaller of the twos and the fives in the factorisation, and neither needs a
+    /// division of the magnitude. The twos are a trailing-zero count on its low non-zero word, so a
+    /// value with none is answered without touching the rest of it. The fives come from a single
+    /// remainder pass by 5^27, the largest power of five a word holds: when that remainder is zero
+    /// the value carries at least 27 fives, which is past the cap, and when it is not, the fives of
+    /// the value are the fives of the remainder, countable on one word.
+    /// </remarks>
+    /// <param name="value">The magnitude.</param>
+    /// <param name="length">The number of significant words in <paramref name="value"/>.</param>
+    /// <param name="limit">The largest count the caller can use.</param>
+    /// <returns>The number of trailing decimal zeros, capped by <paramref name="limit"/>.</returns>
+    internal static int TrailingDecimalZeros(ReadOnlySpan<ulong> value, int length, int limit)
+    {
+        limit = Math.Min(limit, MaxZerosPerPass);
+        if (limit <= 0 || length <= 0)
+        {
+            return 0;
+        }
+
+        var twos = TrailingBinaryZeros(value, length);
+        if (twos == 0)
+        {
+            return 0;
+        }
+
+        // The twos and the caller's limit already bound the answer, so the fives are only counted
+        // as far as that bound: a value with one trailing zero pays one test, not the search for
+        // nineteen.
+        var cap = Math.Min(twos, limit);
+        var remainder = RemSmall(value, length, Pow5Values[MaxFivesPerWord]);
+        return remainder == 0 ? cap : CountFives(remainder, cap);
+    }
+
+    /// <summary>
+    /// Reports whether a magnitude is a power of two times a power of five, and if it is, returns
+    /// the number of decimal places at which a division by it comes out exactly.
+    /// </summary>
+    /// <remarks>
+    /// A quotient a / b is exact in decimal at max(x, y) places when b is 2^x times 5^y, because
+    /// a * 10^max(x,y) / b is then a * 2^(max-x) * 5^(max-y). Knowing that up front is what lets a
+    /// division lift its dividend by a few places instead of by everything the mantissa holds. The
+    /// twos come out with a shift and the fives with one remainder pass in the common case, and a
+    /// divisor carrying any other factor is rejected on that same pass.
+    /// </remarks>
+    /// <param name="value">The divisor's magnitude. It is consumed, so pass a copy.</param>
+    /// <param name="length">The number of significant words in <paramref name="value"/>.</param>
+    /// <param name="places">The number of decimal places at which a division by it is exact.</param>
+    /// <returns><see langword="true"/> when the magnitude is 2^x times 5^y.</returns>
+    internal static bool TryDecimalDivisorExponent(Span<ulong> value, int length, out int places)
+    {
+        places = 0;
+        if (length <= 0)
+        {
+            return false;
+        }
+
+        var twos = TrailingBinaryZeros(value, length);
+        length = ShiftRightInPlace(value, length, twos);
+
+        var fives = 0;
+        while (length > 0)
+        {
+            var remainder = RemSmall(value, length, Pow5Values[MaxFivesPerWord]);
+            if (remainder == 0)
+            {
+                length = DivRemSmall(value, length, Pow5Values[MaxFivesPerWord], out _);
+                fives += MaxFivesPerWord;
+                continue;
+            }
+
+            var extra = CountFives(remainder, MaxFivesPerWord);
+            if (extra > 0)
+            {
+                length = DivRemSmall(value, length, Pow5Values[extra], out _);
+                fives += extra;
+            }
+
+            break;
+        }
+
+        if (length != 1 || value[0] != 1)
+        {
+            return false;
+        }
+
+        places = Math.Max(twos, fives);
+        return true;
+    }
+
+    /// <summary>Returns the remainder of a magnitude divided by a single word, leaving it unchanged.</summary>
+    /// <param name="value">The magnitude.</param>
+    /// <param name="length">The number of significant words in <paramref name="value"/>.</param>
+    /// <param name="divisor">The divisor, which must not be zero.</param>
+    /// <returns>The remainder.</returns>
+    internal static ulong RemSmall(ReadOnlySpan<ulong> value, int length, ulong divisor)
+    {
+        Debug.Assert(divisor != 0, "divisor must be non-zero");
+
+        unchecked
+        {
+            ulong rem = 0;
+            for (var i = length - 1; i >= 0; i--)
+            {
+                rem = (ulong)(new UInt128(rem, value[i]) % divisor);
+            }
+
+            return rem;
+        }
+    }
+
+    private static int ShiftRightInPlace(Span<ulong> value, int length, int shift)
+    {
+        if (shift <= 0 || length <= 0)
+        {
+            return length;
+        }
+
+        var words = shift / 64;
+        var bits = shift % 64;
+        if (words >= length)
+        {
+            value[..length].Clear();
+            return 0;
+        }
+
+        unchecked
+        {
+            var remaining = length - words;
+            for (var i = 0; i < remaining; i++)
+            {
+                var low = value[i + words] >> bits;
+                value[i] = bits != 0 && i + 1 < remaining ? low | (value[i + words + 1] << (64 - bits)) : low;
+            }
+
+            value[remaining..length].Clear();
+            return Normalize(value[..remaining]);
+        }
+    }
+
+    private static int TrailingBinaryZeros(ReadOnlySpan<ulong> value, int length)
+    {
+        for (var i = 0; i < length; i++)
+        {
+            if (value[i] != 0)
+            {
+                return (i * 64) + BitOperations.TrailingZeroCount(value[i]);
+            }
+        }
+
+        return 0;
+    }
+
+    /// <summary>Counts the factors of five in a single word, up to a cap.</summary>
+    /// <remarks>
+    /// A binary search over the powers of five a word holds, not a division per five. This is
+    /// called on values that end in many fives by construction, so counting them one at a time put
+    /// a cost proportional to the trailing zeros straight back into a strip that had just had one
+    /// taken out of it. The cap is the caller's own bound on the answer, and it shortens the search
+    /// as well as the result.
+    /// </remarks>
+    private static int CountFives(ulong value, int cap)
+    {
+        var bound = Math.Min(cap, MaxFivesPerWord);
+
+        // The cap is usually the answer. A value widened to a column's scale carries exactly as
+        // many fives as the zeros it was given, and the twos that set the cap came from the same
+        // widening, so one test settles it and the search below never runs.
+        if (bound <= 0 || value % Pow5Values[bound] == 0)
+        {
+            return bound;
+        }
+
+        var low = 0;
+        var high = bound - 1;
+        while (low < high)
+        {
+            var middle = (low + high + 1) / 2;
+            if (value % Pow5Values[middle] == 0)
+            {
+                low = middle;
+            }
+            else
+            {
+                high = middle - 1;
+            }
+        }
+
+        return low;
+    }
 
     internal static int Normalize(ReadOnlySpan<ulong> value)
     {
@@ -311,6 +547,20 @@ internal static class Words
         return digits;
     }
 
+    /// <summary>Divides one magnitude by another, leaving the remainder in the numerator.</summary>
+    /// <remarks>
+    /// Every quotient word this reports is one it wrote, and it reads none above that, so the
+    /// caller does not have to clear the quotient buffer first and nothing above the returned
+    /// length means anything. The numerator is consumed: the remainder is written over its low
+    /// words and the rest are cleared.
+    /// </remarks>
+    /// <param name="numerator">The dividend, overwritten with the remainder.</param>
+    /// <param name="numLen">The number of significant words in <paramref name="numerator"/>.</param>
+    /// <param name="divisor">The divisor, normalized and non-zero.</param>
+    /// <param name="divLen">The number of significant words in <paramref name="divisor"/>.</param>
+    /// <param name="quotient">Receives the quotient. It need not be cleared.</param>
+    /// <param name="remainderLen">The number of significant words of the remainder.</param>
+    /// <returns>The number of significant words in <paramref name="quotient"/>.</returns>
     internal static int DivRem(
         Span<ulong> numerator,
         int numLen,
@@ -364,31 +614,27 @@ internal static class Words
             for (var j = qLen - 1; j >= 0; j--)
             {
                 var top = new UInt128(un[j + divLen], un[j + divLen - 1]);
-                var qhat = top / vHigh > ulong.MaxValue ? ulong.MaxValue : (ulong)(top / vHigh);
-                var rhat = (ulong)(top - ((UInt128)qhat * vHigh));
+                var wide = top / vHigh;
+                var qhat = wide > ulong.MaxValue ? ulong.MaxValue : (ulong)wide;
 
-                while (true)
+                // The estimate saturates exactly when the running remainder's leading word equals
+                // the divisor's, and its partial remainder then needs more than 64 bits. It stays
+                // wide so that the correction below reads the remainder it was given: truncated to
+                // a ulong it looks small, the correction fires on an estimate that was already
+                // right, and the algorithm has no repair for one that came out too small. The
+                // estimate itself stays a ulong, so both products below are widening 64-by-64
+                // multiplications rather than the far dearer 128-bit kind.
+                var rhat = top - ((UInt128)qhat * vHigh);
+
+                while (qhat != 0 && rhat <= ulong.MaxValue)
                 {
-                    if (qhat == 0)
-                    {
-                        break;
-                    }
-
-                    var lhs = (UInt128)qhat * vNext;
-                    var rhs = new UInt128(rhat, un[j + divLen - 2]);
-                    if (lhs <= rhs)
+                    if ((UInt128)qhat * vNext <= new UInt128((ulong)rhat, un[j + divLen - 2]))
                     {
                         break;
                     }
 
                     qhat--;
-                    var newRhat = rhat + vHigh;
-                    if (newRhat < rhat)
-                    {
-                        break;
-                    }
-
-                    rhat = newRhat;
+                    rhat += vHigh;
                 }
 
                 ulong borrow = 0;

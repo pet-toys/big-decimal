@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 
 namespace PetToys.BigDecimal.Numerics;
 
@@ -83,8 +84,6 @@ public readonly partial struct BigDecimal
     {
         Span<ulong> a = stackalloc ulong[WorkWords];
         Span<ulong> b = stackalloc ulong[WorkWords];
-        a.Clear();
-        b.Clear();
 
         var aLen = left.CopyMagnitude(a);
         var bLen = right.CopyMagnitude(b);
@@ -201,14 +200,49 @@ public readonly partial struct BigDecimal
 
         Span<ulong> num = stackalloc ulong[WorkWords];
         Span<ulong> den = stackalloc ulong[WordCount];
-        num.Clear();
-        den.Clear();
+        Span<ulong> quotient = stackalloc ulong[WorkWords];
         var numLen = left.CopyMagnitude(num);
         var denLen = right.CopyMagnitude(den);
 
+        var scale = left.Scale - right.Scale;
+        var floorLift = Math.Max(-scale, 0);
+        var floorScale = scale + floorLift;
+
+        // Look for an exact quotient before lifting the dividend to full precision. Lifting first
+        // and stripping afterwards produces the same value, but it manufactures one trailing zero
+        // per lifted digit and then pays a division to remove every nineteen of them, which is the
+        // whole reason an exact division used to cost several times an inexact one.
+        //
+        // A trial division at the scale difference answers first. It is the cheapest thing that can
+        // be tried, it lifts nothing and leaves nothing to strip, and the specification already
+        // forbids reducing an exact quotient below that scale, so a zero remainder is the whole
+        // answer.
+        if (TryDivideExactly(left, num, den, denLen, quotient, floorLift, out var exactLen))
+        {
+            return Pack(quotient, exactLen, negative, floorScale);
+        }
+
+        // Failing that, the divisor's own factors: one that is 2^x times 5^y divides exactly at
+        // max(x, y) places whatever the dividend is, so the dividend is lifted by that much rather
+        // than by everything the mantissa would hold. The test costs one remainder pass, and a
+        // divisor carrying any other prime is rejected on it.
+        Span<ulong> factors = stackalloc ulong[WordCount];
+        den[..denLen].CopyTo(factors);
+        if (Words.TryDecimalDivisorExponent(factors, denLen, out var places))
+        {
+            var exactLift = Math.Max(places, floorLift);
+            if (scale + exactLift <= MaxScale
+                && TryDivideExactly(left, num, den, denLen, quotient, exactLift, out exactLen))
+            {
+                var exactScale = scale + exactLift;
+                exactLen = StripTrailingZeros(quotient, exactLen, ref exactScale, floorScale);
+                return Pack(quotient, exactLen, negative, exactScale);
+            }
+        }
+
+        numLen = left.CopyMagnitude(num);
         var numDigits = Words.DecimalDigitCount(num, numLen);
         var denDigits = Words.DecimalDigitCount(den, denLen);
-        var scale = left.Scale - right.Scale;
         var lift = MaxDigits - 1 - numDigits + denDigits;
         lift = Math.Max(lift, -scale);
         lift = Math.Min(lift, MaxScale - scale);
@@ -221,7 +255,6 @@ public readonly partial struct BigDecimal
 
         scale += lift;
 
-        Span<ulong> quotient = stackalloc ulong[WorkWords];
         quotient.Clear();
         var qLen = Words.DivRem(num, numLen, den, denLen, quotient, out var remLen);
 
@@ -258,8 +291,6 @@ public readonly partial struct BigDecimal
 
         Span<ulong> num = stackalloc ulong[DivideWorkWords];
         Span<ulong> den = stackalloc ulong[WorkWords];
-        num.Clear();
-        den.Clear();
         var numLen = left.CopyMagnitude(num);
         var denLen = right.CopyMagnitude(den);
 
@@ -339,8 +370,6 @@ public readonly partial struct BigDecimal
 
         Span<ulong> a = stackalloc ulong[WorkWords];
         Span<ulong> b = stackalloc ulong[WorkWords];
-        a.Clear();
-        b.Clear();
         var aLen = left.CopyMagnitude(a);
         var bLen = right.CopyMagnitude(b);
         var scale = AlignScales(a, ref aLen, left.Scale, b, ref bLen, right.Scale);
@@ -509,19 +538,57 @@ public readonly partial struct BigDecimal
         return value < min ? min : (value > max ? max : value);
     }
 
+    /// <summary>
+    /// Divides the dividend by the divisor after lifting it by <paramref name="lift"/> decimal
+    /// places, and reports whether the quotient came out exactly.
+    /// </summary>
+    /// <remarks>
+    /// The buffers are the caller's, and both are left in an undefined state when the division is
+    /// not exact: the primitive writes the remainder over the dividend. A caller that goes on to
+    /// the full-precision path therefore has to copy the dividend again, which is four words.
+    /// </remarks>
+    private static bool TryDivideExactly(
+        BigDecimal dividend,
+        Span<ulong> num,
+        ReadOnlySpan<ulong> den,
+        int denLen,
+        Span<ulong> quotient,
+        int lift,
+        out int quotientLength)
+    {
+        var numLen = dividend.CopyMagnitude(num);
+        if (lift > 0)
+        {
+            numLen = Words.ScaleUp(num, numLen, lift);
+        }
+
+        quotient.Clear();
+        quotientLength = Words.DivRem(num, numLen, den, denLen, quotient, out var remainderLength);
+        return remainderLength == 0;
+    }
+
     private static int StripTrailingZeros(Span<ulong> magnitude, int length, ref int scale, int floorScale)
     {
         floorScale = Math.Max(floorScale, 0);
         while (scale > floorScale && length > 0)
         {
-            length = Words.DivRemSmall(magnitude, length, 10, out var remainder);
-            if (remainder != 0)
+            // Count first, divide once. Counting costs at most one remainder pass and nothing at
+            // all when the value ends in a non-zero digit, where dividing by ten only to multiply
+            // it back used to be the whole cost of the call.
+            var zeros = Words.TrailingDecimalZeros(magnitude, length, scale - floorScale);
+            if (zeros == 0)
             {
-                length = Words.MulAddSmall(magnitude, length, 10, remainder);
                 break;
             }
 
-            scale--;
+            length = Words.DivRemSmall(magnitude, length, Words.Pow10[zeros], out var remainder);
+            Debug.Assert(remainder == 0, "the counted zeros divide the magnitude exactly");
+            scale -= zeros;
+
+            if (zeros < Words.MaxZerosPerPass)
+            {
+                break;
+            }
         }
 
         return length;

@@ -16,8 +16,8 @@ named:
 dotnet run -c Release -f net10.0 --project bench/PetToys.BigDecimal.Core.Benchmarks -- --filter "*"
 ```
 
-A full run is 146 benchmarks and took just over an hour when the baseline was
-taken. Most of the time you want one group:
+A full run is 158 benchmarks and took about an hour and a half when the
+baseline was taken. Most of the time you want one group:
 
 ```bash
 dotnet run -c Release -f net10.0 --project bench/PetToys.BigDecimal.Core.Benchmarks -- --filter "*DivideBenchmarks*"
@@ -57,6 +57,15 @@ run's result.
 The artifacts directory is git-ignored, as is everything under `bin/`.
 `BASELINE.md` is a deliberate copy kept outside it, and it is the only run
 output this repository keeps.
+
+A run overwrites only the reports of the classes it ran. A `--filter` on one
+class leaves every other report exactly where the previous run left it, and
+nothing in the directory says which run each file came from. So the directory
+is not a run: it is whatever the last few runs happened to leave. Take a
+baseline from one full run, and read the file timestamps before assembling
+anything out of it. `BASELINE.md` was once assembled with two of its sixteen
+sections belonging to an experiment that had already been reverted, and the
+file contradicted its own summary for as long as that lasted.
 
 ## Reading a run
 

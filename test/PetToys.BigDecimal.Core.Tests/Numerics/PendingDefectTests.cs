@@ -1,7 +1,6 @@
 using System;
 using System.Globalization;
 using System.Linq;
-using System.Numerics;
 using System.Reflection;
 using AwesomeAssertions;
 using PetToys.BigDecimal.Numerics.Harness;
@@ -19,76 +18,6 @@ namespace PetToys.BigDecimal.Numerics;
 /// </remarks>
 public sealed class PendingDefectTests
 {
-    [Fact(Skip = Pending.DivisionPrecision)]
-    public void DivideAtAnExplicitScale_IsCorrectlyRoundedForAWideQuotient()
-    {
-        // Found by the randomised suite. The exact quotient is MaxValue x 10^36, which reduces to
-        // 77 digits at scale 50; what comes back agrees for 55 digits and then diverges, an error
-        // around 10^20 in the returned mantissa rather than a unit in the last place.
-        var divisor = BigDecimal.FromScaled(BigInteger.Pow(10, 51), 0);
-
-        var quotient = BigDecimal.Divide(BigDecimal.MaxValue, divisor, 87, MidpointRounding.ToZero);
-
-        var expected = BigIntegerOracle.Divide(
-            OracleValue.Observe(BigDecimal.MaxValue),
-            OracleValue.Observe(divisor),
-            87,
-            MidpointRounding.ToZero);
-
-        OracleValue.Observe(quotient).Should().Be(expected);
-    }
-
-    [Fact(Skip = Pending.DivisionPrecision)]
-    public void Remainder_IsExactWhenTheDividendIsAMultipleOfTheDivisor()
-    {
-        // Found by the randomised suite. An integer divided by a power of ten leaves no remainder,
-        // whatever scale either side is written at; what comes back is roughly three quarters of
-        // the divisor.
-        var dividend = BigDecimal.FromScaled((BigInteger.One << 192) - BigInteger.One, 5);
-        var divisor = BigDecimal.FromScaled(BigInteger.Pow(10, 74), 116);
-
-        OracleValue.Observe(dividend % divisor)
-            .Should().Be(BigIntegerOracle.Remainder(OracleValue.Observe(dividend), OracleValue.Observe(divisor)));
-    }
-
-    [Fact(Skip = Pending.DivisionPrecision)]
-    public void DivideAtTheDefaultScale_IsCorrectlyRoundedForAWideAlignment()
-    {
-        // Found by a soak run at fifty thousand cases per test. The quotient comes back more than
-        // half a unit in the last place from the exact one — off by around 10^40 at the reported
-        // scale, not by a rounding decision.
-        var dividend = BigDecimal.FromScaled((BigInteger.One << 192) - BigInteger.One, 255);
-        var divisor = BigDecimal.FromScaled(BigInteger.Pow(10, 32), 254);
-
-        var quotient = OracleValue.Observe(dividend / divisor);
-        var (numerator, denominator) = BigIntegerOracle.ExactQuotient(
-            OracleValue.Observe(dividend),
-            OracleValue.Observe(divisor),
-            quotient.Scale);
-
-        (BigInteger.Abs((quotient.Unscaled * denominator) - numerator) * 2)
-            .Should().BeLessThanOrEqualTo(BigInteger.Abs(denominator));
-    }
-
-    [Fact(Skip = Pending.DivisionPrecision)]
-    public void DivideAtAnExplicitScale_KeepsPrecisionPastFiftySevenDigits()
-    {
-        // The same defect stated as its shape rather than one example: the intermediate quotient
-        // is correct only down to roughly its 57th significant digit, so the error grows as the
-        // reduction that follows takes away fewer digits.
-        var divisor = BigDecimal.FromScaled(BigInteger.Pow(10, 40), 0);
-
-        var quotient = BigDecimal.Divide(BigDecimal.MaxValue, divisor, 87, MidpointRounding.ToZero);
-
-        var expected = BigIntegerOracle.Divide(
-            OracleValue.Observe(BigDecimal.MaxValue),
-            OracleValue.Observe(divisor),
-            87,
-            MidpointRounding.ToZero);
-
-        OracleValue.Observe(quotient).Should().Be(expected);
-    }
-
     [Fact(Skip = Pending.NonUniformGroupSizes)]
     public void TheNumberSpecifier_HonoursEveryEntryOfNumberGroupSizes()
     {

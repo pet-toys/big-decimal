@@ -48,17 +48,7 @@ public readonly partial struct BigDecimal : IEquatable<BigDecimal>, IComparable<
         var len = CopyMagnitude(magnitude);
         var scale = Scale;
 
-        while (scale > 0 && len > 0)
-        {
-            len = Words.DivRemSmall(magnitude, len, 10, out var remainder);
-            if (remainder != 0)
-            {
-                len = Words.MulAddSmall(magnitude, len, 10, remainder);
-                break;
-            }
-
-            scale--;
-        }
+        len = StripTrailingZeros(magnitude, len, ref scale, 0);
 
         if (len == 0)
         {
@@ -71,8 +61,11 @@ public readonly partial struct BigDecimal : IEquatable<BigDecimal>, IComparable<
             hash.Add(magnitude[i]);
         }
 
-        hash.Add(scale);
-        hash.Add(IsNegative);
+        // The sign rides in the low bit of the scale rather than in a round of its own. The scale
+        // is at most MaxScale after the strip, so the two cannot collide, and a value of zero has
+        // already returned above, which is what keeps a negative zero from hashing apart from a
+        // positive one.
+        hash.Add((scale << 1) | (IsNegative ? 1 : 0));
         return hash.ToHashCode();
     }
 

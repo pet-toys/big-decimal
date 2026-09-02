@@ -16,7 +16,10 @@ public class ComparisonBenchmarks
 {
     private BigDecimal _left;
     private BigDecimal _right;
+    private BigDecimal _widenedOne;
     private BigDecimal _widened;
+    private BigDecimal _widenedNineteen;
+    private BigDecimal _widenedBeyond;
     private decimal _referenceLeft;
     private decimal _referenceRight;
 
@@ -38,11 +41,19 @@ public class ComparisonBenchmarks
         _referenceLeft = decimal.Parse(left, CultureInfo.InvariantCulture);
         _referenceRight = decimal.Parse(right, CultureInfo.InvariantCulture);
 
-        // The same value carrying eleven trailing zeros. This is not a contrived input: it is what
+        // The same value carrying trailing zeros. This is not a contrived input: it is what
         // WithScale produces when a caller widens a value to a column's scale, so it is the shape
         // the adapter packages will hash. Hashing has to normalise the scale away, and the operands
-        // above end in a 9 -- they cost one pass and stop, which is the floor rather than the cost.
+        // above end in a 9 -- they cost no division at all, which is the floor rather than the cost.
+        //
+        // Four widths, because the requirement is on the shape of the curve rather than on one
+        // ratio: one, eleven and nineteen zeros all come off in a single division and have to cost
+        // the same, and twenty-five needs a second one and may cost a step more. The operands carry
+        // scale 9, so the widened scales are 9 more than the zeros they add.
+        _widenedOne = _left.WithScale(10);
         _widened = _left.WithScale(20);
+        _widenedNineteen = _left.WithScale(28);
+        _widenedBeyond = _left.WithScale(34);
     }
 
     /// <summary>Ordering two values.</summary>
@@ -65,8 +76,23 @@ public class ComparisonBenchmarks
     [Benchmark]
     public int HashReference() => _referenceLeft.GetHashCode();
 
-    /// <summary>Hashing a value that carries trailing zeros, which the hash has to strip.</summary>
+    /// <summary>Hashing a value carrying one trailing zero.</summary>
+    /// <returns>The hash code, returned so that the call is not elided.</returns>
+    [Benchmark]
+    public int HashWidenedOne() => _widenedOne.GetHashCode();
+
+    /// <summary>Hashing a value carrying eleven trailing zeros, the column-scale shape.</summary>
     /// <returns>The hash code, returned so that the call is not elided.</returns>
     [Benchmark]
     public int HashWidened() => _widened.GetHashCode();
+
+    /// <summary>Hashing a value carrying nineteen trailing zeros, the last that come off in one division.</summary>
+    /// <returns>The hash code, returned so that the call is not elided.</returns>
+    [Benchmark]
+    public int HashWidenedNineteen() => _widenedNineteen.GetHashCode();
+
+    /// <summary>Hashing a value carrying twenty-five trailing zeros, which needs a second division.</summary>
+    /// <returns>The hash code, returned so that the call is not elided.</returns>
+    [Benchmark]
+    public int HashWidenedBeyond() => _widenedBeyond.GetHashCode();
 }
