@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -7,6 +8,10 @@ namespace PetToys.BigDecimal.Numerics;
 
 public readonly partial struct BigDecimal
 {
+    private static readonly BigDecimal DecimalMaxValue = decimal.MaxValue;
+
+    private static readonly BigDecimal DecimalMinValue = decimal.MinValue;
+
     /// <summary>Converts a <see cref="sbyte"/> to a <see cref="BigDecimal"/> at scale 0. The conversion is exact.</summary>
     public static implicit operator BigDecimal(sbyte value) => FromInt64(value);
 
@@ -64,69 +69,43 @@ public readonly partial struct BigDecimal
     }
 
     /// <summary>
-    /// Converts a <see cref="double"/> to a <see cref="BigDecimal"/>, taking the value to 15
-    /// significant decimal digits.
+    /// Converts a <see cref="double"/> to a <see cref="BigDecimal"/>, taking the shortest decimal
+    /// form that round-trips through <see cref="double"/>.
     /// </summary>
+    /// <remarks>
+    /// <c>(double)(BigDecimal)value</c> returns <c>value</c> for every finite <see cref="double"/>
+    /// whose shortest form has at most 77 integer digits and needs a scale of at most
+    /// <see cref="MaxScale"/>. Outside that window the ordinary rules apply: a larger value throws
+    /// and a smaller one is rounded at <see cref="MaxScale"/>, which may reach zero. This departs
+    /// from <see cref="decimal"/>, whose own conversion rounds to 15 significant digits, because
+    /// this type has the digits to hand the value back unchanged.
+    /// </remarks>
     /// <exception cref="OverflowException">The value is NaN, an infinity, or too large for the 256-bit magnitude.</exception>
-    public static explicit operator BigDecimal(double value)
-    {
-        if (double.IsNaN(value) || double.IsInfinity(value))
-        {
-            throw new OverflowException("NaN and infinity have no BigDecimal representation.");
-        }
-
-        Span<char> buffer = stackalloc char[32];
-        if (!value.TryFormat(buffer, out var written, "G15", CultureInfo.InvariantCulture))
-        {
-            ThrowMantissaOverflow();
-        }
-
-        return Parse(buffer[..written], NumberStyles.Float, CultureInfo.InvariantCulture);
-    }
+    public static explicit operator BigDecimal(double value) => FromFloatChecked(value);
 
     /// <summary>
-    /// Converts a <see cref="float"/> to a <see cref="BigDecimal"/>, taking the value to 7
-    /// significant decimal digits.
+    /// Converts a <see cref="float"/> to a <see cref="BigDecimal"/>, taking the shortest decimal
+    /// form that round-trips through <see cref="float"/>.
     /// </summary>
-    /// <exception cref="OverflowException">The value is NaN, an infinity, or too large for the 256-bit magnitude.</exception>
-    public static explicit operator BigDecimal(float value)
-    {
-        if (float.IsNaN(value) || float.IsInfinity(value))
-        {
-            throw new OverflowException("NaN and infinity have no BigDecimal representation.");
-        }
-
-        Span<char> buffer = stackalloc char[32];
-        if (!value.TryFormat(buffer, out var written, "G7", CultureInfo.InvariantCulture))
-        {
-            ThrowMantissaOverflow();
-        }
-
-        return Parse(buffer[..written], NumberStyles.Float, CultureInfo.InvariantCulture);
-    }
+    /// <remarks>
+    /// <c>(float)(BigDecimal)value</c> returns <c>value</c> for every finite <see cref="float"/>,
+    /// without exception: the whole finite range fits. This departs from <see cref="decimal"/>,
+    /// whose own conversion rounds to 7 significant digits, so that <c>(decimal)1.0000001f</c> is
+    /// 1 where this conversion keeps 1.0000001.
+    /// </remarks>
+    /// <exception cref="OverflowException">The value is NaN or an infinity.</exception>
+    public static explicit operator BigDecimal(float value) => FromFloatChecked(value);
 
     /// <summary>Converts a <see cref="BigInteger"/> to a <see cref="BigDecimal"/> at scale 0.</summary>
     /// <exception cref="OverflowException">The value does not fit the 256-bit magnitude.</exception>
     public static explicit operator BigDecimal(BigInteger value)
     {
-        var negative = value.Sign < 0;
-        var magnitude = negative ? -value : value;
-
-        Span<byte> bytes = stackalloc byte[(WordCount * 8) + 1];
-        if (!magnitude.TryWriteBytes(bytes, out var written, isUnsigned: true, isBigEndian: false))
+        if (!TryFromBigInteger(value, out var result))
         {
             ThrowMantissaOverflow();
         }
 
-        if (written > WordCount * 8)
-        {
-            ThrowMantissaOverflow();
-        }
-
-        bytes[written..].Clear();
-        Span<ulong> words = stackalloc ulong[WordCount];
-        MemoryMarshal.Cast<byte, ulong>(bytes[..(WordCount * 8)]).CopyTo(words);
-        return FromWords(words, negative, 0);
+        return result;
     }
 
     /// <summary>Builds a value from an unscaled mantissa and a scale.</summary>
@@ -291,6 +270,99 @@ public readonly partial struct BigDecimal
         return magnitude;
     }
 
+    /// <summary>
+    /// Converts a binary floating-point value through its shortest round-trippable form, throwing
+    /// where the value has no counterpart here.
+    /// </summary>
+    /// <remarks>
+    /// The shortest form is what the default format produces, and it is what makes the conversion
+    /// reversible: a fixed digit count either loses the value, as <c>"G15"</c> did, or writes out
+    /// digits the caller never had, as <c>"G17"</c> does.
+    /// </remarks>
+    private static BigDecimal FromFloatChecked<TFloat>(TFloat value)
+        where TFloat : IBinaryFloatingPointIeee754<TFloat>
+    {
+        if (!TFloat.IsFinite(value))
+        {
+            throw new OverflowException("NaN and infinity have no BigDecimal representation.");
+        }
+
+        if (!TryFromFloat(value, out var result))
+        {
+            ThrowMantissaOverflow();
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Converts a binary floating-point value, clamping anything without a counterpart here to the
+    /// nearest extreme, as <see cref="decimal"/> does.
+    /// </summary>
+    private static BigDecimal FromFloatSaturating<TFloat>(TFloat value)
+        where TFloat : IBinaryFloatingPointIeee754<TFloat>
+    {
+        if (TFloat.IsNaN(value))
+        {
+            return Zero;
+        }
+
+        return TFloat.IsFinite(value) && TryFromFloat(value, out var result)
+            ? result
+            : (TFloat.IsNegative(value) ? MinValue : MaxValue);
+    }
+
+    private static bool TryFromFloat<TFloat>(TFloat value, out BigDecimal result)
+        where TFloat : IBinaryFloatingPointIeee754<TFloat>
+    {
+        // 24 characters is the longest shortest-form double: a sign, a digit, a point, sixteen
+        // digits and a five-character exponent. Asserted rather than only handled, because the
+        // saturating caller reads a false as "does not fit" and would clamp to MaxValue for a
+        // buffer that was merely too small.
+        Span<char> buffer = stackalloc char[32];
+        if (!value.TryFormat(buffer, out var written, default, CultureInfo.InvariantCulture))
+        {
+            Debug.Fail("32 characters holds the shortest form of every type this is called with.");
+            result = default;
+            return false;
+        }
+
+        return TryParse(buffer[..written], NumberStyles.Float, CultureInfo.InvariantCulture, out result);
+    }
+
+    private static bool TryFromBigInteger(BigInteger value, out BigDecimal result)
+    {
+        var negative = value.Sign < 0;
+        var magnitude = negative ? -value : value;
+
+        Span<byte> bytes = stackalloc byte[(WordCount * 8) + 1];
+        if (!magnitude.TryWriteBytes(bytes, out var written, isUnsigned: true, isBigEndian: false)
+            || written > WordCount * 8)
+        {
+            result = default;
+            return false;
+        }
+
+        bytes[written..].Clear();
+        Span<ulong> words = stackalloc ulong[WordCount];
+        MemoryMarshal.Cast<byte, ulong>(bytes[..(WordCount * 8)]).CopyTo(words);
+        result = FromWords(words, negative, 0);
+        return true;
+    }
+
+    private static BigDecimal FromBigIntegerSaturating(BigInteger value) =>
+        TryFromBigInteger(value, out var result) ? result : (value.Sign < 0 ? MinValue : MaxValue);
+
+    private static decimal ToDecimalSaturating(BigDecimal value)
+    {
+        if (value > DecimalMaxValue)
+        {
+            return decimal.MaxValue;
+        }
+
+        return value < DecimalMinValue ? decimal.MinValue : (decimal)value;
+    }
+
     private static BigDecimal FromInt64(long value)
     {
         unchecked
@@ -303,8 +375,16 @@ public readonly partial struct BigDecimal
 
     private static BigDecimal FromUInt64(ulong value, bool negative) => new(value, 0, 0, 0, negative, 0);
 
-    private static BigDecimal FromUInt128(UInt128 value, bool negative, int scale) =>
-        new((ulong)value, (ulong)(value >> 64), 0, 0, negative, scale);
+    // Unchecked because both casts discard the half of the value the other one keeps. Without it a
+    // Debug build, which compiles with CheckForOverflowUnderflow, throws on any Int128 or UInt128
+    // past 64 bits: (BigDecimal)Int128.MaxValue failed where the Release build was correct.
+    private static BigDecimal FromUInt128(UInt128 value, bool negative, int scale)
+    {
+        unchecked
+        {
+            return new BigDecimal((ulong)value, (ulong)(value >> 64), 0, 0, negative, scale);
+        }
+    }
 
     private static long ToInt64Checked(BigDecimal value, long min, long max)
     {
@@ -337,19 +417,90 @@ public readonly partial struct BigDecimal
         return (ulong)magnitude;
     }
 
+    /// <summary>Clamps the integral part into a signed 64-bit range instead of throwing.</summary>
+    /// <remarks>
+    /// Every bounded signed target reaches its own range through this one, so the reduction from a
+    /// 256-bit magnitude is written once rather than once per target and variant.
+    /// </remarks>
+    private static long ToInt64Saturating(BigDecimal value, long min, long max)
+    {
+        var integral = ToInt128Saturating(value);
+        if (integral < min)
+        {
+            return min;
+        }
+
+        return integral > max ? max : (long)integral;
+    }
+
+    /// <summary>Clamps the integral part into an unsigned 64-bit range instead of throwing.</summary>
+    private static ulong ToUInt64Saturating(BigDecimal value, ulong max)
+    {
+        var integral = ToUInt128Saturating(value);
+        return integral > max ? max : (ulong)integral;
+    }
+
+    private static Int128 ToInt128Saturating(BigDecimal value)
+    {
+        unchecked
+        {
+            if (!TryToUInt128Magnitude(value, out var magnitude, out var negative))
+            {
+                return negative ? Int128.MinValue : Int128.MaxValue;
+            }
+
+            if (!negative)
+            {
+                return magnitude > (UInt128)Int128.MaxValue ? Int128.MaxValue : (Int128)magnitude;
+            }
+
+            return magnitude >= (UInt128)Int128.MaxValue + 1 ? Int128.MinValue : -(Int128)magnitude;
+        }
+    }
+
+    private static UInt128 ToUInt128Saturating(BigDecimal value)
+    {
+        if (!TryToUInt128Magnitude(value, out var magnitude, out var negative))
+        {
+            return negative ? UInt128.Zero : UInt128.MaxValue;
+        }
+
+        return negative && magnitude != UInt128.Zero ? UInt128.Zero : magnitude;
+    }
+
     private static UInt128 ToUInt128Magnitude(BigDecimal value, out bool negative)
     {
-        var whole = Truncate(value);
-        negative = whole.IsNegative;
-        Span<ulong> magnitude = stackalloc ulong[WordCount];
-        var len = whole.CopyMagnitude(magnitude);
-        if (len > 2)
+        if (!TryToUInt128Magnitude(value, out var magnitude, out negative))
         {
             ThrowMantissaOverflow();
         }
 
-        var low = len > 0 ? magnitude[0] : 0;
-        var high = len > 1 ? magnitude[1] : 0;
-        return new UInt128(high, low);
+        return magnitude;
+    }
+
+    /// <summary>
+    /// Reduces the value to its integral part, truncated towards zero, as a magnitude and a sign.
+    /// </summary>
+    /// <remarks>
+    /// The sign is reported even when the magnitude does not fit, because a saturating conversion
+    /// needs it to choose which extreme to clamp to.
+    /// </remarks>
+    /// <returns><see langword="false"/> when the integral part is wider than 128 bits.</returns>
+    private static bool TryToUInt128Magnitude(BigDecimal value, out UInt128 magnitude, out bool negative)
+    {
+        var whole = Truncate(value);
+        negative = whole.IsNegative;
+        Span<ulong> words = stackalloc ulong[WordCount];
+        var len = whole.CopyMagnitude(words);
+        if (len > 2)
+        {
+            magnitude = UInt128.Zero;
+            return false;
+        }
+
+        var low = len > 0 ? words[0] : 0;
+        var high = len > 1 ? words[1] : 0;
+        magnitude = new UInt128(high, low);
+        return true;
     }
 }

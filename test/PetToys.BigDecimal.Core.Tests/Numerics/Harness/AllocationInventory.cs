@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace PetToys.BigDecimal.Numerics.Harness;
@@ -32,6 +33,7 @@ public static class AllocationInventory
     private static readonly BigInteger Mantissa = new(1234567890123456789L);
     private static readonly string Text = "123456789.987654321";
     private static readonly string LongText = "0." + new string('7', 500);
+    private static readonly string TooLarge = "1" + new string('0', 78);
     private static readonly byte[] Utf8 = Encoding.UTF8.GetBytes("123456789.987654321");
     private static readonly byte[] LongUtf8 = Encoding.UTF8.GetBytes("0." + new string('7', 500));
     private static readonly char[] CharBuffer = new char[1024];
@@ -77,6 +79,12 @@ public static class AllocationInventory
     private static BigDecimal Increment(BigDecimal value) => ++value;
 
     private static BigDecimal Decrement(BigDecimal value) => --value;
+
+    // char implements INumberBase explicitly, so its Create* methods are reachable only through a
+    // type parameter. That is the shape this change removed from BigDecimal itself.
+    private static T Saturating<T, TOther>(TOther value)
+        where T : INumberBase<T>
+        where TOther : INumberBase<TOther> => T.CreateSaturating(value);
 
     private static IEnumerable<string> EnumerateMembers()
     {
@@ -158,12 +166,57 @@ public static class AllocationInventory
         Add("conversion to decimal", "op_Explicit", () => Allocations.OtherSink = (long)(decimal)Left);
         Add("conversion to double", "op_Explicit", () => Allocations.OtherSink = (long)(double)Left);
         Add("conversion to long", "op_Explicit", () => Allocations.OtherSink = (long)Left);
+        Add("conversion from double", "op_Explicit", () => Allocations.Sink = (BigDecimal)0.1);
+        Add("conversion from float", "op_Explicit", () => Allocations.Sink = (BigDecimal)0.1f);
+        Add("Precision", "Precision", () => Allocations.OtherSink = Left.Precision);
+
+        // One entry per conversion type, in both directions. The member name op_Explicit stands
+        // for sixteen conversions and the generic ones are reached through a type parameter rather
+        // than through a name at all, so the family counted as covered while converting out of the
+        // type boxed 24 bytes for a long target and 32 for a decimal one. The same hole as the
+        // format specifier, with a type argument in place of a value.
+        Add("CreateChecked from long", "CreateChecked", () => Allocations.Sink = BigDecimal.CreateChecked(1234567890123456789L));
+        Add("CreateChecked from double", "CreateChecked", () => Allocations.Sink = BigDecimal.CreateChecked(0.1));
+        Add("CreateSaturating from decimal", "CreateSaturating", () => Allocations.Sink = BigDecimal.CreateSaturating(123456.789m));
+        Add("CreateSaturating from double", "CreateSaturating", () => Allocations.Sink = BigDecimal.CreateSaturating(double.MaxValue));
+        Add("CreateSaturating from Half", "CreateSaturating", () => Allocations.Sink = BigDecimal.CreateSaturating((Half)1.5f));
+        Add("CreateSaturating from NFloat", "CreateSaturating", () => Allocations.Sink = BigDecimal.CreateSaturating((NFloat)1.5));
+        Add("CreateSaturating from char", "CreateSaturating", () => Allocations.Sink = BigDecimal.CreateSaturating('A'));
+        Add("CreateTruncating from Int128", "CreateTruncating", () => Allocations.Sink = BigDecimal.CreateTruncating(Int128.MaxValue));
+        Add("CreateTruncating from BigInteger", "CreateTruncating", () => Allocations.Sink = BigDecimal.CreateTruncating(Mantissa));
+
+        Add("conversion to byte", "TryConvertToSaturating", () => Allocations.OtherSink = byte.CreateSaturating(Left));
+        Add("conversion to sbyte", "TryConvertToSaturating", () => Allocations.OtherSink = sbyte.CreateSaturating(Left));
+        Add("conversion to short", "TryConvertToSaturating", () => Allocations.OtherSink = short.CreateSaturating(Left));
+        Add("conversion to ushort", "TryConvertToSaturating", () => Allocations.OtherSink = ushort.CreateSaturating(Left));
+        Add("conversion to int", "TryConvertToSaturating", () => Allocations.OtherSink = int.CreateSaturating(Left));
+        Add("conversion to uint", "TryConvertToSaturating", () => Allocations.OtherSink = uint.CreateSaturating(Left));
+        Add("conversion to long, generic", "TryConvertToSaturating", () => Allocations.OtherSink = long.CreateSaturating(Left));
+        Add("conversion to ulong", "TryConvertToSaturating", () => Allocations.OtherSink = (long)ulong.CreateSaturating(Left));
+        Add("conversion to char", "TryConvertToSaturating", () => Allocations.OtherSink = Saturating<char, BigDecimal>(Left));
+        Add("conversion to nint", "TryConvertToSaturating", () => Allocations.OtherSink = nint.CreateSaturating(Left));
+        Add("conversion to nuint", "TryConvertToSaturating", () => Allocations.OtherSink = (long)nuint.CreateSaturating(Left));
+        Add("conversion to Int128", "TryConvertToSaturating", () => Allocations.OtherSink = (long)Int128.CreateSaturating(Left));
+        Add("conversion to UInt128", "TryConvertToSaturating", () => Allocations.OtherSink = (long)UInt128.CreateSaturating(Left));
+        Add("conversion to decimal, generic", "TryConvertToSaturating", () => Allocations.OtherSink = (long)decimal.CreateSaturating(Left));
+        Add("conversion to double, generic", "TryConvertToSaturating", () => Allocations.OtherSink = (long)double.CreateSaturating(Left));
+        Add("conversion to float, generic", "TryConvertToSaturating", () => Allocations.OtherSink = (long)float.CreateSaturating(Left));
+        Add("conversion to Half", "TryConvertToSaturating", () => Allocations.OtherSink = BitConverter.HalfToInt16Bits(Half.CreateSaturating(Left)));
+        Add("conversion to NFloat", "TryConvertToSaturating", () => Allocations.OtherSink = (long)(double)NFloat.CreateSaturating(Left));
+        // Measured on a value inside one machine word on purpose: past that a BigInteger owns
+        // heap storage by contract, which is why GetMantissa is excused outright. What this
+        // entry holds to zero is the conversion itself, not the result type.
+        Add("conversion to BigInteger", "TryConvertToSaturating", () => Allocations.OtherSink = (long)BigInteger.CreateSaturating(Left));
+        Add("conversion to BigDecimal", "TryConvertToSaturating", () => Allocations.Sink = BigDecimal.CreateSaturating(Left));
+        Add("conversion to long, checked", "TryConvertToChecked", () => Allocations.OtherSink = long.CreateChecked(Left));
+        Add("conversion to decimal, checked", "TryConvertToChecked", () => Allocations.OtherSink = (long)decimal.CreateChecked(Left));
 
         Add("Parse from chars", "Parse", () => Allocations.Sink = BigDecimal.Parse(Text, Invariant));
         Add("Parse from UTF-8", "Parse", () => Allocations.Sink = BigDecimal.Parse(LongUtf8, Invariant));
         Add("TryParse from chars", "TryParse", () => Allocations.OtherSink = BigDecimal.TryParse(Text, Invariant, out var value) ? value.Scale : -1);
         Add("TryParse from UTF-8", "TryParse", () => Allocations.OtherSink = BigDecimal.TryParse(Utf8, Invariant, out var value) ? value.Scale : -1);
         Add("Parse a long value from chars", "Parse", () => Allocations.Sink = BigDecimal.Parse(LongText, Invariant));
+        Add("TryParse a value that does not fit", "TryParse", () => Allocations.OtherSink = BigDecimal.TryParse(TooLarge, Invariant, out var value) ? value.Scale : -1);
 
         // One entry per standard specifier, on both overloads. Covering TryFormat once with
         // whatever format was convenient is what let grouped formatting allocate 64 bytes per call

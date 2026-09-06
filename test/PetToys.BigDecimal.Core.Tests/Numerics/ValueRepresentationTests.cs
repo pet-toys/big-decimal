@@ -284,4 +284,37 @@ public sealed class ValueRepresentationTests
 
         act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName(nameof(scale));
     }
+
+    [Theory]
+    [InlineData("0", 1)]
+    [InlineData("0.00000", 1)]
+    [InlineData("1", 1)]
+    [InlineData("1.00", 3)]
+    [InlineData("0.001", 1)]
+    [InlineData("-123.456", 6)]
+    [InlineData("999999999999999999999999999999", 30)]
+    public void Precision_CountsTheUnscaledMantissa(string text, int expected)
+    {
+        // The mantissa, not the value with its trailing zeros stripped: a column counts stored
+        // digits, and this type stores them.
+        BigDecimal.Parse(text, CultureInfo.InvariantCulture).Precision.Should().Be(expected);
+    }
+
+    [Fact]
+    public void Precision_ReportsSeventyEightForTheLargestValue()
+    {
+        // 77 is the width an overflowing result is normalised to; the magnitude itself is
+        // 2^256-1, which has 78 digits. A caller that assumes 77 is wrong for one range of values.
+        BigDecimal.MaxValue.Precision.Should().Be(78);
+        BigDecimal.MinValue.Precision.Should().Be(78);
+    }
+
+    [Fact]
+    public void Precision_GrowsWithAWidenedScale()
+    {
+        var value = BigDecimal.Parse("1.5", CultureInfo.InvariantCulture);
+
+        value.Precision.Should().Be(2);
+        value.WithScale(18).Precision.Should().Be(19, "widening adds the digits to the mantissa");
+    }
 }
