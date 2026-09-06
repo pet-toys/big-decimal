@@ -18,4 +18,13 @@ public enum CultureCase
 
     /// <summary>A non-breaking space between groups, the way France and Scandinavia write.</summary>
     SpaceGroups,
+
+    /// <summary>
+    /// Groups of three and then nothing: a size list ending in zero, which stops grouping so that
+    /// everything left of the first group is written unbroken.
+    /// </summary>
+    StoppedGroups,
+
+    /// <summary>An empty size list, a culture that asks for no grouping at all.</summary>
+    NoGroups,
 }

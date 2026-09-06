@@ -23,7 +23,10 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
     /// <remarks>
     /// The supported specifiers are <c>G</c> (the value as stored, trailing zeros included),
     /// <c>F</c>, <c>N</c> and <c>E</c>, with their lowercase forms and an optional precision. Any
-    /// other specifier throws <see cref="FormatException"/>.
+    /// other specifier throws <see cref="FormatException"/>. <c>N</c> groups the integer part by
+    /// the culture's <see cref="NumberFormatInfo.NumberGroupSizes"/> in full: the first entry
+    /// sizes the rightmost group and the last entry repeats, an entry of zero stops grouping,
+    /// and an empty list does not group at all.
     /// </remarks>
     /// <returns>The formatted value.</returns>
     /// <exception cref="FormatException">The format string is not supported.</exception>
@@ -33,7 +36,10 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
     /// <remarks>
     /// The supported specifiers are <c>G</c> (the value as stored, trailing zeros included),
     /// <c>F</c>, <c>N</c> and <c>E</c>, with their lowercase forms and an optional precision. Any
-    /// other specifier throws <see cref="FormatException"/>.
+    /// other specifier throws <see cref="FormatException"/>. <c>N</c> groups the integer part by
+    /// the culture's <see cref="NumberFormatInfo.NumberGroupSizes"/> in full: the first entry
+    /// sizes the rightmost group and the last entry repeats, an entry of zero stops grouping,
+    /// and an empty list does not group at all.
     /// </remarks>
     /// <returns>The formatted value.</returns>
     /// <exception cref="FormatException">The format string is not supported.</exception>
@@ -52,7 +58,10 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
     /// <remarks>
     /// The supported specifiers are <c>G</c> (the value as stored, trailing zeros included),
     /// <c>F</c>, <c>N</c> and <c>E</c>, with their lowercase forms and an optional precision. Any
-    /// other specifier throws <see cref="FormatException"/>.
+    /// other specifier throws <see cref="FormatException"/>. <c>N</c> groups the integer part by
+    /// the culture's <see cref="NumberFormatInfo.NumberGroupSizes"/> in full: the first entry
+    /// sizes the rightmost group and the last entry repeats, an entry of zero stops grouping,
+    /// and an empty list does not group at all.
     /// </remarks>
     /// <returns><see langword="true"/> when the destination was long enough; otherwise <see langword="false"/>.</returns>
     /// <exception cref="FormatException">The format string is not supported.</exception>
@@ -91,7 +100,10 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
     /// <c>F</c>, <c>N</c> and <c>E</c>, with their lowercase forms and an optional precision. Any
     /// other specifier throws <see cref="FormatException"/>. Use
     /// <see cref="ToString(string?, IFormatProvider?)"/> for a wide value with a long explicit
-    /// precision, which this overload can decline to write.
+    /// precision, which this overload can decline to write. <c>N</c> groups the integer part by
+    /// the culture's <see cref="NumberFormatInfo.NumberGroupSizes"/> in full: the first entry
+    /// sizes the rightmost group and the last entry repeats, an entry of zero stops grouping,
+    /// and an empty list does not group at all.
     /// </remarks>
     /// <returns><see langword="true"/> when the value was written; otherwise <see langword="false"/>.</returns>
     /// <exception cref="FormatException">The format string is not supported.</exception>
@@ -182,8 +194,8 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
         var sign = IsNegative && !rounded.IsZero ? info.NegativeSign : string.Empty;
         var point = info.NumberDecimalSeparator;
         var groupSeparator = grouped ? info.NumberGroupSeparator : string.Empty;
-        var groupSize = grouped ? (info.NumberGroupSizes.Length > 0 ? info.NumberGroupSizes[0] : 3) : 0;
-        var separators = grouped && groupSize > 0 ? (integerPart.Length - 1) / groupSize : 0;
+        var groupSizes = grouped ? CultureData.NumberGroupSizes(info) : default;
+        var separators = CountGroupSeparators(integerPart.Length, groupSizes);
 
         var total = sign.Length
             + integerPart.Length
@@ -199,16 +211,12 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
         sign.CopyTo(destination[pos..]);
         pos += sign.Length;
 
-        for (var i = 0; i < integerPart.Length; i++)
-        {
-            if (grouped && i > 0 && groupSize > 0 && (integerPart.Length - i) % groupSize == 0)
-            {
-                groupSeparator.CopyTo(destination[pos..]);
-                pos += groupSeparator.Length;
-            }
-
-            destination[pos++] = integerPart[i];
-        }
+        pos += WriteGroupedInteger(
+            destination[pos..],
+            integerPart,
+            groupSizes,
+            groupSeparator,
+            separators);
 
         if (precision > 0)
         {
@@ -319,6 +327,78 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
 
         charsWritten = pos;
         return true;
+    }
+
+    /// <summary>
+    /// Returns the group size at a position in the walk, the last entry standing in for every
+    /// position past the end of the list.
+    /// </summary>
+    /// <remarks>
+    /// A size of zero stops grouping and an empty list never groups, so both come back as zero and
+    /// the callers below treat that as the end of the walk. The framework's own setter rejects a
+    /// zero anywhere but last and rejects anything above nine, so no other value can arrive here.
+    /// </remarks>
+    private static int GroupSizeAt(ReadOnlySpan<int> groupSizes, int index) =>
+        groupSizes.IsEmpty ? 0 : groupSizes[Math.Min(index, groupSizes.Length - 1)];
+
+    /// <summary>Counts the separators that grouping an integer part of this length will write.</summary>
+    /// <remarks>
+    /// Needed before anything is written, because the destination-length check depends on it. The
+    /// walk runs once per group rather than once per digit, and it divides nothing.
+    /// </remarks>
+    private static int CountGroupSeparators(int length, ReadOnlySpan<int> groupSizes)
+    {
+        var separators = 0;
+        var remaining = length;
+
+        for (var index = 0; ; index++)
+        {
+            var size = GroupSizeAt(groupSizes, index);
+            if (size == 0 || remaining <= size)
+            {
+                return separators;
+            }
+
+            remaining -= size;
+            separators++;
+        }
+    }
+
+    /// <summary>Writes the integer part, grouped, and returns how many characters it took.</summary>
+    /// <remarks>
+    /// Right to left, because that is how grouping is defined: the first entry of the size list
+    /// sizes the rightmost group. The destination is sized by the caller from
+    /// <see cref="CountGroupSeparators"/>, so the two walks agree by construction.
+    /// </remarks>
+    private static int WriteGroupedInteger(
+        Span<char> destination,
+        ReadOnlySpan<char> integerPart,
+        ReadOnlySpan<int> groupSizes,
+        string groupSeparator,
+        int separators)
+    {
+        var written = integerPart.Length + (separators * groupSeparator.Length);
+        var write = written;
+        var read = integerPart.Length;
+
+        for (var index = 0; ; index++)
+        {
+            var size = GroupSizeAt(groupSizes, index);
+            if (size == 0 || read <= size)
+            {
+                break;
+            }
+
+            read -= size;
+            write -= size;
+            integerPart.Slice(read, size).CopyTo(destination[write..]);
+
+            write -= groupSeparator.Length;
+            groupSeparator.CopyTo(destination[write..]);
+        }
+
+        integerPart[..read].CopyTo(destination);
+        return written;
     }
 
     private static int RoundSignificand(Span<char> digits, int digitCount, int keep, out bool carried)

@@ -16,15 +16,6 @@ public static class Pending
     public const string Formatting = "Pending the formatting parity work.";
 
     /// <summary>
-    /// Owned by the formatting parity work. The `N` specifier reads only the first element of
-    /// <see cref="System.Globalization.NumberFormatInfo.NumberGroupSizes"/>, so a culture that
-    /// groups three then two — the Indian convention, and what `hi-IN` actually carries — comes
-    /// back grouped uniformly in threes where `decimal` groups it correctly.
-    /// </summary>
-    public const string NonUniformGroupSizes =
-        "Pending the formatting parity work: only the first entry of NumberGroupSizes is honoured.";
-
-    /// <summary>
     /// Owned by the parsing parity work. A leading group separator is rejected, matching
     /// <see cref="decimal"/> — except when the separator is itself whitespace, where it is consumed
     /// as leading white space and the value is accepted. <see cref="decimal"/> rejects it.

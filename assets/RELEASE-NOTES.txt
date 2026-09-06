@@ -1,0 +1,13 @@
+0.1.0-dev.1
+===========
+
+PetToys.BigDecimal.Core
+
+- The N format specifier now honours the whole of the culture's group size list,
+  as System.Decimal does. A culture that groups three digits and then two is
+  grouped that way rather than uniformly in threes, a size list ending in zero
+  stops grouping where it says to, and a culture that asks for no grouping gets
+  none rather than groups of three. Output changes under those cultures.
+- Formatting with N no longer allocates. It cost 64 bytes on every call, in the
+  char and the UTF-8 overload alike, and was the last exception to the package's
+  zero-allocation guarantee.
