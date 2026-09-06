@@ -18,17 +18,6 @@ namespace PetToys.BigDecimal.Numerics;
 /// </remarks>
 public sealed class PendingDefectTests
 {
-    [Fact(Skip = Pending.NonUniformGroupSizes)]
-    public void TheNumberSpecifier_HonoursEveryEntryOfNumberGroupSizes()
-    {
-        // Found by the culture matrix. Groups of three then two is what the Indian subcontinent
-        // writes and what NumberGroupSizes exists to express; only its first entry is read.
-        var culture = CultureMatrix.Get(CultureCase.NonUniformGroups);
-        var value = BigDecimal.Parse("-184467440737095516", CultureInfo.InvariantCulture);
-
-        value.ToString("N0", culture).Should().Be(((decimal)value).ToString("N0", culture));
-    }
-
     [Fact(Skip = Pending.LeadingWhitespaceSeparator)]
     public void ALeadingGroupSeparator_IsRefusedEvenWhenItIsWhitespace()
     {

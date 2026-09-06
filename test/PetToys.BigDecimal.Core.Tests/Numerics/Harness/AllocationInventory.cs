@@ -39,6 +39,10 @@ public static class AllocationInventory
     private static readonly ulong[] Words = [3, 5, 7, 11];
     private static readonly ulong[] WordDestination = new ulong[4];
     private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
+    private static readonly CultureInfo Grouping = CultureMatrix.Get(CultureCase.NonUniformGroups);
+
+    private static readonly BigDecimal LongInteger =
+        BigDecimal.Parse("1234567890123456789012345678901234567890.12", CultureInfo.InvariantCulture);
 
     private static readonly List<string> Order = [];
     private static readonly Dictionary<string, (string Member, Action Operation)> Entries = Build();
@@ -161,9 +165,22 @@ public static class AllocationInventory
         Add("TryParse from UTF-8", "TryParse", () => Allocations.OtherSink = BigDecimal.TryParse(Utf8, Invariant, out var value) ? value.Scale : -1);
         Add("Parse a long value from chars", "Parse", () => Allocations.Sink = BigDecimal.Parse(LongText, Invariant));
 
-        Add("TryFormat to chars", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(CharBuffer, out var written, default, Invariant) ? written : -1);
-        Add("TryFormat to UTF-8", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(ByteBuffer, out var written, default, Invariant) ? written : -1);
+        // One entry per standard specifier, on both overloads. Covering TryFormat once with
+        // whatever format was convenient is what let grouped formatting allocate 64 bytes per call
+        // through two changes and a full benchmark run: every entry here used the default format,
+        // so the whole grouped path sat outside the inventory.
+        Add("TryFormat to chars, default format", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(CharBuffer, out var written, default, Invariant) ? written : -1);
+        Add("TryFormat to UTF-8, default format", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(ByteBuffer, out var written, default, Invariant) ? written : -1);
         Add("TryFormat a wide value", "TryFormat", () => Allocations.OtherSink = Wide.TryFormat(CharBuffer, out var written, default, Invariant) ? written : -1);
+        Add("TryFormat to chars, G", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(CharBuffer, out var written, "G", Invariant) ? written : -1);
+        Add("TryFormat to UTF-8, G", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(ByteBuffer, out var written, "G", Invariant) ? written : -1);
+        Add("TryFormat to chars, F9", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(CharBuffer, out var written, "F9", Invariant) ? written : -1);
+        Add("TryFormat to UTF-8, F9", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(ByteBuffer, out var written, "F9", Invariant) ? written : -1);
+        Add("TryFormat to chars, E4", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(CharBuffer, out var written, "E4", Invariant) ? written : -1);
+        Add("TryFormat to UTF-8, E4", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(ByteBuffer, out var written, "E4", Invariant) ? written : -1);
+        Add("TryFormat to chars, N2 grouped", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(CharBuffer, out var written, "N2", Grouping) ? written : -1);
+        Add("TryFormat to UTF-8, N2 grouped", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(ByteBuffer, out var written, "N2", Grouping) ? written : -1);
+        Add("TryFormat N0 over many groups", "TryFormat", () => Allocations.OtherSink = LongInteger.TryFormat(CharBuffer, out var written, "N0", Grouping) ? written : -1);
 
         return entries;
     }

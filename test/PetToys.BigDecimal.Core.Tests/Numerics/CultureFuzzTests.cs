@@ -61,13 +61,6 @@ public sealed class CultureFuzzTests
             var culture = CultureMatrix.Get(cultureCase);
             var specifier = Specifiers[random.Next(Specifiers.Length)];
 
-            // Grouped output under a culture whose groups are not uniformly three is wrong today
-            // and is pinned in PendingDefectTests. Nothing else about this culture is excluded.
-            if (cultureCase == CultureCase.NonUniformGroups && specifier.StartsWith('N'))
-            {
-                continue;
-            }
-
             var context = FuzzContext.Of(seed, index, drawn);
 
             drawn.Value.ToString(specifier, culture)

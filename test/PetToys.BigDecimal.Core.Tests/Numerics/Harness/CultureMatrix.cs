@@ -20,13 +20,15 @@ public static class CultureMatrix
 
     // Built once. The randomised suites ask for a culture per case, and a fresh CultureInfo clone
     // with its NumberFormatInfo rewritten is not something to allocate three hundred thousand
-    // times for four values that never change.
+    // times for a handful of values that never change.
     private static readonly CultureInfo[] Cultures =
     [
         Build(".", ",", [3]),
         Build(",", ".", [3]),
         Build(".", ",", [3, 2]),
         Build(",", "\u00A0", [3]),
+        Build(".", ",", [3, 0]),
+        Build(".", ",", []),
     ];
 
     /// <summary>Returns the culture for a case.</summary>
@@ -35,7 +37,8 @@ public static class CultureMatrix
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="culture"/> is not a defined case.</exception>
     public static CultureInfo Get(CultureCase culture) => culture switch
     {
-        CultureCase.Invariant or CultureCase.CommaDecimal or CultureCase.NonUniformGroups or CultureCase.SpaceGroups =>
+        CultureCase.Invariant or CultureCase.CommaDecimal or CultureCase.NonUniformGroups
+            or CultureCase.SpaceGroups or CultureCase.StoppedGroups or CultureCase.NoGroups =>
             Cultures[(int)culture],
         _ => throw new ArgumentOutOfRangeException(nameof(culture)),
     };
