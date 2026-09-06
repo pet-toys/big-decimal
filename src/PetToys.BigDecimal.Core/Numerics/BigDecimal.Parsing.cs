@@ -352,15 +352,12 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
             }
         }
 
-        try
-        {
-            result = Pack(magnitude, length, negative, scale);
-            return ParseStatus.Ok;
-        }
-        catch (OverflowException)
-        {
-            return ParseStatus.Overflow;
-        }
+        // Not a try/catch around the throwing form: an input the type cannot hold is an ordinary
+        // outcome here, and paying 464 bytes of exception for it broke the zero-allocation
+        // guarantee on the only path whose whole purpose is to fail quietly.
+        return TryPack(magnitude, length, negative, scale, out result)
+            ? ParseStatus.Ok
+            : ParseStatus.Overflow;
     }
 
     private static bool TryParseExponent(ReadOnlySpan<char> input, NumberFormatInfo info, out int exponent)

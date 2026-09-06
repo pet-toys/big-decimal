@@ -65,6 +65,21 @@ public sealed class AllocationTests
     }
 
     [Fact]
+    public void AValueTooLargeToParse_FailsWithoutAllocating()
+    {
+        // TryParse called the throwing Pack inside a try/catch, so an input the type cannot hold
+        // cost 464 bytes of exception on the one path whose contract is to fail quietly. The
+        // inventory never saw it because every parse entry used a value that fits.
+        var tooLarge = "1" + new string('0', 78);
+
+        Allocations.Measure(() => Allocations.OtherSink =
+                BigDecimal.TryParse(tooLarge, CultureInfo.InvariantCulture, out var value) ? value.Scale : -1)
+            .Should().Be(0, "a parse that returns false allocates nothing");
+
+        BigDecimal.TryParse(tooLarge, CultureInfo.InvariantCulture, out _).Should().BeFalse();
+    }
+
+    [Fact]
     public void ALongUtf8Payload_ParsesWithoutAllocating()
     {
         var utf8 = Encoding.UTF8.GetBytes("0." + new string('7', 500));

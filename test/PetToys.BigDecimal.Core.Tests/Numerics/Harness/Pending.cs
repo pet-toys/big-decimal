@@ -22,7 +22,4 @@ public static class Pending
     /// </summary>
     public const string LeadingWhitespaceSeparator =
         "Pending the parsing parity work: a leading group separator that is whitespace is accepted.";
-
-    /// <summary>Owned by the numeric conversion contracts work.</summary>
-    public const string NumericContracts = "Pending the numeric conversion contracts work.";
 }

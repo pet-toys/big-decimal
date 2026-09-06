@@ -113,6 +113,33 @@ public readonly partial struct BigDecimal
     public int Sign => IsZero ? 0 : (IsNegative ? -1 : 1);
 
     /// <summary>
+    /// The number of decimal digits in the unscaled mantissa, from 1 upwards.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Counted on the mantissa rather than on the value with its trailing zeros removed, because
+    /// this type preserves them and a database column counts stored digits: <c>1.00</c> reports 3
+    /// and <c>1</c> reports 1, while <c>0.001</c> reports 1 because the scale carries the leading
+    /// zeros. Together with <see cref="Scale"/> this is what decides whether a value fits a
+    /// <c>numeric(p,s)</c> or a <c>Decimal128(S)</c> column.
+    /// </para>
+    /// <para>
+    /// Zero reports 1 at every scale. The largest value reports 78, not 77: 77 is the width an
+    /// overflowing result is normalised to, while the magnitude itself holds 2^256-1, which has 78
+    /// digits.
+    /// </para>
+    /// </remarks>
+    public int Precision
+    {
+        get
+        {
+            Span<ulong> magnitude = stackalloc ulong[WordCount];
+            var length = CopyMagnitude(magnitude);
+            return Words.DecimalDigitCount(magnitude, length);
+        }
+    }
+
+    /// <summary>
     /// Builds a value from a little-endian magnitude, a sign and a scale.
     /// </summary>
     /// <param name="words">
@@ -185,10 +212,33 @@ public readonly partial struct BigDecimal
 
     internal static BigDecimal Pack(Span<ulong> magnitude, int length, bool isNegative, int scale)
     {
+        if (!TryPack(magnitude, length, isNegative, scale, out var result))
+        {
+            ThrowMantissaOverflow();
+        }
+
+        return result;
+    }
+
+    /// <summary>Packs a magnitude and a scale into a value, reporting overflow rather than throwing.</summary>
+    /// <remarks>
+    /// The reporting form exists because <c>TryParse</c> used to call the throwing one inside a
+    /// <c>try</c>/<c>catch</c>, so an input the type cannot hold cost 464 bytes of exception on a
+    /// path whose contract is to return <see langword="false"/> and allocate nothing.
+    /// <para>
+    /// The magnitude is consumed either way: scaling and rounding write over it, so a caller that
+    /// gets <see langword="false"/> cannot reuse the buffer's contents. That was already true of
+    /// the throwing form.
+    /// </para>
+    /// </remarks>
+    internal static bool TryPack(Span<ulong> magnitude, int length, bool isNegative, int scale, out BigDecimal result)
+    {
+        result = default;
         length = Words.Normalize(magnitude[..Math.Max(length, 0)]);
         if (length == 0)
         {
-            return new BigDecimal(0, 0, 0, 0, false, Math.Clamp(scale, 0, MaxScale));
+            result = new BigDecimal(0, 0, 0, 0, false, Math.Clamp(scale, 0, MaxScale));
+            return true;
         }
 
         if (scale < 0)
@@ -196,13 +246,13 @@ public readonly partial struct BigDecimal
             var power = -scale;
             if (Words.DecimalDigitCount(magnitude, length) + power > (magnitude.Length - 1) * 19)
             {
-                ThrowMantissaOverflow();
+                return false;
             }
 
             length = Words.ScaleUp(magnitude, length, power);
             if (length > WordCount)
             {
-                ThrowMantissaOverflow();
+                return false;
             }
 
             scale = 0;
@@ -212,7 +262,7 @@ public readonly partial struct BigDecimal
         {
             if (scale <= 0)
             {
-                ThrowMantissaOverflow();
+                return false;
             }
 
             var excess = Math.Max(scale - MaxScale, 0);
@@ -226,13 +276,14 @@ public readonly partial struct BigDecimal
             scale -= excess;
         }
 
-        return new BigDecimal(
+        result = new BigDecimal(
             length > 0 ? magnitude[0] : 0,
             length > 1 ? magnitude[1] : 0,
             length > 2 ? magnitude[2] : 0,
             length > 3 ? magnitude[3] : 0,
             isNegative,
             scale);
+        return true;
     }
 
     [DoesNotReturn]

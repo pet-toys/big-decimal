@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Globalization;
 using System.Numerics;
+using System.Runtime.InteropServices;
 
 namespace PetToys.BigDecimal.Numerics;
 
@@ -77,36 +78,91 @@ public readonly partial struct BigDecimal : INumber<BigDecimal>, ISignedNumber<B
 
     static int INumber<BigDecimal>.Sign(BigDecimal value) => value.Sign;
 
-    static BigDecimal INumberBase<BigDecimal>.CreateChecked<TOther>(TOther value) =>
-        TryConvertFrom(value, out var result)
-            ? result
-            : throw new NotSupportedException($"Cannot convert {typeof(TOther)} to BigDecimal.");
+    /// <summary>Converts a value of another numeric type, refusing anything that does not fit.</summary>
+    /// <typeparam name="TOther">The type to convert from.</typeparam>
+    /// <param name="value">The value to convert.</param>
+    /// <returns>The converted value.</returns>
+    /// <exception cref="OverflowException">
+    /// The value is outside the range of <see cref="BigDecimal"/>, or is NaN or an infinity.
+    /// </exception>
+    /// <exception cref="NotSupportedException">Neither type can convert the other.</exception>
+    public static BigDecimal CreateChecked<TOther>(TOther value)
+        where TOther : INumberBase<TOther>
+    {
+        BigDecimal result;
+        if (TryFrom(value, saturate: false, out result) || TOther.TryConvertToChecked(value, out result))
+        {
+            return result;
+        }
 
-    static BigDecimal INumberBase<BigDecimal>.CreateSaturating<TOther>(TOther value) =>
-        TryConvertFrom(value, out var result) ? result : Zero;
+        throw NotConvertible<TOther>();
+    }
 
-    static BigDecimal INumberBase<BigDecimal>.CreateTruncating<TOther>(TOther value) =>
-        TryConvertFrom(value, out var result) ? result : Zero;
+    /// <summary>
+    /// Converts a value of another numeric type, clamping anything outside the range of
+    /// <see cref="BigDecimal"/> to <see cref="MinValue"/> or <see cref="MaxValue"/>. A NaN source
+    /// converts to <see cref="Zero"/>, as it does for <see cref="decimal"/>.
+    /// </summary>
+    /// <typeparam name="TOther">The type to convert from.</typeparam>
+    /// <param name="value">The value to convert.</param>
+    /// <returns>The converted value, clamped where it did not fit.</returns>
+    /// <exception cref="NotSupportedException">Neither type can convert the other.</exception>
+    public static BigDecimal CreateSaturating<TOther>(TOther value)
+        where TOther : INumberBase<TOther>
+    {
+        BigDecimal result;
+        if (TryFrom(value, saturate: true, out result) || TOther.TryConvertToSaturating(value, out result))
+        {
+            return result;
+        }
+
+        throw NotConvertible<TOther>();
+    }
+
+    /// <summary>
+    /// Converts a value of another numeric type. This is the same conversion as
+    /// <see cref="CreateSaturating{TOther}"/>, whatever the source: truncation is defined on the
+    /// two's-complement representation of an integer, which a scaled decimal value does not have,
+    /// so the base class library clamps here instead.
+    /// </summary>
+    /// <typeparam name="TOther">The type to convert from.</typeparam>
+    /// <param name="value">The value to convert.</param>
+    /// <returns>The converted value, clamped where it did not fit.</returns>
+    /// <exception cref="NotSupportedException">Neither type can convert the other.</exception>
+    public static BigDecimal CreateTruncating<TOther>(TOther value)
+        where TOther : INumberBase<TOther>
+    {
+        BigDecimal result;
+        if (TryFrom(value, saturate: true, out result) || TOther.TryConvertToTruncating(value, out result))
+        {
+            return result;
+        }
+
+        throw NotConvertible<TOther>();
+    }
 
     static bool INumberBase<BigDecimal>.TryConvertFromChecked<TOther>(TOther value, out BigDecimal result) =>
-        TryConvertFrom(value, out result);
+        TryFrom(value, saturate: false, out result);
 
     static bool INumberBase<BigDecimal>.TryConvertFromSaturating<TOther>(TOther value, out BigDecimal result) =>
-        TryConvertFrom(value, out result);
+        TryFrom(value, saturate: true, out result);
 
     static bool INumberBase<BigDecimal>.TryConvertFromTruncating<TOther>(TOther value, out BigDecimal result) =>
-        TryConvertFrom(value, out result);
+        TryFrom(value, saturate: true, out result);
 
     static bool INumberBase<BigDecimal>.TryConvertToChecked<TOther>(BigDecimal value, out TOther result) =>
-        TryConvertTo(value, out result);
+        TryTo(value, saturate: false, out result);
 
     static bool INumberBase<BigDecimal>.TryConvertToSaturating<TOther>(BigDecimal value, out TOther result) =>
-        TryConvertTo(value, out result);
+        TryTo(value, saturate: true, out result);
 
     static bool INumberBase<BigDecimal>.TryConvertToTruncating<TOther>(BigDecimal value, out TOther result) =>
-        TryConvertTo(value, out result);
+        TryTo(value, saturate: true, out result);
 
     private static BigDecimal Two => new(2, 0, 0, 0, false, 0);
+
+    private static NotSupportedException NotConvertible<TOther>() =>
+        new($"Cannot convert {typeof(TOther)} to BigDecimal.");
 
     private static bool IsIntegerValue(BigDecimal value) => Truncate(value) == value;
 
@@ -132,7 +188,17 @@ public readonly partial struct BigDecimal : INumber<BigDecimal>, ISignedNumber<B
         return x.IsNegative ? x : y;
     }
 
-    private static bool TryConvertFrom<TOther>(TOther value, out BigDecimal result)
+    /// <summary>Converts into a <see cref="BigDecimal"/> from one of the recognised types.</summary>
+    /// <remarks>
+    /// <paramref name="saturate"/> serves both the saturating and the truncating conversion, which
+    /// are the same operation here. Truncation is defined on the two's-complement representation of
+    /// an integer, which a scaled decimal value does not have, so the base class library clamps
+    /// instead for a real-valued source: <c>byte.CreateTruncating(300m)</c> is 255 where
+    /// <c>byte.CreateTruncating(300)</c> is 44. <see cref="decimal"/> implements the two with one
+    /// method for the same reason.
+    /// </remarks>
+    /// <returns><see langword="false"/> when the source type is not one this type recognises.</returns>
+    private static bool TryFrom<TOther>(TOther value, bool saturate, out BigDecimal result)
         where TOther : INumberBase<TOther>
     {
         switch (value)
@@ -149,48 +215,166 @@ public readonly partial struct BigDecimal : INumber<BigDecimal>, ISignedNumber<B
             case UInt128 v: result = v; return true;
             case nint v: result = v; return true;
             case nuint v: result = v; return true;
+            case char v: result = (ushort)v; return true;
             case decimal v: result = v; return true;
-            case double v: result = (BigDecimal)v; return true;
-            case float v: result = (BigDecimal)v; return true;
-            case BigInteger v: result = (BigDecimal)v; return true;
+            case double v: result = saturate ? FromFloatSaturating(v) : FromFloatChecked(v); return true;
+            case float v: result = saturate ? FromFloatSaturating(v) : FromFloatChecked(v); return true;
+            case Half v: result = saturate ? FromFloatSaturating(v) : FromFloatChecked(v); return true;
+            case NFloat v: result = saturate ? FromFloatSaturating(v) : FromFloatChecked(v); return true;
+            case BigInteger v: result = saturate ? FromBigIntegerSaturating(v) : (BigDecimal)v; return true;
             case BigDecimal v: result = v; return true;
             default: result = default; return false;
         }
     }
 
-    private static bool TryConvertTo<TOther>(BigDecimal value, out TOther result)
+    /// <summary>Converts out of a <see cref="BigDecimal"/> into one of the recognised types.</summary>
+    /// <remarks>
+    /// <para>
+    /// Written as a chain of <c>typeof(TOther) == typeof(X)</c> tests rather than as a switch
+    /// producing an <see cref="object"/>, because each comparison is a compile-time constant for a
+    /// value-type instantiation and the box that survives it folds away with the branch. The switch
+    /// this replaced allocated 24 bytes converting to a <see cref="long"/> and 32 to a
+    /// <see cref="decimal"/>.
+    /// </para>
+    /// <para>
+    /// <paramref name="saturate"/> serves the saturating and the truncating conversion both; see
+    /// <see cref="TryFrom{TOther}"/> for why they are one operation. A target that has infinities
+    /// receives one rather than an exception even under the checked conversion, which is what
+    /// <c>float.CreateChecked(double.MaxValue)</c> does.
+    /// </para>
+    /// </remarks>
+    /// <returns><see langword="false"/> when the target type is not one this type recognises.</returns>
+    private static bool TryTo<TOther>(BigDecimal value, bool saturate, out TOther result)
         where TOther : INumberBase<TOther>
     {
-        object? converted = default(TOther) switch
-        {
-            byte => (byte)value,
-            sbyte => (sbyte)value,
-            short => (short)value,
-            ushort => (ushort)value,
-            int => (int)value,
-            uint => (uint)value,
-            long => (long)value,
-            ulong => (ulong)value,
-            Int128 => (Int128)value,
-            UInt128 => (UInt128)value,
-            nint => (nint)(long)value,
-            nuint => (nuint)(ulong)value,
-            decimal => (decimal)value,
-            double => (double)value,
-            float => (float)value,
-            BigInteger => (BigInteger)value,
-            BigDecimal => value,
-            _ => null,
-        };
+        long Signed(long min, long max) =>
+            saturate ? ToInt64Saturating(value, min, max) : ToInt64Checked(value, min, max);
 
-        if (converted is null)
+        ulong Unsigned(ulong max) =>
+            saturate ? ToUInt64Saturating(value, max) : ToUInt64Checked(value, max);
+
+        if (typeof(TOther) == typeof(byte))
         {
-            result = default!;
-            return false;
+            result = (TOther)(object)(byte)Unsigned(byte.MaxValue);
+            return true;
         }
 
-        result = (TOther)converted;
-        return true;
+        if (typeof(TOther) == typeof(sbyte))
+        {
+            result = (TOther)(object)(sbyte)Signed(sbyte.MinValue, sbyte.MaxValue);
+            return true;
+        }
+
+        if (typeof(TOther) == typeof(short))
+        {
+            result = (TOther)(object)(short)Signed(short.MinValue, short.MaxValue);
+            return true;
+        }
+
+        if (typeof(TOther) == typeof(ushort))
+        {
+            result = (TOther)(object)(ushort)Unsigned(ushort.MaxValue);
+            return true;
+        }
+
+        if (typeof(TOther) == typeof(int))
+        {
+            result = (TOther)(object)(int)Signed(int.MinValue, int.MaxValue);
+            return true;
+        }
+
+        if (typeof(TOther) == typeof(uint))
+        {
+            result = (TOther)(object)(uint)Unsigned(uint.MaxValue);
+            return true;
+        }
+
+        if (typeof(TOther) == typeof(long))
+        {
+            result = (TOther)(object)Signed(long.MinValue, long.MaxValue);
+            return true;
+        }
+
+        if (typeof(TOther) == typeof(ulong))
+        {
+            result = (TOther)(object)Unsigned(ulong.MaxValue);
+            return true;
+        }
+
+        if (typeof(TOther) == typeof(char))
+        {
+            result = (TOther)(object)(char)Unsigned(char.MaxValue);
+            return true;
+        }
+
+        if (typeof(TOther) == typeof(nint))
+        {
+            result = (TOther)(object)(nint)Signed(nint.MinValue, nint.MaxValue);
+            return true;
+        }
+
+        if (typeof(TOther) == typeof(nuint))
+        {
+            result = (TOther)(object)(nuint)Unsigned((ulong)nuint.MaxValue);
+            return true;
+        }
+
+        if (typeof(TOther) == typeof(Int128))
+        {
+            result = (TOther)(object)(saturate ? ToInt128Saturating(value) : (Int128)value);
+            return true;
+        }
+
+        if (typeof(TOther) == typeof(UInt128))
+        {
+            result = (TOther)(object)(saturate ? ToUInt128Saturating(value) : (UInt128)value);
+            return true;
+        }
+
+        if (typeof(TOther) == typeof(decimal))
+        {
+            result = (TOther)(object)(saturate ? ToDecimalSaturating(value) : (decimal)value);
+            return true;
+        }
+
+        if (typeof(TOther) == typeof(double))
+        {
+            result = (TOther)(object)(double)value;
+            return true;
+        }
+
+        if (typeof(TOther) == typeof(float))
+        {
+            result = (TOther)(object)(float)value;
+            return true;
+        }
+
+        if (typeof(TOther) == typeof(Half))
+        {
+            result = (TOther)(object)(Half)(double)value;
+            return true;
+        }
+
+        if (typeof(TOther) == typeof(NFloat))
+        {
+            result = (TOther)(object)(NFloat)(double)value;
+            return true;
+        }
+
+        if (typeof(TOther) == typeof(BigInteger))
+        {
+            result = (TOther)(object)(BigInteger)value;
+            return true;
+        }
+
+        if (typeof(TOther) == typeof(BigDecimal))
+        {
+            result = (TOther)(object)value;
+            return true;
+        }
+
+        result = default!;
+        return false;
     }
 
     static BigDecimal INumberBase<BigDecimal>.Parse(string s, NumberStyles style, IFormatProvider? provider) =>

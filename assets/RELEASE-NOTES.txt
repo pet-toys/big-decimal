@@ -11,3 +11,18 @@ PetToys.BigDecimal.Core
 - Formatting with N no longer allocates. It cost 64 bytes on every call, in the
   char and the UTF-8 overload alike, and was the last exception to the package's
   zero-allocation guarantee.
+- Conversion from double and float now takes the shortest decimal form that
+  round-trips, where it took 15 and 7 significant digits before. A double or a
+  float the type can hold comes back unchanged, so (double)(BigDecimal)value
+  returns value. Values that used to arrive rounded now arrive with more digits.
+- The generic conversions honour their own contracts. CreateChecked throws where
+  the value does not fit, CreateSaturating and CreateTruncating clamp to the
+  target's range, and all three ask the other type to convert itself before
+  giving up with NotSupportedException instead of silently returning zero. Half,
+  NFloat and char are recognised in both directions.
+- CreateChecked, CreateSaturating and CreateTruncating are callable on the type
+  itself, as they are on every numeric type in the base class library.
+- New: Precision, the number of decimal digits in the unscaled mantissa, so that
+  a caller can decide whether a value fits a column before writing it.
+- Converting out of the type no longer boxes, and TryParse no longer allocates
+  an exception for a value too large to parse.
