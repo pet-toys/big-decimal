@@ -446,7 +446,7 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
         var count = 0;
         while (len > 0)
         {
-            len = Words.DivRemSmall(magnitude, len, Words.TenPow19, out var chunk);
+            len = Words.DivRemSmall(magnitude, len, Words.TenPow19Divisor, out var chunk);
             for (var i = 0; i < 19; i++)
             {
                 reversed[count++] = (char)('0' + (int)(chunk % 10));

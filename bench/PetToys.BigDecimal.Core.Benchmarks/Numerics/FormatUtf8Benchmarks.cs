@@ -11,6 +11,7 @@ namespace PetToys.BigDecimal.Numerics;
 /// The destination buffer and the format string are prepared in <see cref="Setup"/>, for the same
 /// reason as in the <c>char</c> case: the measurement is of the formatter, not of the allocator.
 /// </remarks>
+[BenchmarkCategory(BenchmarkCategories.Budget)]
 public class FormatUtf8Benchmarks
 {
     private BigDecimal _value;

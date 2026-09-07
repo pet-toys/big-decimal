@@ -14,6 +14,7 @@ namespace PetToys.BigDecimal.Numerics;
 /// rejection instead of a parse, which is faster, and flatter the ratio. Only the parse itself is
 /// inside the measured method.
 /// </remarks>
+[BenchmarkCategory(BenchmarkCategories.Budget)]
 public class TryParseBenchmarks
 {
     private string _text = string.Empty;

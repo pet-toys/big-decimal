@@ -581,7 +581,7 @@ public readonly partial struct BigDecimal
                 break;
             }
 
-            length = Words.DivRemSmall(magnitude, length, Words.Pow10[zeros], out var remainder);
+            length = Words.DivRemSmall(magnitude, length, Words.Pow10Divisors[zeros], out var remainder);
             Debug.Assert(remainder == 0, "the counted zeros divide the magnitude exactly");
             scale -= zeros;
 

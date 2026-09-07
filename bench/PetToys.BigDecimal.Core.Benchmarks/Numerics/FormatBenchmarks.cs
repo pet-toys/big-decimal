@@ -12,6 +12,7 @@ namespace PetToys.BigDecimal.Numerics;
 /// allocating a destination inside the measured method would put an allocation the operation does
 /// not make into the allocation column, and would measure the allocator rather than the formatter.
 /// </remarks>
+[BenchmarkCategory(BenchmarkCategories.Budget)]
 public class FormatBenchmarks
 {
     private BigDecimal _value;

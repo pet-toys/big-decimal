@@ -12,6 +12,7 @@ namespace PetToys.BigDecimal.Numerics;
 /// interesting one here — comparing two values of different scale is what forces the alignment
 /// that the aligned pairing skips.
 /// </remarks>
+[BenchmarkCategory(BenchmarkCategories.Budget)]
 public class ComparisonBenchmarks
 {
     private BigDecimal _left;
