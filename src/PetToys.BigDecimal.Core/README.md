@@ -23,6 +23,13 @@ The type implements `INumber<T>`, `ISignedNumber<T>`, `IMinMaxValue<T>`, the
 `IFormattable`/`ISpanFormattable`/`IUtf8SpanFormattable` families, and ships a
 `System.Text.Json` converter.
 
+Formatting matches `decimal` string for string: the `C`, `E`, `F`, `G`, `N`,
+`P` and `R` specifiers with an optional precision, custom numeric format
+strings, and the culture's own group sizes and negative patterns — so a culture
+that writes `(1,234.5)` gets that rather than a leading sign. Both the `char`
+and the UTF-8 overload write the same text, bounded only by the destination the
+caller passes.
+
 No runtime dependencies. Database helpers live in separate packages:
 [`PetToys.BigDecimal.Npgsql`][npgsql-url] and
 [`PetToys.BigDecimal.ClickHouse`][ch-url].

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using AwesomeAssertions;
 using PetToys.BigDecimal.Numerics.Harness;
@@ -179,6 +180,113 @@ public sealed class FormattingTests
         value.TryFormat(exact, out var written, "N0", readOnly).Should().BeTrue(
             "the length check counts each separator's own length rather than one character apiece");
         written.Should().Be(expected.Length);
+    }
+
+    [Fact]
+    public void Percent_ScalesTheRenderingRatherThanTheValue()
+    {
+        // A hundred times MaxValue does not fit the mantissa, and there is nothing to fit: the
+        // point moves two places and the rendering grows by two digits. decimal renders its own
+        // maximum the same way, which is what settled this as a rendering rather than an operation.
+        var rendered = BigDecimal.MaxValue.ToString("P0", CultureInfo.InvariantCulture);
+
+        new string([.. rendered.Where(char.IsAsciiDigit)]).Should().Be(
+            BigDecimal.MaxValue.ToString("F0", CultureInfo.InvariantCulture) + "00",
+            "scaling by a hundred appends two zeros to an integer rendering and changes nothing else; "
+            + "the separators differ because P groups and F does not");
+        rendered.Count(char.IsAsciiDigit).Should().Be(80, "the maximum is 78 digits and the point moved two places");
+
+        decimal.MaxValue.ToString("P0", CultureInfo.InvariantCulture).Should().Be(
+            ((BigDecimal)decimal.MaxValue).ToString("P0", CultureInfo.InvariantCulture),
+            "the two types agree at decimal's own maximum, where multiplying would have overflowed");
+    }
+
+    [Theory]
+    [InlineData("1.500")]
+    [InlineData("0.00")]
+    [InlineData("-1234.5678")]
+    [InlineData("0")]
+    public void RoundTrip_IsThePlainRendering(string text)
+    {
+        var value = BigDecimal.Parse(text, CultureInfo.InvariantCulture);
+
+        value.ToString("R", CultureInfo.InvariantCulture).Should().Be(
+            value.ToString("G", CultureInfo.InvariantCulture),
+            "the mantissa is exact, so the value as stored round-trips and R has nothing else to do");
+        value.ToString("r", CultureInfo.InvariantCulture).Should().Be(text);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void TheNumberNegativePattern_IsHonoured(int pattern)
+    {
+        var culture = (CultureInfo)CultureInfo.InvariantCulture.Clone();
+        culture.NumberFormat.NumberNegativePattern = pattern;
+        var readOnly = CultureInfo.ReadOnly(culture);
+
+        var value = BigDecimal.Parse("-1234.5", CultureInfo.InvariantCulture);
+
+        value.ToString("N1", readOnly).Should().Be(
+            (-1234.5m).ToString("N1", readOnly),
+            "the pattern lays out the sign, and pattern 0 writes no sign character at all");
+    }
+
+    [Theory]
+    [InlineData("1234.5678", "G3")]
+    [InlineData("1234.5678", "G6")]
+    [InlineData("1.000", "G3")]
+    [InlineData("100", "G3")]
+    [InlineData("0.000012345", "G3")]
+    [InlineData("0.00012345", "G1")]
+    [InlineData("99999", "G4")]
+    [InlineData("0", "G5")]
+    [InlineData("-1234.5678", "g3")]
+    public void SignificantDigits_MatchDecimal(string text, string format)
+    {
+        var value = BigDecimal.Parse(text, CultureInfo.InvariantCulture);
+        var expected = decimal.Parse(text, NumberStyles.Float, CultureInfo.InvariantCulture);
+
+        value.ToString(format, CultureInfo.InvariantCulture).Should().Be(
+            expected.ToString(format, CultureInfo.InvariantCulture),
+            "G with a precision counts significant digits, strips the zeros the rounding leaves and "
+            + "switches to scientific outside its own range");
+    }
+
+    [Fact]
+    public void TheUtf8Overload_IsBoundedByTheCallersDestination()
+    {
+        // D4. The overload used to format through an internal buffer of 366 characters and decline
+        // anything longer, whatever the caller passed: MaxValue with F300 needs 379 and the char
+        // overload wrote them into a destination of the same size.
+        var characters = new char[8_192];
+        BigDecimal.MaxValue.TryFormat(characters, out var expected, "F300", CultureInfo.InvariantCulture)
+            .Should().BeTrue();
+
+        var destination = new byte[8_192];
+        BigDecimal.MaxValue.TryFormat(destination, out var written, "F300", CultureInfo.InvariantCulture)
+            .Should().BeTrue("the destination is 8 KB, which is ample");
+        written.Should().Be(expected, "both overloads write the same number of units for ASCII text");
+        Encoding.UTF8.GetString(destination, 0, written).Should().Be(new string(characters, 0, expected));
+
+        var tooShort = new byte[expected - 1];
+        BigDecimal.MaxValue.TryFormat(tooShort, out var none, "F300", CultureInfo.InvariantCulture)
+            .Should().BeFalse("one unit short is short, and that is the only reason to decline");
+        none.Should().Be(0);
+    }
+
+    [Fact]
+    public void ALongCustomFormat_IsNotCappedByTheImplementation()
+    {
+        // The 64 KB cap existed to protect a buffer whose size was a guess. The framework has no
+        // such limit, and neither does a length that is computed.
+        var format = new string('0', 100_000);
+
+        BigDecimal.One.ToString(format, CultureInfo.InvariantCulture).Should().Be(
+            1m.ToString(format, CultureInfo.InvariantCulture));
     }
 
     private static CultureInfo WithGroupSizes(params int[] groupSizes)

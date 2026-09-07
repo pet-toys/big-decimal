@@ -29,14 +29,14 @@ dry` grades nothing, for the reason in the README.
 
 ## Runs behind these rows
 
-| Run | Date       | Scope                       | Code       | Cost   |
-| --- | ---------- | --------------------------- | ---------- | ------ |
-| A   | 2026-09-08 | `--anyCategories budget`    | `53d5b6a`  | 66 min |
-| B   | 2026-09-08 | `*ComparisonBenchmarks*`    | `c33486b`  | 16 min |
+| Run | Date       | Scope                    | Code                       | Cost   |
+| --- | ---------- | ------------------------ | -------------------------- | ------ |
+| A   | 2026-09-08 | `--anyCategories budget` | `formatting-parity`        | 66 min |
+| B   | 2026-09-08 | `*ComparisonBenchmarks*` | `c33486b`                  | 16 min |
 
-`53d5b6a` is the `formatting-parity` branch, which differs from `c33486b` only
-in the formatting path; the rows below that are not formatting were measured on
-code identical to it.
+Run A was taken on the `formatting-parity` work before it merged, which differs
+from `c33486b` only in the formatting path, so the rows below that are not
+formatting measure code identical to run B's.
 
 ## Verdicts
 
@@ -51,22 +51,12 @@ code identical to it.
 | `Parse`, UTF-8                     |     3x |  1.26 |       0.00 | one word              | met     | A   |
 | `TryParse`, `char`                 |     3x |  1.15 |       0.00 | one word              | met     | A   |
 | `TryParse`, UTF-8                  |     3x |  1.32 |       0.00 | one word              | met     | A   |
+| `TryFormat`, `char`                |     3x |  2.67 |       0.02 | two words, `#,##0.00` | met     | A   |
+| `TryFormat`, UTF-8                 |     3x |  2.80 |       0.03 | two words, `#,##0.00` | met     | A   |
 | Exact division against inexact     |    1.0 |  0.35 |       0.00 | `100 / 10` vs `/ 3`   | met     | A   |
 | Hashing, widened against narrow    |   2.5x |  2.13 |       0.05 | two words, misaligned | met     | B   |
 | Hashing, nineteen zeros against one|   1.5x |  1.43 |       0.02 | one word, aligned     | met     | B   |
 | Zero allocations                   | always |     - |          - | every row             | met     | A   |
-
-`TryFormat` is measured but not yet on `dev`:
-
-| Criterion                          | Budget | Ratio | Dispersion | Shape                    | Verdict | Run |
-| ---------------------------------- | -----: | ----: | ---------: | ------------------------ | ------- | --- |
-| `TryFormat`, `char`                |     3x |  2.67 |       0.02 | two words, `#,##0.00`    | met     | A   |
-| `TryFormat`, UTF-8                 |     3x |  2.80 |       0.03 | two words, `#,##0.00`    | met     | A   |
-
-Those two rows measure the `formatting-parity` branch, which is where the nine
-format strings the criterion is now read over come from. On `dev` the criterion
-is read over three format strings and its last verdict predates this file's
-format. The rows move into the table above when that branch lands.
 
 ## What the numbers do not say
 
@@ -84,6 +74,12 @@ them.** Its measured arm came in at 12.60 ns where the other three runs of the
 same code read 10.06 and 10.07, and its deviation was 0.48%, so nothing in the
 report marks it. It is recorded as measured. It is inside 3.5x either way, and
 it is the case that moved that budget off 3x.
+
+**The two `TryFormat` rows are the worst of nine format strings** at two
+operand shapes on each overload, both from `#,##0.00` on a two-word mantissa.
+The other eight sit between 1.25x and 2.49x, and the criterion is read per
+format string rather than as an average over them. The run before this one put
+the same two at 2.74x and 2.67x, so the verdict does not turn on which was read.
 
 **Every `Measured` row allocated zero bytes.** The only non-zero allocation in
 run A is `System.Decimal`'s own, 56 bytes formatting `#,##0.00` at two words.

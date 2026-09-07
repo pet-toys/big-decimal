@@ -62,6 +62,32 @@ public static class AllocationInventory
         ["GetMantissa"] = "Returns a BigInteger, which owns heap storage for anything past one machine word.",
     };
 
+    /// <summary>
+    /// Every place the package rents from a pool instead of allocating, and the threshold above
+    /// which it does.
+    /// </summary>
+    /// <remarks>
+    /// A rent is not an exception to the guarantee: the entries here are measured at zero like
+    /// everything else, because a warm pool hands back a buffer it already owns. It is listed so
+    /// that a new rent has to be declared rather than noticed, and so that the threshold is
+    /// written down where it can be argued with rather than only in the code that chose it.
+    /// </remarks>
+    public static IReadOnlyDictionary<string, string> PooledBuffers { get; } =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["TryFormat to UTF-8"] =
+                "Formats through a char buffer sized from the computed length: on the stack up to 512 "
+                + "characters, rented above it. 512 covers every standard specifier at any precision a "
+                + "culture supplies, so only an explicit precision or a long custom format reaches the pool.",
+            ["ToString"] =
+                "Writes into the string it returns through string.Create, so the string is the only "
+                + "allocation and nothing is rented at all.",
+            ["Parse from UTF-8"] =
+                "Transcodes into a rented char buffer when the input is longer than the stack bound.",
+            ["BigDecimalJsonConverter.Read"] =
+                "Rents a byte buffer for a token longer than 365 bytes rather than sizing a fixed one.",
+        };
+
     /// <summary>The member names the inventory covers.</summary>
     public static IReadOnlySet<string> CoveredMembers { get; } =
         new HashSet<string>(EnumerateMembers(), StringComparer.Ordinal);
@@ -218,22 +244,29 @@ public static class AllocationInventory
         Add("Parse a long value from chars", "Parse", () => Allocations.Sink = BigDecimal.Parse(LongText, Invariant));
         Add("TryParse a value that does not fit", "TryParse", () => Allocations.OtherSink = BigDecimal.TryParse(TooLarge, Invariant, out var value) ? value.Scale : -1);
 
-        // One entry per standard specifier, on both overloads. Covering TryFormat once with
-        // whatever format was convenient is what let grouped formatting allocate 64 bytes per call
-        // through two changes and a full benchmark run: every entry here used the default format,
-        // so the whole grouped path sat outside the inventory.
-        Add("TryFormat to chars, default format", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(CharBuffer, out var written, default, Invariant) ? written : -1);
-        Add("TryFormat to UTF-8, default format", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(ByteBuffer, out var written, default, Invariant) ? written : -1);
+        // One entry per format string the corpus carries, on both overloads. Covering TryFormat
+        // once with whatever format was convenient is what let grouped formatting allocate 64 bytes
+        // per call through two changes and a full benchmark run: every entry used the default
+        // format, so the whole grouped path sat outside the inventory. A custom format string is
+        // not a specifier and no rule about specifiers reaches it, so the corpus covers both.
+        foreach (var format in FormatCorpus.All)
+        {
+            var current = format;
+            Add(
+                $"TryFormat to chars, \"{current}\"",
+                "TryFormat",
+                () => Allocations.OtherSink = Left.TryFormat(CharBuffer, out var written, current, Invariant) ? written : -1);
+            Add(
+                $"TryFormat to UTF-8, \"{current}\"",
+                "TryFormat",
+                () => Allocations.OtherSink = Left.TryFormat(ByteBuffer, out var written, current, Invariant) ? written : -1);
+        }
+
         Add("TryFormat a wide value", "TryFormat", () => Allocations.OtherSink = Wide.TryFormat(CharBuffer, out var written, default, Invariant) ? written : -1);
-        Add("TryFormat to chars, G", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(CharBuffer, out var written, "G", Invariant) ? written : -1);
-        Add("TryFormat to UTF-8, G", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(ByteBuffer, out var written, "G", Invariant) ? written : -1);
-        Add("TryFormat to chars, F9", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(CharBuffer, out var written, "F9", Invariant) ? written : -1);
-        Add("TryFormat to UTF-8, F9", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(ByteBuffer, out var written, "F9", Invariant) ? written : -1);
-        Add("TryFormat to chars, E4", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(CharBuffer, out var written, "E4", Invariant) ? written : -1);
-        Add("TryFormat to UTF-8, E4", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(ByteBuffer, out var written, "E4", Invariant) ? written : -1);
         Add("TryFormat to chars, N2 grouped", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(CharBuffer, out var written, "N2", Grouping) ? written : -1);
         Add("TryFormat to UTF-8, N2 grouped", "TryFormat", () => Allocations.OtherSink = Left.TryFormat(ByteBuffer, out var written, "N2", Grouping) ? written : -1);
         Add("TryFormat N0 over many groups", "TryFormat", () => Allocations.OtherSink = LongInteger.TryFormat(CharBuffer, out var written, "N0", Grouping) ? written : -1);
+        Add("TryFormat a grouped custom format", "TryFormat", () => Allocations.OtherSink = LongInteger.TryFormat(CharBuffer, out var written, "#,##0.00", Grouping) ? written : -1);
 
         return entries;
     }
