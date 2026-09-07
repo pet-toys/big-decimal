@@ -12,6 +12,7 @@ namespace PetToys.BigDecimal.Numerics;
 /// one. The two cases are a parameter rather than two methods so that they sit in adjacent rows of
 /// the report with everything else held equal.
 /// </remarks>
+[BenchmarkCategory(BenchmarkCategories.Budget)]
 public class ExactDivisionBenchmarks
 {
     private BigDecimal _dividend;

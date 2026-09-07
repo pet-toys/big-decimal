@@ -12,6 +12,7 @@ namespace PetToys.BigDecimal.Numerics;
 /// text in <see cref="Setup"/>, and both return their result, so neither operation can be removed
 /// as dead code.
 /// </remarks>
+[BenchmarkCategory(BenchmarkCategories.Budget)]
 public class AddBenchmarks
 {
     private BigDecimal _left;

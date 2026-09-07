@@ -100,6 +100,14 @@ public static class Operands
     /// The operands for division and remainder. The divisor is the same value in both pairings and
     /// differs only in the trailing zeros that set its scale.
     /// </summary>
+    /// <remarks>
+    /// The divisor's mantissa fits a single 64-bit word at every shape, and has to keep doing so.
+    /// Division by a single word is the step that the trailing-zero strip, digit peeling and the
+    /// trial quotient of a wide division are all built on, and these four rows - one and two words
+    /// here, three and four in the wide benchmarks - are how its cost per additional word of
+    /// dividend is read off the report. Widening the divisor turns them into a measurement of the
+    /// multi-word loop instead, and the curve stops being about that step at all.
+    /// </remarks>
     /// <param name="shape">The mantissa width to draw the dividend at.</param>
     /// <param name="pairing">Whether the two scales agree.</param>
     /// <returns>The left and right operands, as text.</returns>

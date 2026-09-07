@@ -14,6 +14,7 @@ namespace PetToys.BigDecimal.Numerics;
 /// throws mid-suite costs a re-run, and the operand set is meant to be editable. Only the parse
 /// itself is inside the measured method.
 /// </remarks>
+[BenchmarkCategory(BenchmarkCategories.Budget)]
 public class ParseUtf8Benchmarks
 {
     private byte[] _utf8 = [];

@@ -75,6 +75,36 @@ internal static class Words
 
     internal static ReadOnlySpan<ulong> Pow10 => Pow10Values;
 
+    // Both tables are prepared once, at type initialisation, because their divisors are fixed and
+    // every division by one of them would otherwise pay for a reciprocal it could have been handed.
+    // They are static readonly arrays behind span-returning properties, never collection
+    // expressions in an expression-bodied property: that form is not cached and allocates on every
+    // access, which is what once made the package's "never allocates" claim false.
+    //
+    // Both are filled end to end rather than only at the indices used today. The fives cost 28
+    // entries because the exactness check divides by an arbitrary power of five, not only by the
+    // largest one, and filling the rest removes the question of which indices are hot; at 24 bytes
+    // an entry the whole of both tables is under 1.2 kB of static data.
+    private static readonly Divisor[] Pow10DivisorValues = BuildDivisors(Pow10Values);
+
+    private static readonly Divisor[] Pow5DivisorValues = BuildDivisors(Pow5Values);
+
+    /// <summary>The powers of ten, each prepared for <see cref="DivRem2By1"/>.</summary>
+    internal static ReadOnlySpan<Divisor> Pow10Divisors => Pow10DivisorValues;
+
+    /// <summary>
+    /// <see cref="TenPow19"/> prepared for <see cref="DivRem2By1"/>, the largest power of ten a
+    /// word holds.
+    /// </summary>
+    /// <remarks>
+    /// Named rather than indexed, because the caller that peels nineteen digits at a time needs
+    /// this power of ten and not whichever entry another constant happens to point at.
+    /// </remarks>
+    internal static ref readonly Divisor TenPow19Divisor => ref Pow10DivisorValues[MaxZerosPerPass];
+
+    /// <summary>The powers of five, each prepared for <see cref="DivRem2By1"/>.</summary>
+    internal static ReadOnlySpan<Divisor> Pow5Divisors => Pow5DivisorValues;
+
     /// <summary>
     /// Counts the trailing decimal zeros of a magnitude, up to <paramref name="limit"/> and to at
     /// most <see cref="MaxZerosPerPass"/>, without dividing it.
@@ -109,7 +139,7 @@ internal static class Words
         // as far as that bound: a value with one trailing zero pays one test, not the search for
         // nineteen.
         var cap = Math.Min(twos, limit);
-        var remainder = RemSmall(value, length, Pow5Values[MaxFivesPerWord]);
+        var remainder = RemSmall(value, length, Pow5Divisors[MaxFivesPerWord]);
         return remainder == 0 ? cap : CountFives(remainder, cap);
     }
 
@@ -142,10 +172,10 @@ internal static class Words
         var fives = 0;
         while (length > 0)
         {
-            var remainder = RemSmall(value, length, Pow5Values[MaxFivesPerWord]);
+            var remainder = RemSmall(value, length, Pow5Divisors[MaxFivesPerWord]);
             if (remainder == 0)
             {
-                length = DivRemSmall(value, length, Pow5Values[MaxFivesPerWord], out _);
+                length = DivRemSmall(value, length, Pow5Divisors[MaxFivesPerWord], out _);
                 fives += MaxFivesPerWord;
                 continue;
             }
@@ -153,7 +183,7 @@ internal static class Words
             var extra = CountFives(remainder, MaxFivesPerWord);
             if (extra > 0)
             {
-                length = DivRemSmall(value, length, Pow5Values[extra], out _);
+                length = DivRemSmall(value, length, Pow5Divisors[extra], out _);
                 fives += extra;
             }
 
@@ -169,24 +199,144 @@ internal static class Words
         return true;
     }
 
-    /// <summary>Returns the remainder of a magnitude divided by a single word, leaving it unchanged.</summary>
-    /// <param name="value">The magnitude.</param>
-    /// <param name="length">The number of significant words in <paramref name="value"/>.</param>
-    /// <param name="divisor">The divisor, which must not be zero.</param>
-    /// <returns>The remainder.</returns>
-    internal static ulong RemSmall(ReadOnlySpan<ulong> value, int length, ulong divisor)
+    /// <summary>
+    /// Computes the reciprocal a 128-by-64 division needs: the largest 128-bit value divided by a
+    /// normalised divisor, less 2^64.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The quotient of that division always lies between 2^64 and 2^65, so subtracting 2^64 is the
+    /// same as keeping its low 64 bits, and the whole result fits a single word. That is what makes
+    /// the division below three multiplications instead of a hardware divide.
+    /// </para>
+    /// <para>
+    /// This is the expensive part, and it is deliberately written as the plain division rather than
+    /// as an approximation refined by Newton's method: it runs once per divisor - at type
+    /// initialisation for the divisors held in a table, and once per call where the divisor is the
+    /// caller's - never once per word, which is the loop that had to be made cheap.
+    /// </para>
+    /// </remarks>
+    /// <param name="divisorNormalized">The divisor, whose most significant bit must be set.</param>
+    /// <returns>The reciprocal to pass to <see cref="DivRem2By1"/> alongside that divisor.</returns>
+    internal static ulong Reciprocal(ulong divisorNormalized)
     {
-        Debug.Assert(divisor != 0, "divisor must be non-zero");
+        Debug.Assert(divisorNormalized >> 63 != 0, "divisor must be normalized");
+
+        // The conversion discards the high bit, which is the subtraction of 2^64. A Debug build
+        // compiles with CheckForOverflowUnderflow, where discarding it throws instead.
+        return unchecked((ulong)(UInt128.MaxValue / divisorNormalized));
+    }
+
+    /// <summary>Divides a 128-bit value by a single normalised word.</summary>
+    /// <remarks>
+    /// <para>
+    /// The estimate-and-correct division of Moller and Granlund: one widening multiplication of the
+    /// reciprocal by the high half, an addition, and at most two corrections. It replaces a
+    /// <see cref="UInt128"/> divided by a <see cref="ulong"/>, a shape the runtime lowers to a
+    /// hardware divide only while the high half is zero and otherwise answers with a general
+    /// multi-precision division over 32-bit limbs.
+    /// </para>
+    /// <para>
+    /// Every step is modulo 2^64 by design - the corrections read the wraparound of a subtraction
+    /// that went too far - so the body is <c>unchecked</c> and must stay so. A Debug build compiles
+    /// with CheckForOverflowUnderflow and would throw on the first correction otherwise.
+    /// </para>
+    /// </remarks>
+    /// <param name="high">
+    /// The high half of the dividend, which must be below <paramref name="divisorNormalized"/>. The
+    /// quotient is a single word, so a caller whose high half reaches the divisor has to decide that
+    /// case for itself before calling.
+    /// </param>
+    /// <param name="low">The low half of the dividend.</param>
+    /// <param name="divisorNormalized">The divisor, whose most significant bit must be set.</param>
+    /// <param name="reciprocal">
+    /// The value <see cref="Reciprocal"/> returns for that divisor. Passing one belonging to another
+    /// divisor produces a wrong quotient rather than a failure.
+    /// </param>
+    /// <param name="remainder">Receives the remainder, which is below the divisor.</param>
+    /// <returns>The quotient.</returns>
+    internal static ulong DivRem2By1(
+        ulong high,
+        ulong low,
+        ulong divisorNormalized,
+        ulong reciprocal,
+        out ulong remainder)
+    {
+        Debug.Assert(divisorNormalized >> 63 != 0, "divisor must be normalized");
+        Debug.Assert(high < divisorNormalized, "the quotient must fit a single word");
 
         unchecked
         {
-            ulong rem = 0;
-            for (var i = length - 1; i >= 0; i--)
+            // The estimate: (reciprocal * high) + the dividend + 2^64, whose high half is the
+            // quotient to within one in either direction. The two corrections below decide which,
+            // and the remainder computed from it is what tells them apart.
+            var estimate = Math.BigMul(reciprocal, high, out var estimateLow);
+            estimateLow += low;
+            if (estimateLow < low)
             {
-                rem = (ulong)(new UInt128(rem, value[i]) % divisor);
+                estimate++;
             }
 
-            return rem;
+            estimate += high;
+            estimate++;
+
+            var rest = low - (estimate * divisorNormalized);
+
+            // Wrapping past the low half of the estimate is what an overshoot looks like from here.
+            if (rest > estimateLow)
+            {
+                estimate--;
+                rest += divisorNormalized;
+            }
+
+            // And this one repairs an estimate that came out one short. It is the rarer of the
+            // two - about one case in a thousand on random operands - and it is the only step
+            // that can move the quotient up, so nothing else covers for it.
+            if (rest >= divisorNormalized)
+            {
+                estimate++;
+                rest -= divisorNormalized;
+            }
+
+            remainder = rest;
+
+            return estimate;
+        }
+    }
+
+    /// <summary>Returns the remainder of a magnitude divided by a single word, leaving it unchanged.</summary>
+    /// <remarks>
+    /// The loop of <see cref="DivideBySmall"/> without the quotient stores, and the divisor arrives
+    /// prepared for the same reason. It is written out rather than shared because sharing it would
+    /// put a test for whether there is a quotient to write inside the word loop, on the one path
+    /// that exists to answer a divisibility question without producing one.
+    /// </remarks>
+    /// <param name="value">The magnitude.</param>
+    /// <param name="length">The number of significant words in <paramref name="value"/>.</param>
+    /// <param name="divisor">The prepared divisor.</param>
+    /// <returns>The remainder.</returns>
+    internal static ulong RemSmall(ReadOnlySpan<ulong> value, int length, in Divisor divisor)
+    {
+        unchecked
+        {
+            var shift = divisor.Shift;
+            var normalized = divisor.Normalized;
+            var reciprocal = divisor.Reciprocal;
+
+            ulong rem = 0;
+            if (shift != 0 && length > 0)
+            {
+                rem = value[length - 1] >> (64 - shift);
+            }
+
+            for (var i = length - 1; i >= 0; i--)
+            {
+                var below = i > 0 ? value[i - 1] : 0UL;
+                var low = shift == 0 ? value[i] : (value[i] << shift) | (below >> (64 - shift));
+                DivRem2By1(rem, low, normalized, reciprocal, out rem);
+            }
+
+            return rem >> shift;
         }
     }
 
@@ -380,20 +530,78 @@ internal static class Words
         }
     }
 
-    internal static int DivRemSmall(Span<ulong> acc, int accLen, ulong divisor, out ulong remainder)
+    /// <summary>Divides a magnitude by a single word in place.</summary>
+    /// <remarks>
+    /// The divisor arrives prepared rather than as a bare word, because preparing it costs a
+    /// division of its own and every caller here divides by one of the two tables. A caller holding
+    /// an arbitrary divisor prepares it once with <see cref="Divisor.For"/> and not once per word.
+    /// The words go in shifted by the divisor's own normalising shift and the remainder comes back
+    /// shifted by it, which is undone on the way out; the quotient is unaffected by the shift,
+    /// since both sides of the division are scaled by the same power of two.
+    /// </remarks>
+    /// <param name="acc">The magnitude, replaced by the quotient.</param>
+    /// <param name="accLen">The number of significant words in <paramref name="acc"/>.</param>
+    /// <param name="divisor">The prepared divisor.</param>
+    /// <param name="remainder">Receives the remainder.</param>
+    /// <returns>The number of significant words in the quotient.</returns>
+    internal static int DivRemSmall(Span<ulong> acc, int accLen, in Divisor divisor, out ulong remainder)
+    {
+        remainder = DivideBySmall(acc, accLen, divisor, acc);
+
+        return Normalize(acc[..accLen]);
+    }
+
+    /// <summary>Divides a magnitude by a single prepared word, writing the quotient word by word.</summary>
+    /// <remarks>
+    /// <para>
+    /// The one place the shifted loop is written. Both callers that keep a quotient go through it,
+    /// so a correction to the shifting cannot reach one of them and miss the other.
+    /// </para>
+    /// <para>
+    /// <paramref name="quotient"/> may be the same span as <paramref name="source"/>. The loop runs
+    /// downwards and reads the word below the one it is about to write before writing it, so
+    /// dividing in place is safe; overlapping the two spans at any other offset is not.
+    /// </para>
+    /// <para>
+    /// The words go in shifted by the divisor's own normalising shift, which is what the primitive
+    /// requires, and the remainder comes back scaled by the same power of two and is shifted back
+    /// on the way out. The quotient needs no such undoing: scaling both sides of a division by the
+    /// same amount leaves it unchanged.
+    /// </para>
+    /// </remarks>
+    /// <param name="source">The magnitude.</param>
+    /// <param name="length">The number of significant words in <paramref name="source"/>.</param>
+    /// <param name="divisor">The prepared divisor.</param>
+    /// <param name="quotient">Receives the quotient, and may be <paramref name="source"/> itself.</param>
+    /// <returns>The remainder.</returns>
+    private static ulong DivideBySmall(
+        ReadOnlySpan<ulong> source,
+        int length,
+        in Divisor divisor,
+        Span<ulong> quotient)
     {
         unchecked
         {
+            var shift = divisor.Shift;
+            var normalized = divisor.Normalized;
+            var reciprocal = divisor.Reciprocal;
+
+            // Shifting the magnitude left can push bits out of its top word. They are not lost:
+            // they are the first dividend's high half, which is zero when nothing was shifted.
             ulong rem = 0;
-            for (var i = accLen - 1; i >= 0; i--)
+            if (shift != 0 && length > 0)
             {
-                var cur = new UInt128(rem, acc[i]);
-                acc[i] = (ulong)(cur / divisor);
-                rem = (ulong)(cur % divisor);
+                rem = source[length - 1] >> (64 - shift);
             }
 
-            remainder = rem;
-            return Normalize(acc[..accLen]);
+            for (var i = length - 1; i >= 0; i--)
+            {
+                var below = i > 0 ? source[i - 1] : 0UL;
+                var low = shift == 0 ? source[i] : (source[i] << shift) | (below >> (64 - shift));
+                quotient[i] = DivRem2By1(rem, low, normalized, reciprocal, out rem);
+            }
+
+            return rem >> shift;
         }
     }
 
@@ -465,12 +673,12 @@ internal static class Words
         while (remaining > 0)
         {
             var chunk = Math.Min(remaining, 19);
-            accLen = DivRemSmall(acc, accLen, Pow10[chunk], out var rem);
+            accLen = DivRemSmall(acc, accLen, Pow10Divisors[chunk], out var rem);
             sticky |= rem != 0;
             remaining -= chunk;
         }
 
-        accLen = DivRemSmall(acc, accLen, 10, out var lastDigit);
+        accLen = DivRemSmall(acc, accLen, Pow10Divisors[1], out var lastDigit);
 
         var roundUp = mode switch
         {
@@ -573,22 +781,34 @@ internal static class Words
 
         if (divLen == 1)
         {
-            var d = divisor[0];
-            unchecked
+            ulong rem;
+            if (numLen <= 1)
             {
-                ulong rem = 0;
-                for (var i = numLen - 1; i >= 0; i--)
+                // One word over one word is a hardware divide and nothing else. Preparing the
+                // divisor for the primitive costs a 128-bit division of its own, and at this width
+                // there is nothing to amortise it over: measured against this path, preparing costs
+                // 1.1x on net10.0 and 6.9x on net8.0, where the runtime's software division of a
+                // UInt128 is dearer still. From two words up the preparation pays for itself and
+                // the primitive wins by 2x to 20x, which is why the cut is here.
+                var single = numLen == 0 ? 0UL : numerator[0];
+                rem = single % divisor[0];
+                if (numLen == 1)
                 {
-                    var cur = new UInt128(rem, numerator[i]);
-                    quotient[i] = (ulong)(cur / d);
-                    rem = (ulong)(cur % d);
+                    quotient[0] = single / divisor[0];
                 }
-
-                numerator[..numLen].Clear();
-                numerator[0] = rem;
-                remainderLen = rem == 0 ? 0 : 1;
-                return Normalize(quotient[..numLen]);
             }
+            else
+            {
+                // The divisor is the caller's, so it is prepared here rather than read from a
+                // table: once per call, amortised over every word of the dividend.
+                rem = DivideBySmall(numerator, numLen, Divisor.For(divisor[0]), quotient);
+            }
+
+            numerator[..numLen].Clear();
+            numerator[0] = rem;
+            remainderLen = rem == 0 ? 0 : 1;
+
+            return Normalize(quotient[..numLen]);
         }
 
         var cmp = Compare(numerator, numLen, divisor, divLen);
@@ -611,20 +831,39 @@ internal static class Words
             var vHigh = vn[divLen - 1];
             var vNext = vn[divLen - 2];
 
+            // The divisor was normalised above, which is exactly the precondition the primitive
+            // wants, so one reciprocal serves every quotient word of this division.
+            var vReciprocal = Reciprocal(vHigh);
+
             for (var j = qLen - 1; j >= 0; j--)
             {
-                var top = new UInt128(un[j + divLen], un[j + divLen - 1]);
-                var wide = top / vHigh;
-                var qhat = wide > ulong.MaxValue ? ulong.MaxValue : (ulong)wide;
+                var topHigh = un[j + divLen];
+                var topLow = un[j + divLen - 1];
+                ulong qhat;
+                UInt128 rhat;
 
                 // The estimate saturates exactly when the running remainder's leading word equals
-                // the divisor's, and its partial remainder then needs more than 64 bits. It stays
-                // wide so that the correction below reads the remainder it was given: truncated to
-                // a ulong it looks small, the correction fires on an estimate that was already
-                // right, and the algorithm has no repair for one that came out too small. The
-                // estimate itself stays a ulong, so both products below are widening 64-by-64
-                // multiplications rather than the far dearer 128-bit kind.
-                var rhat = top - ((UInt128)qhat * vHigh);
+                // the divisor's - the remainder is never larger than that - and the true quotient
+                // is then 2^64, which no single word holds. So that case is decided here rather
+                // than by the primitive, which returns a word and requires a high half below the
+                // divisor.
+                //
+                // Its partial remainder needs more than 64 bits and stays wide, so that the
+                // correction below reads the remainder it was given: truncated to a ulong it looks
+                // small, the correction fires on an estimate that was already right, and the
+                // algorithm has no repair for one that came out too small. The estimate itself
+                // stays a ulong, so both products below are widening 64-by-64 multiplications
+                // rather than the far dearer 128-bit kind.
+                if (topHigh >= vHigh)
+                {
+                    qhat = ulong.MaxValue;
+                    rhat = new UInt128(topHigh, topLow) - ((UInt128)qhat * vHigh);
+                }
+                else
+                {
+                    qhat = DivRem2By1(topHigh, topLow, vHigh, vReciprocal, out var partial);
+                    rhat = partial;
+                }
 
                 while (qhat != 0 && rhat <= ulong.MaxValue)
                 {
@@ -729,6 +968,45 @@ internal static class Words
             }
 
             destination[len - 1] = source[len - 1] >> shift;
+        }
+    }
+
+    private static Divisor[] BuildDivisors(ulong[] values)
+    {
+        var divisors = new Divisor[values.Length];
+        for (var i = 0; i < values.Length; i++)
+        {
+            divisors[i] = Divisor.For(values[i]);
+        }
+
+        return divisors;
+    }
+
+    /// <summary>
+    /// A divisor already in the form <see cref="DivRem2By1"/> needs it: shifted so that its most
+    /// significant bit is set, with the shift that produced it and the reciprocal of the result.
+    /// </summary>
+    /// <remarks>
+    /// The shift belongs here rather than at the call site because it is the caller's too: the
+    /// words of the dividend are fed in shifted by the same amount, and the remainder comes back
+    /// shifted and has to be undone.
+    /// </remarks>
+    /// <param name="Normalized">The divisor shifted so that its most significant bit is set.</param>
+    /// <param name="Reciprocal">The reciprocal of <paramref name="Normalized"/>.</param>
+    /// <param name="Shift">The number of places the divisor was shifted left, from 0 to 63.</param>
+    internal readonly record struct Divisor(ulong Normalized, ulong Reciprocal, int Shift)
+    {
+        /// <summary>Prepares a divisor.</summary>
+        /// <param name="value">The divisor, which must not be zero.</param>
+        /// <returns>The prepared divisor.</returns>
+        internal static Divisor For(ulong value)
+        {
+            Debug.Assert(value != 0, "divisor must be non-zero");
+
+            var shift = BitOperations.LeadingZeroCount(value);
+            var normalized = value << shift;
+
+            return new Divisor(normalized, Words.Reciprocal(normalized), shift);
         }
     }
 }

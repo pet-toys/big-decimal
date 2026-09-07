@@ -14,11 +14,11 @@ namespace PetToys.BigDecimal.Numerics;
 /// budget is stated over them.
 /// </para>
 /// <para>
-/// The division and remainder rows measure code that is known to be wrong at these widths — once
-/// the two scales align into a wide dividend, the quotient and the remainder come back with
-/// incorrect values, not merely values off by a unit in the last place. The defect is open and
-/// owned by the change that rewrites the division primitive. The cost of the current code is still
-/// the right thing to measure before rewriting it; the values it produces are not to be trusted.
+/// The division and remainder rows are read together with the one- and two-word rows of
+/// <see cref="DivideBenchmarks"/>: the same single-word divisor at four widths of dividend, which
+/// is the cost of dividing by one word as the dividend grows. They once measured code known to
+/// return wrong values at these widths, which is no longer so - that defect was fixed with the
+/// division primitive, and the randomised suite covers these shapes.
 /// </para>
 /// <para>
 /// At the widest shape the aligned product needs more than the 256-bit mantissa can hold, so the
@@ -26,6 +26,7 @@ namespace PetToys.BigDecimal.Numerics;
 /// through the multiplier, not an error.
 /// </para>
 /// </remarks>
+[BenchmarkCategory(BenchmarkCategories.Budget)]
 public class WideOperandBenchmarks
 {
     private BigDecimal _left;

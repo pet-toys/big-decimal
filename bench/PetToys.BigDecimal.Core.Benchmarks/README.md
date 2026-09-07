@@ -16,8 +16,23 @@ named:
 dotnet run -c Release -f net10.0 --project bench/PetToys.BigDecimal.Core.Benchmarks -- --filter "*"
 ```
 
-A full run is 158 benchmarks and took about an hour and a half when the
-baseline was taken. Most of the time you want one group:
+A full run is over 150 benchmarks and takes about two hours on the machine this
+is measured on. Most of the time you do not want one.
+
+The benchmarks an acceptance criterion is actually read from carry the `budget`
+category, and run on their own:
+
+```bash
+dotnet run -c Release -f net10.0 --project bench/PetToys.BigDecimal.Core.Benchmarks -- --anyCategories budget
+```
+
+That is the run to take when a change has to answer to the criteria. It leaves
+out what is measured only so that a change in it stays visible: the conversions,
+the scale changes, and the group that measures the division primitive against
+the form it replaced. The subset is declared by an attribute on each class, in
+`BenchmarkCategories.cs`, so it cannot drift from this document.
+
+Or one group:
 
 ```bash
 dotnet run -c Release -f net10.0 --project bench/PetToys.BigDecimal.Core.Benchmarks -- --filter "*DivideBenchmarks*"
@@ -101,26 +116,67 @@ itself the more interesting result. If the operation is outside the inventory,
 this project is the only thing measuring it, and closing the gap means adding
 the case to the inventory as well as fixing the allocation.
 
-## Comparing against the baseline
+## Whether a run may be used at all
 
-`BASELINE.md` was taken on one machine, and it says which. Two rules follow:
+This runs on a working developer machine, not on a reserved rig, and two runs
+days apart do not measure the same machine. Between a run recorded on
+2026-09-02 and one taken on 2026-09-07, `System.Decimal` itself, whose code
+nobody here touches, moved from 4.34 ns to 7.34 ns on addition and from 15.68 to
+33.42 on division. A run taken in that state reported multiplication at 4.15x
+against a 3x budget, on a path that had not been modified at all.
 
-- **Ratios travel.** Comparing `Ratio` against the baseline's `Ratio` is valid
-  from any machine — that is the whole reason the budgets are written as ratios.
-- **Durations do not.** `Mean` is only comparable within the environment the
-  baseline was recorded in. A different processor, a laptop on battery or a
-  power plan that scales frequency, a virtual machine, a machine doing anything
-  else at the same time — any of these moves `Mean` without anything in the
-  package changing.
+So a run declares itself usable, or not, before anything is quoted from it. Two
+tests, both read off the report the run just produced:
 
-A result is not comparable against the baseline at all if the run used a
-different job. `--job short` and `--job dry` trade iterations for wall-clock;
-they are for a quick look while working, not for a number anyone quotes.
-`BASELINE.md` is taken with the default job, and a comparison has to be too.
+- **Precision.** For every row a criterion is read from, `Error` must be at most
+  2% of that row's `Mean`. A good run sits near a tenth of that. The discarded
+  run above had hashing rows at 5.5%.
+- **The canary.** The `System.Decimal` rows are code this package does not
+  change, so the ratios between them belong to the machine and the runtime
+  rather than to the package. `BASELINE.md` records those ratios. If any of them
+  differs by more than 15% from the recorded value, the machine is not the
+  machine the budgets were drawn on and no budget is graded from that run,
+  however reasonable its own rows look. On the discarded run, divide over add
+  had moved 26%, parse over add 24% and hash over add 39%.
 
-When a change alters the performance of a measured operation, re-take the
-baseline and commit it with that change. Nothing enforces this: the value of a
-recorded baseline is exactly the discipline of keeping it current.
+A run that fails either test is discarded whole, not in part, and what it
+measured is written down so the next attempt does not rediscover it. Allocation
+figures survive: they are counts, not durations, and travel anywhere.
+
+A result is not usable either if the run used a different job. `--job short` and
+`--job dry` trade iterations for wall-clock; they are for a quick look while
+working, not for a number anyone quotes. The record is taken with the default
+job.
+
+## Claiming that something got faster
+
+Not by comparing a run taken after the change against `BASELINE.md`. That
+comparison is between two machines that happen to share a case.
+
+Instead, carry the implementation being replaced into this project and measure
+it beside the new one, in one group, in one run. The runner interleaves them on
+the same operands minutes apart, and the `Ratio` column is then the claim.
+`DivisionPrimitiveBenchmarks` is the worked example: the `UInt128` division the
+package used until 2026-09-07 is its baseline arm, and the primitive that
+replaced it is measured against it.
+
+Where the replaced implementation cannot be carried, because that would mean two
+versions of a public type in one process, state the claim as a relationship
+between rows of the same run instead. An exact division against an inexact one
+over the same dividend, or a hash of a value carrying trailing zeros against the
+same value without them, are both such relationships, and both are criteria in
+their own right.
+
+## What `BASELINE.md` is
+
+A dated account of one run that passed the tests above, carrying the machine it
+ran on and the canary ratios read off it. It is not a reference that later runs
+are compared against, and durations are never compared across runs.
+
+Re-take it when a change alters the performance of a measured operation, from
+one conforming run rather than by pasting sections from several. A targeted
+re-run overwrites only the classes it names, so a file assembled out of the
+artifacts directory can mix two states of the code and read as one.
 
 ## The operand set
 
