@@ -33,10 +33,23 @@ dry` grades nothing, for the reason in the README.
 | --- | ---------- | ------------------------ | -------------------------- | ------ |
 | A   | 2026-09-08 | `--anyCategories budget` | `formatting-parity`        | 66 min |
 | B   | 2026-09-08 | `*ComparisonBenchmarks*` | `c33486b`                  | 16 min |
+| C   | 2026-09-08 | `*Parse*`                | `parsing`, the set form    | 6 min  |
+| D   | 2026-09-08 | `*Parse*`                | `parsing`, as it ships     | 13 min |
 
 Run A was taken on the `formatting-parity` work before it merged, which differs
 from `c33486b` only in the formatting path, so the rows below that are not
 formatting measure code identical to run B's.
+
+Runs C and D are the same four classes on two forms of the same fix. C measured the
+trim as a six-character set, which the change then replaced with a predicate costing
+about three nanoseconds less per parse; D measured what ships. **The parse rows are
+recorded from C**, a disturbed measurement of the exact code being worse than a clean
+measurement of a slower one: C is a ceiling, and what ships is a little faster than
+the table says. What D was good for is below.
+
+A third run of the same four classes sits between them and produced nothing: eleven
+minutes, six of its eight baseline arms inflated the way D's five were. It is named
+here because a discarded run that goes unnamed is a run somebody repeats.
 
 ## Verdicts
 
@@ -47,10 +60,10 @@ formatting measure code identical to run B's.
 | `Multiply`                         |   3.5x |  3.03 |       0.03 | one word, misaligned  | met     | A   |
 | `Divide`                           |    10x |  5.52 |       0.08 | two words, aligned    | met     | A   |
 | `Remainder`                        |    10x |  3.02 |       0.04 | one word, aligned     | met     | A   |
-| `Parse`, `char`                    |     3x |  1.16 |       0.00 | one word              | met     | A   |
-| `Parse`, UTF-8                     |     3x |  1.26 |       0.00 | one word              | met     | A   |
-| `TryParse`, `char`                 |     3x |  1.15 |       0.00 | one word              | met     | A   |
-| `TryParse`, UTF-8                  |     3x |  1.32 |       0.00 | one word              | met     | A   |
+| `Parse`, `char`                    |     3x |  0.95 |       0.00 | one word              | met     | C   |
+| `Parse`, UTF-8                     |     3x |  1.17 |       0.02 | one word              | met     | C   |
+| `TryParse`, `char`                 |     3x |  0.97 |       0.00 | one word              | met     | C   |
+| `TryParse`, UTF-8                  |     3x |  1.14 |       0.00 | one word              | met     | C   |
 | `TryFormat`, `char`                |     3x |  2.67 |       0.02 | two words, `#,##0.00` | met     | A   |
 | `TryFormat`, UTF-8                 |     3x |  2.80 |       0.03 | two words, `#,##0.00` | met     | A   |
 | Exact division against inexact     |    1.0 |  0.35 |       0.00 | `100 / 10` vs `/ 3`   | met     | A   |
@@ -59,6 +72,31 @@ formatting measure code identical to run B's.
 | Zero allocations                   | always |     - |          - | every row             | met     | A   |
 
 ## What the numbers do not say
+
+**Run D is the clearest evidence yet that grading the ratio is right, and the
+clearest case of where it still fails.** Five of its eight baseline rows measured
+`System.Decimal` itself at 83% to 114% above what runs A and C cost for the same
+unchanged BCL code, and the run took 13 minutes against C's 6. Every row still
+reported a standard deviation inside 5% of its own mean, so the row rule saw
+nothing: the disturbance outlasted whole cases and inflated their iterations
+evenly.
+
+Six of the eight shapes nevertheless came back within 0.06 of their run C ratio, and
+five of those within 0.05, baselines twice as slow and all. That is interleaving
+doing exactly what it is there for: both arms of a pair are measured under the same
+disturbance and the shared part divides out.
+
+The exception is the row that matters. `TryParse`, `char`, one word came back at
+**0.46** in run D, against 0.97 in run C, because the disturbance covered the
+baseline arm's iterations and not the measured arm's. Its two standard deviations
+were 1.95% and 1.16%, so nothing in the report marks it, and read literally it says
+this package parses twice as fast as the BCL. Interleaving cancels a disturbance
+that spans a pair; it cannot cancel one that lands on a single arm.
+
+What caught it was comparing the run's own `System.Decimal` arm against what that
+same arm cost in an earlier run: 115.70 ns against 54.0. That is a per-row check
+and not the whole-run canary the conformance gate carried, which change 8 retired
+for discarding runs wholesale. Whether it becomes a rule is not decided here.
 
 **Two rows were disqualified in run B** for a standard deviation above 5% of
 their mean, which is what a disturbed case looks like when the disturbance shows:

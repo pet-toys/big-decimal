@@ -123,13 +123,6 @@ public sealed class CultureFuzzTests
         // collapse into a different one.
         var text = Localise(shape, culture);
 
-        // A leading separator that is whitespace is accepted where decimal refuses it; that is
-        // pinned in PendingDefectTests rather than asserted here.
-        if (shape.StartsWith(',') && char.IsWhiteSpace(culture.NumberFormat.NumberGroupSeparator[0]))
-        {
-            return;
-        }
-
         var acceptedByDecimal = decimal.TryParse(text, NumberStyles.Number, culture, out var reference);
         var accepted = BigDecimal.TryParse(text, NumberStyles.Number, culture, out var value);
 
