@@ -382,22 +382,9 @@ public readonly partial struct BigDecimal
             scale = 0;
         }
 
-        while (length > WordCount || scale > MaxScale)
+        if (!TryReduce(magnitude, ref length, ref scale, WordCount, MaxDigits, isNegative, allowNegativeScale: false))
         {
-            if (scale <= 0)
-            {
-                return false;
-            }
-
-            var excess = Math.Max(scale - MaxScale, 0);
-            if (length > WordCount)
-            {
-                excess = Math.Max(excess, Words.DecimalDigitCount(magnitude, length) - MaxDigits);
-            }
-
-            excess = Math.Clamp(excess <= 0 ? 1 : excess, 1, scale);
-            length = Words.DivPow10Round(magnitude, length, excess, isNegative, MidpointRounding.ToEven);
-            scale -= excess;
+            return false;
         }
 
         result = new BigDecimal(
@@ -407,6 +394,70 @@ public readonly partial struct BigDecimal
             length > 3 ? magnitude[3] : 0,
             isNegative,
             scale);
+        return true;
+    }
+
+    /// <summary>Gives up fractional digits until a magnitude and its scale fit a stated width.</summary>
+    /// <remarks>
+    /// The reduction rule of the type, in one place: excess digits are fractional digits, they are
+    /// rounded half to even, and an operation that has none left to give reports failure rather
+    /// than truncating an integer part. <see cref="TryPack"/> calls it at the mantissa's own width
+    /// and <see cref="Pow"/> at the wider one its accumulator runs in, so the accumulator cannot
+    /// drift from the packing rule it has to agree with.
+    /// <para>
+    /// <paramref name="maxDigits"/> is not derived from <paramref name="maxWords"/> because it is
+    /// not the same question: every 77-digit value fits four words and only some 78-digit ones do,
+    /// so a result that has to be reduced is reduced into the band where every value of that width
+    /// fits. The caller states both.
+    /// </para>
+    /// <para>
+    /// <paramref name="allowNegativeScale"/> is what separates a result from a working value. A
+    /// result with no fractional digits left to give up has overflowed and says so; a working value
+    /// the caller is going to divide into gives up digits anyway and records how many by going
+    /// below scale 0, because what it owes its caller is a fixed number of significant digits and
+    /// not an exact integer. Only <see cref="Pow"/> passes <see langword="true"/>, and what it
+    /// hands back is packed by a call that passes <see langword="false"/>, so nothing reaches a
+    /// caller at a negative scale.
+    /// </para>
+    /// </remarks>
+    private static bool TryReduce(
+        Span<ulong> magnitude,
+        ref int length,
+        ref int scale,
+        int maxWords,
+        int maxDigits,
+        bool isNegative,
+        bool allowNegativeScale)
+    {
+        if (length == 0)
+        {
+            scale = Math.Min(scale, MaxScale);
+            return true;
+        }
+
+        while (length > maxWords || scale > MaxScale)
+        {
+            var excess = Math.Max(scale - MaxScale, 0);
+            if (length > maxWords)
+            {
+                excess = Math.Max(excess, Words.DecimalDigitCount(magnitude, length) - maxDigits);
+            }
+
+            excess = Math.Max(excess, 1);
+            if (!allowNegativeScale)
+            {
+                if (scale <= 0)
+                {
+                    return false;
+                }
+
+                excess = Math.Min(excess, scale);
+            }
+
+            length = Words.DivPow10Round(magnitude, length, excess, isNegative, MidpointRounding.ToEven);
+            scale -= excess;
+        }
+
         return true;
     }
 

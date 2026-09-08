@@ -171,6 +171,60 @@ public sealed class NonFiniteTests
         }
     }
 
+    [Theory]
+    [MemberData(nameof(Operands))]
+    public void ThePowerTable_IsDoubles(string baseName)
+    {
+        if (BigDecimal.IsFinite(Big(baseName)))
+        {
+            // A finite base is the rest of this change's business. Its one non-finite-looking edge,
+            // a zero base with a negative exponent, is asserted below as the divergence it is.
+            return;
+        }
+
+        var value = Big(baseName);
+        var asDouble = Double(baseName);
+
+        foreach (var exponent in new[] { 0, 1, 2, 3, -1, -2, -3, int.MaxValue })
+        {
+            Describe(BigDecimal.Pow(value, exponent)).Should().Be(
+                Describe(Math.Pow(asDouble, exponent)),
+                "{0} ^ {1} follows double",
+                baseName,
+                exponent);
+        }
+    }
+
+    [Fact]
+    public void AnExponentOfZero_DoesNotReadANaNBase()
+    {
+        // The one place in the package where a NaN operand does not propagate, because x^0 does not
+        // read x at all. It is double's answer and IEEE 754's.
+        BigDecimal.Pow(BigDecimal.NaN, 0).Should().Be(BigDecimal.One);
+        double.IsNaN(Math.Pow(double.NaN, 0)).Should().BeFalse();
+    }
+
+    [Fact]
+    public void ANegativeExponentOverNegativeInfinity_IsZeroWithNoSign()
+    {
+        var result = BigDecimal.Pow(BigDecimal.NegativeInfinity, -1);
+
+        result.IsZero.Should().BeTrue();
+        result.IsNegative.Should().BeFalse();
+
+        // The divergence, and the same one 1 / -Infinity carries: double has a negative zero here.
+        double.IsNegative(Math.Pow(double.NegativeInfinity, -1)).Should().BeTrue();
+    }
+
+    [Fact]
+    public void AZeroBaseWithANegativeExponent_ThrowsWhereDoubleGivesAnInfinity()
+    {
+        var act = () => BigDecimal.Pow(BigDecimal.Zero, -1);
+
+        act.Should().Throw<DivideByZeroException>();
+        double.IsPositiveInfinity(Math.Pow(0.0, -1)).Should().BeTrue();
+    }
+
     [Fact]
     public void ANaNOperand_WinsWhicheverSideItIsOn()
     {

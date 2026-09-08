@@ -70,6 +70,55 @@ public static class BigIntegerOracle
         Fit(left.Unscaled * right.Unscaled, left.Scale + right.Scale);
 
     /// <summary>
+    /// Raises a value to a power that is not negative, at the scale the exponent multiplies out to.
+    /// </summary>
+    /// <remarks>
+    /// The exact power is raised once and reduced once, which is the whole point of computing it
+    /// here: an oracle that squared and multiplied in steps would round where the implementation
+    /// rounds and would agree with it by construction. The exponent has to be small enough that the
+    /// exact power is a number this machine can hold, which is the caller's business.
+    /// </remarks>
+    /// <param name="value">The base.</param>
+    /// <param name="exponent">The exponent, not negative.</param>
+    /// <returns>The required result.</returns>
+    /// <exception cref="OverflowException">The integer part of the power does not fit the mantissa.</exception>
+    public static OracleValue Pow(OracleValue value, int exponent)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(exponent);
+
+        if (exponent == 0)
+        {
+            return new OracleValue(BigInteger.One, 0);
+        }
+
+        var scale = (long)value.Scale * exponent;
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(scale, int.MaxValue, nameof(exponent));
+
+        return Fit(BigInteger.Pow(value.Unscaled, exponent), (int)scale);
+    }
+
+    /// <summary>The exact reciprocal of a power, as a fraction that is left unevaluated.</summary>
+    /// <remarks>
+    /// Returned as a pair because the value is almost never a terminating decimal, so the caller
+    /// compares against it by cross-multiplication rather than by rounding it first. That is the
+    /// same shape <see cref="ExactQuotient"/> is used in, and for the same reason: the scale an
+    /// inexact result reports is the implementation's to choose, and the requirement is on how
+    /// close the answer is at that scale.
+    /// </remarks>
+    /// <param name="value">The base.</param>
+    /// <param name="exponent">The magnitude of the exponent, greater than zero.</param>
+    /// <returns>The numerator and the denominator of one over the power.</returns>
+    public static (BigInteger Numerator, BigInteger Denominator) ReciprocalOfPow(OracleValue value, int exponent)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(exponent);
+
+        var scale = (long)value.Scale * exponent;
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(scale, int.MaxValue, nameof(exponent));
+
+        return (Pow10((int)scale), BigInteger.Pow(value.Unscaled, exponent));
+    }
+
+    /// <summary>
     /// Takes the remainder of a division. When the division does not happen — the dividend is zero,
     /// or smaller in magnitude than the divisor — the dividend comes back untouched, at its own
     /// scale rather than at the wider of the two.

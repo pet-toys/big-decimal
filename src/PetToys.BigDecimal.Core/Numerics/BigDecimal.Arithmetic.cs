@@ -10,6 +10,30 @@ public readonly partial struct BigDecimal
 
     private const int DivideWorkWords = 32;
 
+    // The width the power's chain runs at, and it is not WorkWords: that constant is sized for a
+    // lifted dividend, this one is sized from an error budget. Five words is the floor, being what
+    // holds any representable result plus the carry AddOne needs, and it is what the exactness
+    // guarantee requires. The other three are guard digits. At most 62 multiplications are
+    // reachable - 31 squarings and 31 conditional multiplies, for the widest exponent an int
+    // carries - each giving up at most half a unit in the last place of a 154-digit value, so the
+    // accumulated relative error stays below 1e-151 against a result stated to 77 digits. A tie
+    // closer than that to a rounding boundary is misrounded and nothing else is. Wider would buy
+    // digits nobody can observe and cost a quadratic multiplication for each of them.
+    private const int PowWorkWords = 8;
+
+    // Every 154-digit value fits eight words and only some 155-digit ones do, which is the same
+    // relation MaxDigits has to WordCount and the reason the reduction takes both numbers.
+    private const int PowWorkDigits = 154;
+
+    // The floor the chain's scale saturates at. It goes below zero when a value has no fractional
+    // digits left and is still too wide, which records how many digits were given up rather than
+    // failing, and it doubles on every squaring, so an exponent near int.MaxValue would take it
+    // past what an int holds. Below this floor the outcome is already settled and cannot change
+    // back: a value that reached it carries the full working width, so it is at least 1e562, which
+    // no result can hold and whose reciprocal is below the floor of the range. Saturating there
+    // therefore decides nothing the arithmetic had not already decided.
+    private const int PowMinScale = -(MaxScale + PowWorkDigits);
+
     /// <summary>Adds two values.</summary>
     /// <remarks>
     /// The result carries the wider of the two scales. An integer part that does not fit throws
@@ -438,6 +462,121 @@ public readonly partial struct BigDecimal
         return Pack(a, remLen, left.IsNegative, scale);
     }
 
+    /// <summary>Raises a value to an integer power.</summary>
+    /// <remarks>
+    /// The exact power is returned whenever the exact power is representable, and a caller can
+    /// decide whether that holds from the operands alone: it holds when the unscaled magnitude
+    /// raised to the exponent fits the 256-bit mantissa and the value's scale multiplied by the
+    /// exponent is at most <see cref="MaxScale"/>. Where it does not hold, the excess fractional
+    /// digits are rounded half to even and <see cref="OverflowException"/> is thrown only when no
+    /// fractional digits remain to give up, which is the same rule multiplication answers to. The
+    /// result's scale is the value's scale multiplied by the exponent, capped at
+    /// <see cref="MaxScale"/>, so trailing zeros are preserved exactly as multiplication preserves
+    /// them.
+    /// <para>
+    /// A negative exponent is the reciprocal of the positive power, to the full precision the
+    /// magnitude allows and rounded to nearest with ties to even, under the contract
+    /// <see cref="Divide(BigDecimal, BigDecimal)"/> states. It is computed rather than composed, so
+    /// a result the type can represent is returned even where the positive power it is the
+    /// reciprocal of cannot be: <c>Pow(2, -300)</c> answers, though <c>2^300</c> does not fit.
+    /// </para>
+    /// <para>
+    /// <see cref="OverflowException"/> is raised for the result and never for an intermediate, so
+    /// whether this operation throws can be decided from the operands and the exponent alone. The
+    /// two edges of a negative exponent are each other's mirror: a positive power too small to
+    /// represent has a reciprocal too large to represent and throws, and one too large to represent
+    /// has a reciprocal below the floor of the range and returns zero.
+    /// </para>
+    /// <para>
+    /// An exponent of zero returns <see cref="One"/> for every value including
+    /// <see cref="NaN"/>, which is the one place in this type where a NaN operand does not
+    /// propagate; <c>x^0</c> does not read <c>x</c>. <c>Pow(Zero, -1)</c> is
+    /// <see cref="double.PositiveInfinity"/> in <see cref="Math.Pow"/> and throws
+    /// <see cref="DivideByZeroException"/> here, because no finite operand of this type produces a
+    /// non-finite value.
+    /// </para>
+    /// </remarks>
+    /// <param name="value">The value to raise.</param>
+    /// <param name="exponent">The exponent.</param>
+    /// <returns>The value raised to the exponent.</returns>
+    /// <exception cref="DivideByZeroException"><paramref name="value"/> is zero and <paramref name="exponent"/> is negative.</exception>
+    /// <exception cref="OverflowException">The integer part of the result does not fit the 256-bit magnitude, or <paramref name="exponent"/> is negative and the positive power is too small to represent, so its reciprocal is too large.</exception>
+    public static BigDecimal Pow(BigDecimal value, int exponent)
+    {
+        // Before everything, including the non-finite check: x^0 does not read x, so it is One for
+        // NaN too. That is System.Double's answer and IEEE 754's.
+        if (exponent == 0)
+        {
+            return One;
+        }
+
+        if (value.IsNonFinite)
+        {
+            return NonFinitePower(value, exponent);
+        }
+
+        if (exponent == 1)
+        {
+            return value;
+        }
+
+        // The magnitude of the exponent does not fit an int when the exponent is int.MinValue.
+        var count = exponent < 0 ? -(long)exponent : exponent;
+        var negative = value.IsNegative && (count & 1) != 0;
+
+        if (value.IsZero)
+        {
+            if (exponent < 0)
+            {
+                throw new DivideByZeroException();
+            }
+
+            Span<ulong> zero = stackalloc ulong[WordCount];
+            zero.Clear();
+            return Pack(zero, 0, false, (int)Math.Min((long)value.Scale * count, MaxScale));
+        }
+
+        Span<ulong> acc = stackalloc ulong[PowWorkWords + 1];
+        Span<ulong> factor = stackalloc ulong[PowWorkWords + 1];
+        Span<ulong> product = stackalloc ulong[(PowWorkWords * 2) + 1];
+
+        Words.Poison(acc);
+        acc[0] = 1;
+        var accLen = 1;
+        var accScale = 0;
+
+        var factorLen = value.CopyMagnitude(factor);
+        var factorScale = value.Scale;
+
+        // Square and multiply. The exactness guarantee rests on the shape of this loop rather than
+        // on the width of the accumulator: every intermediate it holds is the unscaled magnitude
+        // raised to some power no greater than the exponent, on the accumulator and on the squared
+        // factor alike, because the final squaring is skipped once the exponent is exhausted. So no
+        // intermediate has more digits or a wider scale than the exact result, and a result that is
+        // representable is reached without any of them having been reduced. Reordering the loop so
+        // that it squares one more time would break the guarantee without failing a test that names
+        // it.
+        for (var remaining = count; ;)
+        {
+            if ((remaining & 1) != 0)
+            {
+                accLen = MultiplyReduced(acc, accLen, ref accScale, factor, factorLen, factorScale, product, negative);
+            }
+
+            remaining >>= 1;
+            if (remaining == 0)
+            {
+                break;
+            }
+
+            factorLen = MultiplyReduced(factor, factorLen, ref factorScale, factor, factorLen, factorScale, product, negative);
+        }
+
+        return exponent < 0
+            ? Reciprocal(acc, accLen, accScale, negative)
+            : Pack(acc, accLen, negative, accScale);
+    }
+
     /// <summary>Rounds a value to a narrower scale, to nearest with ties to even.</summary>
     /// <param name="value">The value to round.</param>
     /// <param name="scale">The scale to round to, from 0 to <see cref="MaxScale"/> inclusive.</param>
@@ -703,6 +842,134 @@ public readonly partial struct BigDecimal
                 // An infinite dividend has no remainder; a finite one modulo an infinity is itself.
                 return leftInfinite ? NaN : left;
         }
+    }
+
+    // The three values raised to a power. The exponent is never zero here: that case is answered
+    // before the value is read at all, because x^0 does not depend on x, which is why it is the one
+    // place in this type where a NaN operand does not propagate.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static BigDecimal NonFinitePower(BigDecimal value, int exponent)
+    {
+        Debug.Assert(exponent != 0, "an exponent of zero is answered before the value is read");
+
+        if (IsNaN(value))
+        {
+            return NaN;
+        }
+
+        if (exponent < 0)
+        {
+            // Math.Pow gives -0 for (-Infinity)^-1. Zero carries no sign in this type, which is the
+            // same divergence 1 / -Infinity already carries and is documented as.
+            return Zero;
+        }
+
+        return value.IsNegative && (exponent & 1) != 0 ? NegativeInfinity : PositiveInfinity;
+    }
+
+    /// <summary>
+    /// Multiplies the accumulator by a factor at the power's working width, reducing the product
+    /// back to that width when it outgrows it.
+    /// </summary>
+    /// <remarks>
+    /// The reduction is <c>TryReduce</c>, the same rule that packs a result, so the accumulator
+    /// gives up digits the way the mantissa does and cannot drift from it. It is reached only when
+    /// the exact power does not fit, and never on the way to one that does.
+    /// <para>
+    /// Nothing here refuses. A step that has no fractional digits left to give up goes below scale
+    /// 0 rather than reporting overflow, which is what lets the whole operation throw for the one
+    /// reason a caller can check - the result does not fit - instead of for an intermediate the
+    /// caller never asked for. It is also what makes a reciprocal answerable where the power it is
+    /// the reciprocal of is not representable at all.
+    /// </para>
+    /// </remarks>
+    private static int MultiplyReduced(
+        Span<ulong> accumulator,
+        int accumulatorLength,
+        ref int accumulatorScale,
+        ReadOnlySpan<ulong> factor,
+        int factorLength,
+        int factorScale,
+        Span<ulong> product,
+        bool isNegative)
+    {
+        var length = Words.Mul(accumulator, accumulatorLength, factor, factorLength, product);
+        var scale = accumulatorScale + factorScale;
+
+        var reduced = TryReduce(product, ref length, ref scale, PowWorkWords, PowWorkDigits, isNegative, allowNegativeScale: true);
+        Debug.Assert(reduced, "a reduction allowed to go below scale 0 has nothing left to refuse on");
+
+        product[..length].CopyTo(accumulator);
+        accumulatorScale = Math.Max(scale, PowMinScale);
+        return length;
+    }
+
+    /// <summary>Divides one by a power held at the working width, to full precision.</summary>
+    /// <remarks>
+    /// Taken from the accumulator rather than from a packed value on purpose. Composing the answer
+    /// as <c>One / Pow(value, -exponent)</c> throws for every result whose positive power does not
+    /// fit the mantissa, and those are results this type can hold perfectly well: <c>2^-300</c> is
+    /// about 4.9e-91 and comfortably inside the range while <c>2^300</c> is not.
+    /// <para>
+    /// With the power held as an unscaled magnitude <c>U</c> at scale <c>S</c>, the answer is
+    /// <c>10^S / U</c>, produced as <c>10^(S+t) / U</c> at scale <c>t</c> with <c>t</c> chosen so
+    /// the quotient carries the full significant-digit capacity. The rounding is the code that
+    /// rounds a division rather than a second implementation of it, so an exact reciprocal comes
+    /// back at its shortest scale exactly as an exact quotient does.
+    /// </para>
+    /// </remarks>
+    private static BigDecimal Reciprocal(ReadOnlySpan<ulong> power, int powerLength, int powerScale, bool isNegative)
+    {
+        if (powerLength == 0)
+        {
+            // The positive power underflowed to zero. The fault is that the reciprocal is too large
+            // to represent, not that anything was divided by zero, and reporting the latter would
+            // send the caller looking at the wrong operand.
+            ThrowMantissaOverflow();
+        }
+
+        var digits = Words.DecimalDigitCount(power, powerLength);
+        var scale = Math.Clamp(MaxDigits - 2 + digits - powerScale, 0, MaxScale);
+        var lift = powerScale + scale;
+
+        if (lift < 0)
+        {
+            // The power is so large that even at the widest scale the type carries, its reciprocal
+            // rounds to nothing. That is the underflow rule and not an overflow: the answer is
+            // representable and it is zero.
+            Span<ulong> underflow = stackalloc ulong[WordCount];
+            underflow.Clear();
+            return Pack(underflow, 0, false, MaxScale);
+        }
+
+        Span<ulong> num = stackalloc ulong[DivideWorkWords];
+        Span<ulong> quotient = stackalloc ulong[DivideWorkWords];
+
+        Words.Poison(num);
+        num[0] = 1;
+        var numLen = Words.ScaleUp(num, 1, lift);
+
+        Words.Poison(quotient);
+        var quotientLen = Words.DivRem(num, numLen, power, powerLength, quotient, out var remainderLen);
+
+        if (remainderLen == 0)
+        {
+            // The floor is zero, which is what Divide uses for a dividend of One at scale zero.
+            quotientLen = StripTrailingZeros(quotient, quotientLen, ref scale, 0);
+            return Pack(quotient, quotientLen, isNegative, scale);
+        }
+
+        quotientLen = RoundByRemainder(
+            quotient,
+            quotientLen,
+            num,
+            remainderLen,
+            power,
+            powerLength,
+            isNegative,
+            MidpointRounding.ToEven);
+
+        return Pack(quotient, quotientLen, isNegative, scale);
     }
 
     /// <summary>

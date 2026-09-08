@@ -148,6 +148,30 @@ public static class Operands
         _ => throw new ArgumentOutOfRangeException(nameof(shape)),
     };
 
+    /// <summary>The base a power is raised from, at each mantissa width.</summary>
+    /// <remarks>
+    /// Every one of them is just above one, which is what makes the exponent free to vary. A base
+    /// of any size raised to the thousandth is out of range before the tenth multiplication, so a
+    /// wide base and a large exponent would measure how quickly the operation throws rather than
+    /// how quickly it answers. Just above one is also the shape a caller actually raises to a large
+    /// power, since that is what compounding a rate over a term is.
+    /// <para>
+    /// The digits are placed at the far end of the fraction so that the mantissa is genuinely as
+    /// wide as the shape says while the value stays near one. A base of 1.05 at four words would be
+    /// four words of leading zeros, which is one word of work.
+    /// </para>
+    /// </remarks>
+    /// <param name="shape">The mantissa width to draw the base at.</param>
+    /// <returns>The base, as text.</returns>
+    public static string Power(OperandShape shape) => shape switch
+    {
+        OperandShape.OneWord => "1.05",
+        OperandShape.TwoWords => "1.0000000000000000000023",
+        OperandShape.ThreeWords => "1.0000000000000000000000000000000000000000023",
+        OperandShape.FourWords => "1.000000000000000000000000000000000000000000000000000000000023",
+        _ => throw new ArgumentOutOfRangeException(nameof(shape)),
+    };
+
     /// <summary>The text a parsing benchmark reads, and the value a formatting one renders.</summary>
     /// <param name="shape">The mantissa width to draw at.</param>
     /// <returns>The value, as text.</returns>
