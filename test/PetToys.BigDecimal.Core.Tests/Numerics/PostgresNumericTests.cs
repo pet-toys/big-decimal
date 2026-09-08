@@ -211,6 +211,40 @@ public sealed class PostgresNumericTests
     }
 
     [Fact]
+    public void ADisplayScaleThisTypeCannotHold_IsCappedRatherThanRefused()
+    {
+        // Two different questions share the dscale field. A scale the format allows is a value
+        // question and binds against the mantissa; one past what the format itself allows is a
+        // framing question and is refused, in the theory above.
+        var read = PostgresNumeric.Read(Groups(count: 1, weight: -1, dscale: 16_383, group: 1));
+
+        // 81, not 16383 and not 255: the value is 1e-4, so 81 fractional digits is already 78
+        // significant ones. The largest dscale the format has is still only a ceiling.
+        read.Scale.Should().Be(81);
+
+        var refused = () => PostgresNumeric.Read(Groups(count: 1, weight: -1, dscale: 16_384, group: 1));
+
+        refused.Should().Throw<FormatException>();
+    }
+
+    [Fact]
+    public void ANonFiniteSignWithDigitGroups_IsRefusedRatherThanIgnored()
+    {
+        // The groups are well formed and the length agrees with ndigits, so nothing but the sign
+        // makes this payload wrong. Ignoring them would also skip the range check every other
+        // group passes: the second payload here carries a group of 10000 that no other path
+        // would accept.
+        var withGroups = Convert.FromHexString("0001" + "0000" + "D000" + "0000" + "0001");
+        var withBadGroup = Convert.FromHexString("0001" + "0000" + "C000" + "0000" + "2710");
+
+        var first = () => PostgresNumeric.Read(withGroups);
+        var second = () => PostgresNumeric.Read(withBadGroup);
+
+        first.Should().Throw<FormatException>();
+        second.Should().Throw<FormatException>();
+    }
+
+    [Fact]
     public void ADisplayScalePastTheMaximum_IsCapped()
     {
         var read = PostgresNumeric.Read(Payload(BigInteger.One, 300));
@@ -227,6 +261,8 @@ public sealed class PostgresNumericTests
     [InlineData("0001" + "0064" + "0000" + "0000" + "2710")]
     [InlineData("FFFF" + "0000" + "0000" + "0000")]
     [InlineData("0000" + "0000" + "C000" + "0000" + "0001")]
+    [InlineData("0001" + "0000" + "C000" + "0000" + "0001")]
+    [InlineData("0001" + "0000" + "0000" + "4000" + "0001")]
     public void AMalformedPayload_IsRefusedAsOne(string hex)
     {
         var refused = () => PostgresNumeric.Read(Convert.FromHexString(hex));

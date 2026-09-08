@@ -66,6 +66,15 @@ internal static class PostgresNumeric
     /// <summary>The most groups a value of this type spans. See <see cref="MaxByteCount"/>.</summary>
     private const int MaxGroups = 21;
 
+    /// <summary>The widest display scale the format carries.</summary>
+    /// <remarks>
+    /// PostgreSQL masks <c>dscale</c> to fourteen bits on the way in and refuses a payload above
+    /// it, which is the same 16383 fractional digits its documentation states. Values are clamped
+    /// to <see cref="BigDecimal.MaxScale"/> further down, so this is about the payload being well
+    /// formed and not about the scale being representable here.
+    /// </remarks>
+    private const int MaxDisplayScale = 16_383;
+
     private const ushort SignPositive = 0x0000;
     private const ushort SignNegative = 0x4000;
     private const ushort SignNaN = 0xC000;
@@ -166,7 +175,8 @@ internal static class PostgresNumeric
     /// type can hold.</returns>
     /// <exception cref="FormatException">
     /// The payload is not a well-formed <c>numeric</c>: too short for its header, a length that
-    /// disagrees with <c>ndigits</c>, an unrecognised sign code, or a group at or above 10000.
+    /// disagrees with <c>ndigits</c>, a <c>dscale</c> past the format's own 16383, an unrecognised
+    /// sign code, digit groups under a non-finite sign, or a group at or above 10000.
     /// </exception>
     /// <exception cref="OverflowException">
     /// The integer part of the value is larger than the type's magnitude. The fraction is rounded
@@ -191,14 +201,36 @@ internal static class PostgresNumeric
             throw Malformed("A PostgreSQL numeric payload carries exactly ndigits groups.");
         }
 
+        // No more permissive than the server being spoken to: PostgreSQL refuses a dscale outside
+        // its own fourteen-bit field rather than masking it, so a payload carrying one is
+        // malformed here too. A dscale this type cannot represent is a different matter and is
+        // clamped, not refused.
+        if (dscale > MaxDisplayScale)
+        {
+            throw Malformed("A PostgreSQL numeric display scale is at most 16383.");
+        }
+
         switch (sign)
         {
             case SignNaN:
-                return BigDecimal.NaN;
             case SignPositiveInfinity:
-                return BigDecimal.PositiveInfinity;
             case SignNegativeInfinity:
-                return BigDecimal.NegativeInfinity;
+                // A non-finite value has no digits and the server writes none, so a group under
+                // one of these codes is a byte the header calls data and no value can use.
+                // Refused rather than skipped: skipping would also skip the range check every
+                // other group passes, so the same bytes would be validated or not depending on
+                // the sign standing beside them.
+                if (ndigits != 0)
+                {
+                    throw Malformed("A PostgreSQL numeric with a non-finite sign carries no groups.");
+                }
+
+                return sign switch
+                {
+                    SignNaN => BigDecimal.NaN,
+                    SignPositiveInfinity => BigDecimal.PositiveInfinity,
+                    _ => BigDecimal.NegativeInfinity,
+                };
             case SignPositive:
             case SignNegative:
                 break;

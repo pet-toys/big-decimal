@@ -136,11 +136,13 @@ public static class AllocationInventory
         var groups = new ushort[count];
         Array.Fill(groups, (ushort)1);
 
+        // 16383 rather than four digits per group: PostgreSQL's own limit, and one the reader
+        // now enforces. Four thousand and ninety-six groups is four digits past it.
         return WireFormatOracle.PostgresLayout(
             count,
             weight: -1,
             WireFormatOracle.PostgresPositive,
-            count * WireFormatOracle.PostgresDecDigits,
+            dscale: 16_383,
             groups);
     }
 
