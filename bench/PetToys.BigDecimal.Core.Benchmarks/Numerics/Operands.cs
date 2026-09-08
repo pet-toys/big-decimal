@@ -36,12 +36,19 @@ public static class Operands
     public const string InexactDivisor = "3";
 
     /// <summary>
-    /// The format strings the formatting benchmarks are measured over: the plain rendering, a
-    /// fixed one with an explicit precision, and a grouped one that reads the culture. The
-    /// exponential specifier is left out to keep a full run bounded; it shares its path with the
-    /// fixed one up to the exponent it appends.
+    /// The format strings the formatting benchmarks are measured over: every standard specifier
+    /// the type accepts and one custom format.
     /// </summary>
-    public static readonly string[] Formats = ["G", "F9", "N2"];
+    /// <remarks>
+    /// A row per format string, because the budget is read per format string rather than as an
+    /// average over them: a specifier a caller chose deliberately can be over 3x while the mean of
+    /// the others hides it. <c>R</c> is here even though it routes to the same formatter as
+    /// <c>G</c>, since what it costs is a question about the dispatch rather than about the
+    /// formatter, and <c>G6</c> is here because a precision makes <c>G</c> a different formatter
+    /// altogether. The custom format is the shape a caller actually writes: grouped, with two
+    /// fractional digits.
+    /// </remarks>
+    public static readonly string[] Formats = ["G", "R", "G6", "F9", "N2", "E4", "C2", "P2", "#,##0.00"];
 
     /// <summary>
     /// The operands for addition and subtraction: a sum that stays inside the shape it was drawn

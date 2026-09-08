@@ -26,3 +26,15 @@ PetToys.BigDecimal.Core
   a caller can decide whether a value fits a column before writing it.
 - Converting out of the type no longer boxes, and TryParse no longer allocates
   an exception for a value too large to parse.
+- Formatting now matches System.Decimal across its whole surface. The C, P and R
+  specifiers are accepted where they threw, custom numeric format strings are
+  supported, and G with a precision counts significant digits and switches to
+  scientific notation instead of ignoring the precision.
+- N lays a negative value out by the culture's NumberNegativePattern. A culture
+  that writes (1,234.5) got -1,234.5 before, and C and P follow their own
+  patterns for the first time. Output changes under those cultures.
+- The UTF-8 TryFormat overload is bounded by the destination it is given. It
+  formatted through a 366-character buffer of its own and declined anything
+  longer, so MaxValue with F300 failed into an 8 KB destination while the char
+  overload wrote 379 characters into one the same size.
+- ToString no longer caps a format string at 64 KB of output.

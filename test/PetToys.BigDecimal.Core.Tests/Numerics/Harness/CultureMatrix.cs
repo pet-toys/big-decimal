@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 
 namespace PetToys.BigDecimal.Numerics.Harness;
@@ -15,13 +16,13 @@ namespace PetToys.BigDecimal.Numerics.Harness;
 /// </remarks>
 public static class CultureMatrix
 {
-    /// <summary>Every case in the matrix.</summary>
+    /// <summary>Every shape case in the matrix.</summary>
     public static CultureCase[] All { get; } = Enum.GetValues<CultureCase>();
 
     // Built once. The randomised suites ask for a culture per case, and a fresh CultureInfo clone
     // with its NumberFormatInfo rewritten is not something to allocate three hundred thousand
     // times for a handful of values that never change.
-    private static readonly CultureInfo[] Cultures =
+    private static readonly CultureInfo[] Shapes =
     [
         Build(".", ",", [3]),
         Build(",", ".", [3]),
@@ -39,9 +40,64 @@ public static class CultureMatrix
     {
         CultureCase.Invariant or CultureCase.CommaDecimal or CultureCase.NonUniformGroups
             or CultureCase.SpaceGroups or CultureCase.StoppedGroups or CultureCase.NoGroups =>
-            Cultures[(int)culture],
+            Shapes[(int)culture],
         _ => throw new ArgumentOutOfRangeException(nameof(culture)),
     };
+
+    /// <summary>
+    /// The cultures that differ from the invariant one only in a pattern index.
+    /// </summary>
+    /// <remarks>
+    /// One culture per index of each of the five patterns a specifier reads: five for
+    /// <c>NumberNegativePattern</c>, sixteen and four for currency, twelve and four for percent.
+    /// They are separate from the shape cases because a shape and a pattern are independent, and
+    /// because a matrix in which every culture carries pattern 1 cannot see a formatter that
+    /// ignores the pattern - which is exactly how an <c>N</c> that always prefixed the sign passed
+    /// the suite through two changes.
+    /// </remarks>
+    public static CultureInfo[] Patterns { get; } = BuildPatterns();
+
+    /// <summary>Every culture the matrix holds: the shapes and the patterns.</summary>
+    public static CultureInfo[] Every { get; } = [.. Shapes, .. Patterns];
+
+    private static CultureInfo[] BuildPatterns()
+    {
+        var patterns = new List<CultureInfo>(41);
+
+        for (var index = 0; index < 5; index++)
+        {
+            patterns.Add(WithPattern(index, static (info, value) => info.NumberNegativePattern = value));
+        }
+
+        for (var index = 0; index < 16; index++)
+        {
+            patterns.Add(WithPattern(index, static (info, value) => info.CurrencyNegativePattern = value));
+        }
+
+        for (var index = 0; index < 4; index++)
+        {
+            patterns.Add(WithPattern(index, static (info, value) => info.CurrencyPositivePattern = value));
+        }
+
+        for (var index = 0; index < 12; index++)
+        {
+            patterns.Add(WithPattern(index, static (info, value) => info.PercentNegativePattern = value));
+        }
+
+        for (var index = 0; index < 4; index++)
+        {
+            patterns.Add(WithPattern(index, static (info, value) => info.PercentPositivePattern = value));
+        }
+
+        return [.. patterns];
+    }
+
+    private static CultureInfo WithPattern(int index, Action<NumberFormatInfo, int> apply)
+    {
+        var culture = (CultureInfo)CultureInfo.InvariantCulture.Clone();
+        apply(culture.NumberFormat, index);
+        return CultureInfo.ReadOnly(culture);
+    }
 
     private static CultureInfo Build(string decimalSeparator, string groupSeparator, int[] groupSizes)
     {

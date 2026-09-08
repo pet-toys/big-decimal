@@ -65,6 +65,25 @@ public sealed class AllocationTests
     }
 
     [Fact]
+    public void EveryPooledBuffer_IsDeclaredWithItsReason()
+    {
+        // A rent is measured at zero once the pool is warm, so nothing in the inventory can notice
+        // one appearing. Declaring them is what makes a new rent a decision rather than an
+        // accident, and it is where the stack bound that decides them is written down.
+        AllocationInventory.PooledBuffers.Should().NotBeEmpty();
+
+        foreach (var (site, reason) in AllocationInventory.PooledBuffers)
+        {
+            reason.Should().NotBeNullOrWhiteSpace("the buffer at {0} must say what it does and when", site);
+        }
+
+        AllocationInventory.PooledBuffers.Should().ContainKey(
+            "TryFormat to UTF-8",
+            "the UTF-8 overload formats through an intermediate, and sizing that intermediate from a "
+            + "constant instead of from the text is the defect this change closed");
+    }
+
+    [Fact]
     public void AValueTooLargeToParse_FailsWithoutAllocating()
     {
         // TryParse called the throwing Pack inside a try/catch, so an input the type cannot hold

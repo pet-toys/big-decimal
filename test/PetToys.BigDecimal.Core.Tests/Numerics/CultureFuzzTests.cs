@@ -14,11 +14,6 @@ namespace PetToys.BigDecimal.Numerics;
 [Collection(AmbientCulture.Name)]
 public sealed class CultureFuzzTests
 {
-    private static readonly string[] Specifiers =
-    [
-        "G", "F0", "F2", "F6", "F12", "N0", "N2", "N6", "E4", "E10",
-    ];
-
     [Theory]
     [FuzzData]
     public void FormattingAndParsing_RoundTripUnderEveryCulture(int seed, int cases)
@@ -43,10 +38,11 @@ public sealed class CultureFuzzTests
 
     [Theory]
     [FuzzData]
-    public void EverySpecifier_AgreesWithDecimalUnderEveryCulture(int seed, int cases)
+    public void EveryFormatString_AgreesWithDecimalUnderEveryCulture(int seed, int cases)
     {
         var random = new Random(seed);
         var generator = new ValueGenerator(random);
+        Span<byte> utf8 = stackalloc byte[512];
 
         for (var index = 0; index < cases; index++)
         {
@@ -57,15 +53,63 @@ public sealed class CultureFuzzTests
                 continue;
             }
 
-            var cultureCase = CultureMatrix.All[random.Next(CultureMatrix.All.Length)];
-            var culture = CultureMatrix.Get(cultureCase);
-            var specifier = Specifiers[random.Next(Specifiers.Length)];
+            var cultureIndex = random.Next(CultureMatrix.Every.Length);
+            var culture = CultureMatrix.Every[cultureIndex];
+            var format = FormatCorpus.All[random.Next(FormatCorpus.All.Length)];
 
             var context = FuzzContext.Of(seed, index, drawn);
+            var expected = reference.ToString(format, culture);
 
-            drawn.Value.ToString(specifier, culture)
-                .Should().Be(reference.ToString(specifier, culture), "{0} formatted with {1}", context, specifier);
+            drawn.Value.ToString(format, culture).Should().Be(
+                expected, "{0} formatted with \"{1}\" under culture {2}", context, format, cultureIndex);
+
+            // The two overloads are one contract. Written here rather than in its own test so that
+            // every format string the corpus carries is checked on both, not only the ones somebody
+            // thought to list twice.
+            drawn.Value.TryFormat(utf8, out var written, format, culture).Should().BeTrue(
+                "{0} fits 512 bytes with \"{1}\"", context, format);
+            Encoding.UTF8.GetString(utf8[..written]).Should().Be(
+                expected, "{0} writes the same text to UTF-8 with \"{1}\"", context, format);
         }
+    }
+
+    [Theory]
+    [MemberData(nameof(RejectedFormats))]
+    public void ARejectedFormatString_IsRejectedByBoth(string format)
+    {
+        // A single letter is a standard specifier or it is an error, and the same letters twice
+        // over are a custom format of literals. The distinction is not recognised versus
+        // unrecognised, which is what a reading of the issue would have implemented.
+        var value = BigDecimal.Parse("-1234.5678", CultureInfo.InvariantCulture);
+
+        var decimalThrew = false;
+        try
+        {
+            _ = (-1234.5678m).ToString(format, CultureInfo.InvariantCulture);
+        }
+        catch (FormatException)
+        {
+            decimalThrew = true;
+        }
+
+        decimalThrew.Should().BeTrue("the corpus lists what decimal rejects");
+        value.Invoking(v => v.ToString(format, CultureInfo.InvariantCulture)).Should().Throw<FormatException>();
+
+        var doubled = format + format;
+        value.ToString(doubled, CultureInfo.InvariantCulture).Should().Be(
+            (-1234.5678m).ToString(doubled, CultureInfo.InvariantCulture),
+            "twice the same string is not a standard specifier at all, so it is a custom format of literals");
+    }
+
+    public static TheoryData<string> RejectedFormats()
+    {
+        var data = new TheoryData<string>();
+        foreach (var format in FormatCorpus.Rejected)
+        {
+            data.Add(format);
+        }
+
+        return data;
     }
 
     [Theory]

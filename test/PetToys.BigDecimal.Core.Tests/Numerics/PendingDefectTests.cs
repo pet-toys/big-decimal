@@ -27,19 +27,4 @@ public sealed class PendingDefectTests
         decimal.TryParse(text, NumberStyles.Number, culture, out _).Should().BeFalse();
         BigDecimal.TryParse(text, NumberStyles.Number, culture, out _).Should().BeFalse();
     }
-
-    [Fact(Skip = Pending.Formatting)]
-    public void TheUtf8Overload_IsBoundedByTheCallersDestination()
-    {
-        // D4. The UTF-8 TryFormat is bounded by an internal buffer of its own rather than by the
-        // span it was handed, so a long format fails into 8 KB while the char overload succeeds.
-        var destination = new byte[8_192];
-        var characters = new char[8_192];
-
-        BigDecimal.MaxValue.TryFormat(characters, out var expected, "F300", CultureInfo.InvariantCulture)
-            .Should().BeTrue();
-        BigDecimal.MaxValue.TryFormat(destination, out var written, "F300", CultureInfo.InvariantCulture)
-            .Should().BeTrue("the destination is 8 KB, which is ample");
-        written.Should().Be(expected, "both overloads write the same number of units");
-    }
 }

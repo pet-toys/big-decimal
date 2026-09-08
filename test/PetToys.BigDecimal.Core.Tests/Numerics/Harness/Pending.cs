@@ -12,9 +12,6 @@ namespace PetToys.BigDecimal.Numerics.Harness;
 /// </remarks>
 public static class Pending
 {
-    /// <summary>Owned by the formatting parity work.</summary>
-    public const string Formatting = "Pending the formatting parity work.";
-
     /// <summary>
     /// Owned by the parsing parity work. A leading group separator is rejected, matching
     /// <see cref="decimal"/> — except when the separator is itself whitespace, where it is consumed
