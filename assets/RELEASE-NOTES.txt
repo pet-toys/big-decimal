@@ -38,3 +38,11 @@ PetToys.BigDecimal.Core
   longer, so MaxValue with F300 failed into an 8 KB destination while the char
   overload wrote 379 characters into one the same size.
 - ToString no longer caps a format string at 64 KB of output.
+- Parsing accepts the same white space as System.Decimal, which is a tab,
+  newline, vertical tab, form feed, carriage return or space and nothing else.
+  A leading or trailing non-breaking space, and eighteen other characters that
+  char.IsWhiteSpace accepts, were consumed before and are refused now. Where
+  such a character was also the culture's group separator, a separator
+  standing before the first digit was swallowed with it and the value
+  accepted; the same narrowing fixes both. Input that parsed before may now be
+  refused.
