@@ -45,6 +45,8 @@ dry` grades nothing, for the reason in the README.
 | L   | 2026-09-08 | `*Divide*`, `*ExactDivision*` | `divide-and-copy-cost`, as it ships | ~6 min |
 | M   | 2026-09-08 | arithmetic, comparison, parsing | `99aa01c`, the code being replaced | 30 min |
 | N   | 2026-09-08 | `--anyCategories budget` | `divide-and-copy-cost`, as it ships | 66 min |
+| O   | 2026-09-08 | `*Power*`, `*Multiply*`, `*Divide*` | `integer-power`, as it ships | 12 min |
+| P   | 2026-09-08 | `*PowerLoop*`            | `integer-power`, as it ships | 3 min  |
 
 Run A was taken on the `formatting-parity` work before it merged, which differs
 from `c33486b` only in the formatting path, so the rows below that are not
@@ -78,14 +80,25 @@ BenchmarkDotNet's generated project directories exceed the Windows path limit un
 deeper one. N is the record run; it is a full budget run because the change took a fixed
 cost out of every operation that copies a magnitude, which is most of them.
 
+Run O is `integer-power`, and it is four classes rather than a full run because the
+change adds an operation and touches one shared line: the reduction loop moved out of
+`TryPack` into a helper the power's accumulator also calls. `Multiply` and `Divide` are
+in the run as the control on that line, and they came back at 3.21x and 5.33x against
+3.13x and 5.34x in N, which is the same code costing the same thing. The rows below
+that name O are the ones O measured; the rest still come from N.
+
+Run P is the same code as O and exists because O's loop comparison had two exponents
+three orders of magnitude apart, which locates a crossover by interpolation rather than
+by reading it. P adds a twentieth and a fortieth power to that one class.
+
 ## Verdicts
 
 | Criterion                          | Budget | Ratio | Dispersion | Shape                 | Verdict | Run |
 | ---------------------------------- | -----: | ----: | ---------: | --------------------- | ------- | --- |
 | `Add`                              |   3.5x |  2.38 |       0.04 | two words, misaligned | met     | N   |
 | `Subtract`                         |   3.5x |  2.61 |       0.02 | two words, misaligned | met     | N   |
-| `Multiply`                         |   3.5x |  3.13 |       0.01 | one word, misaligned  | met     | N   |
-| `Divide`                           |    10x |  5.34 |       0.05 | two words, aligned    | met     | N   |
+| `Multiply`                         |   3.5x |  3.21 |       0.03 | one word, aligned     | met     | O   |
+| `Divide`                           |    10x |  5.33 |       0.09 | two words, aligned    | met     | O   |
 | `Remainder`                        |    10x |  2.80 |       0.03 | one word, aligned     | met     | N   |
 | `Parse`, `char`                    |     3x |  1.10 |          - | one word              | met     | N   |
 | `Parse`, UTF-8                     |     3x |  1.28 |          - | one word              | met     | N   |
@@ -96,7 +109,8 @@ cost out of every operation that copies a magnitude, which is most of them.
 | Exact division against inexact     |    1.0 |  0.25 |       0.00 | `100 / 10` vs `/ 3`   | met     | N   |
 | Hashing, widened against narrow    |   2.5x |  2.17 |          - | two words, aligned    | met     | N   |
 | Hashing, nineteen zeros against one|   1.5x |  1.38 |          - | one word, misaligned  | met     | N   |
-| Zero allocations                   | always |     - |          - | every row             | met     | N   |
+| Power, thousandth against fourth   |    40x | 12.68 |          - | four words            | met     | O   |
+| Zero allocations                   | always |     - |          - | every row             | met     | N, O |
 
 Three of the four parsing classes carry no `RatioSD` in run N: BenchmarkDotNet dropped the
 column. Their rows' own standard deviations are between 0.5% and 1.4% of their means, which
@@ -106,6 +120,10 @@ column.
 The two hashing rows carry no dispersion because their class has no `[Baseline]` method:
 the ratio is computed here from two of its rows, so BenchmarkDotNet reports no `RatioSD`
 for it. Both rows' own standard deviations are under 1% of their means.
+
+The power row is the same shape and for the same reason: its class declares no baseline,
+because `System.Decimal` has no power for one to be declared against. The two rows it is
+computed from carry standard deviations of 0.7% and 1.0% of their means.
 
 ## What the numbers do not say
 
@@ -257,6 +275,51 @@ operand shapes on each overload, both from `#,##0.00` on a two-word mantissa.
 The other eight sit between 1.25x and 2.49x, and the criterion is read per
 format string rather than as an average over them. The run before this one put
 the same two at 2.74x and 2.67x, so the verdict does not turn on which was read.
+
+**The power's cost follows the exponent's bit length, and the shape it is read at
+matters.** Run O, in nanoseconds:
+
+| Base       | `^4`   | `^1000`  | ratio | `^-4`  | `^-1000` |
+| ---------- | -----: | -------: | ----: | -----: | -------: |
+| one word   |  29.71 | 2 789.25 | 93.9  |  70.74 | 2 899.34 |
+| two words  |  84.59 | 4 616.68 | 54.6  | 194.92 | 4 984.88 |
+| four words | 395.35 | 5 012.54 | 12.7  | 520.12 | 5 363.88 |
+
+The criterion is read from the last row and the other two are recorded without a
+ceiling, because only the last one measures what the criterion is about. Fifteen
+multiplications against three is a factor of five; what the first two rows add on top of
+it is the accumulator, which a narrow base never fills at the fourth power and fills
+completely at the thousandth, paying a reduction on almost every step once it does. The
+four-word base is at full width in both, so its 12.7x is the multiplication count and
+the reductions that go with it. A fold over multiplication would put the larger row
+several hundred times above the smaller one at every shape, which is the separation the
+ceiling exists to detect.
+
+**The reciprocal costs a division on top of the chain, and the division grows far more
+slowly than the chain does.** It adds 41 ns at one word and 125 ns at four words over
+the fourth power, and 110 ns and 351 ns over the thousandth. Between those two exponents
+the chain itself grows by 94x and 12.7x while the division it pays for grows by 2.7x and
+2.8x: what the division answers to is the width of the power and the length of the lift,
+not the number of multiplications that produced it.
+
+**The multiplication loop a caller writes instead wins at a small exponent and loses
+from a small one.** Run P, in nanoseconds, on a one-word base:
+
+| Exponent | `Pow`    | `decimal` loop |
+| -------: | -------: | -------------: |
+|        4 |    30.13 |           6.45 |
+|       20 |    50.17 |         153.81 |
+|       40 |   110.22 |         542.43 |
+|     1000 | 2 915.68 |      17 557.50 |
+
+The crossover is between the fourth power and the twentieth, and by the twentieth the
+loop is already three times dearer. Two things are moving at once: the loop performs
+the exponent's own number of multiplications where the power performs its bit length's,
+and the loop's own multiplications get dearer as it goes, from 1.6 ns each at the
+fourth power to 17.6 ns at the thousandth, because a `decimal` whose scale has run past
+28 rounds on every step. No ratio is quoted from this pair as a criterion: past the
+point where the exact result leaves 96 bits the two are not computing the same thing,
+and the loop's answer has been rounded a thousand times.
 
 **Every `Measured` row allocated zero bytes.** The only non-zero allocation in
 run A is `System.Decimal`'s own, 56 bytes formatting `#,##0.00` at two words.

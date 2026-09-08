@@ -23,6 +23,13 @@ The type implements `INumber<T>`, `ISignedNumber<T>`, `IMinMaxValue<T>`, the
 `IFormattable`/`ISpanFormattable`/`IUtf8SpanFormattable` families, and ships a
 `System.Text.Json` converter.
 
+`Pow(value, exponent)` raises a value to an integer power, and it is exact
+whenever the exact power is representable: 61 significant digits of `1.05` to
+the 30th come back digit for digit, where a hand-written multiplication loop
+would have rounded at every step. A negative exponent is the reciprocal, to the
+same precision a division without an explicit scale gives, and it answers
+wherever its own result fits even when the power it inverts does not.
+
 Formatting matches `decimal` string for string: the `C`, `E`, `F`, `G`, `N`,
 `P` and `R` specifiers with an optional precision, custom numeric format
 strings, and the culture's own group sizes and negative patterns — so a culture

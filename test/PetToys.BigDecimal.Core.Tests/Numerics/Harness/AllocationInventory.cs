@@ -146,6 +146,14 @@ public static class AllocationInventory
         Add("Divide", "Divide", () => Allocations.Sink = BigDecimal.Divide(Left, Right));
         Add("Divide at a scale", "Divide", () => Allocations.Sink = BigDecimal.Divide(Left, Right, 20, MidpointRounding.ToEven));
         Add("Remainder", "Remainder", () => Allocations.Sink = BigDecimal.Remainder(Left, Right));
+
+        // Four entries rather than one: the exponent selects between four paths that allocate for
+        // different reasons if they allocate at all - the chain, the chain followed by a division
+        // at the working width, the constant that never reads the value, and the flags-only answer.
+        Add("Pow", "Pow", () => Allocations.Sink = BigDecimal.Pow(Left, 7));
+        Add("Pow at a negative exponent", "Pow", () => Allocations.Sink = BigDecimal.Pow(Left, -7));
+        Add("Pow at an exponent of zero", "Pow", () => Allocations.Sink = BigDecimal.Pow(Left, 0));
+        Add("Pow of a non-finite value", "Pow", () => Allocations.Sink = BigDecimal.Pow(BigDecimal.NaN, 3));
         Add("Negate", "Negate", () => Allocations.Sink = BigDecimal.Negate(Left));
         Add("Abs", "Abs", () => Allocations.Sink = BigDecimal.Abs(Right));
         Add("Floor", "Floor", () => Allocations.Sink = BigDecimal.Floor(Left));
