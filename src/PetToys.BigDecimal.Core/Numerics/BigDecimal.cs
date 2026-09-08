@@ -412,9 +412,12 @@ public readonly partial struct BigDecimal
     internal static void ThrowMantissaOverflow() =>
         throw new OverflowException("Value was either too large or too small for a BigDecimal.");
 
+    // The base class library says "floating point Not-a-Number" in this message, but this type
+    // is a fixed-width decimal and repeating that would tell the caller something untrue about
+    // what they are holding.
     [DoesNotReturn]
     internal static void ThrowNaNHasNoSign() =>
-        throw new ArithmeticException("Function does not accept floating point Not-a-Number values.");
+        throw new ArithmeticException("Function does not accept Not-a-Number values.");
 
     // Not an OverflowException: the value is not too large for the destination, it has no
     // magnitude at all, and the caller's fix is to test IsFinite rather than to widen anything.

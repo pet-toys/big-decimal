@@ -74,14 +74,20 @@ public readonly partial struct BigDecimal
     /// form that round-trips through <see cref="double"/>.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <c>(double)(BigDecimal)value</c> returns <c>value</c> for every finite <see cref="double"/>
     /// whose shortest form has at most 77 integer digits and needs a scale of at most
     /// <see cref="MaxScale"/>. Outside that window the ordinary rules apply: a larger value throws
     /// and a smaller one is rounded at <see cref="MaxScale"/>, which may reach zero. This departs
     /// from <see cref="decimal"/>, whose own conversion rounds to 15 significant digits, because
     /// this type has the digits to hand the value back unchanged.
+    /// </para>
+    /// <para>
+    /// A non-finite source converts to the matching value: <see cref="NaN"/>,
+    /// <see cref="PositiveInfinity"/> or <see cref="NegativeInfinity"/>.
+    /// </para>
     /// </remarks>
-    /// <exception cref="OverflowException">The value is too large for the 256-bit magnitude. NaN and the infinities convert to <see cref="NaN"/>, <see cref="PositiveInfinity"/> and <see cref="NegativeInfinity"/> rather than throwing.</exception>
+    /// <exception cref="OverflowException">The value is too large for the 256-bit magnitude.</exception>
     public static explicit operator BigDecimal(double value) => FromFloatChecked(value);
 
     /// <summary>
@@ -89,12 +95,17 @@ public readonly partial struct BigDecimal
     /// form that round-trips through <see cref="float"/>.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <c>(float)(BigDecimal)value</c> returns <c>value</c> for every finite <see cref="float"/>,
     /// without exception: the whole finite range fits. This departs from <see cref="decimal"/>,
     /// whose own conversion rounds to 7 significant digits, so that <c>(decimal)1.0000001f</c> is
     /// 1 where this conversion keeps 1.0000001.
+    /// </para>
+    /// <para>
+    /// A non-finite source converts to the matching value: <see cref="NaN"/>,
+    /// <see cref="PositiveInfinity"/> or <see cref="NegativeInfinity"/>.
+    /// </para>
     /// </remarks>
-    /// <remarks>NaN and the infinities convert to <see cref="NaN"/>, <see cref="PositiveInfinity"/> and <see cref="NegativeInfinity"/>.</remarks>
     public static explicit operator BigDecimal(float value) => FromFloatChecked(value);
 
     /// <summary>Converts a <see cref="BigInteger"/> to a <see cref="BigDecimal"/> at scale 0.</summary>
