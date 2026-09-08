@@ -182,8 +182,6 @@ public readonly partial struct BigDecimal : IEquatable<BigDecimal>, IComparable<
 
         Span<ulong> a = stackalloc ulong[WorkWords];
         Span<ulong> b = stackalloc ulong[WorkWords];
-        a.Clear();
-        b.Clear();
         var aLen = left.CopyMagnitude(a);
         var bLen = right.CopyMagnitude(b);
 

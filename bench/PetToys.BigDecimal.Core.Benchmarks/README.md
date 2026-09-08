@@ -230,6 +230,14 @@ over the same dividend, or a hash of a value carrying trailing zeros against the
 same value without them, are both such relationships, and both are criteria in
 their own right.
 
+`ExactDivisionBenchmarks` carries three such rows rather than two, over one
+dividend: a quotient that is exact at the difference of the operands' scales, one
+that is exact only after the dividend is lifted by the divisor's own factors, and
+one that is exact at neither. They are the three depths the division searches to,
+so work taken out of the search is the difference between adjacent rows of that
+table. Only the first against the last is a criterion; the middle row is there to
+be read.
+
 ## What [`BASELINE.md`](BASELINE.md) is
 
 A dated record of what the budgeted criteria last measured: the machine, the

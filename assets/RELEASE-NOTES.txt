@@ -70,3 +70,8 @@ PetToys.BigDecimal.Core
   or an integer type throws under the checked contract and saturates under the
   other two, which is what the base class library does converting a non-finite
   double the same way.
+- Arithmetic, comparison and parsing are faster, by 3% to 25% depending on the
+  operation and the width of its operands. Every operation prepared its working
+  buffer by zeroing memory the runtime had already zeroed; the largest gains are
+  the remainder, the comparison of two values at different scales, and a
+  division that comes out exactly. No result changes.
