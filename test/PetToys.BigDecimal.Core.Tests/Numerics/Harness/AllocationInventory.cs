@@ -46,6 +46,13 @@ public static class AllocationInventory
     private static readonly BigDecimal LongInteger =
         BigDecimal.Parse("1234567890123456789012345678901234567890.12", CultureInfo.InvariantCulture);
 
+    private static readonly BigDecimal Narrow = BigDecimal.Parse("1.23", CultureInfo.InvariantCulture);
+    private static readonly byte[] PostgresBuffer = new byte[PostgresNumeric.MaxByteCount];
+    private static readonly byte[] PostgresPayload = Encode(Left);
+    private static readonly byte[] PostgresNonFinitePayload = Encode(BigDecimal.NaN);
+    private static readonly byte[] PostgresDeepPayload = Fraction(4096);
+    private static readonly byte[] ClickHouseBuffer = new byte[ClickHouseDecimal.Decimal256Size];
+
     private static readonly List<string> Order = [];
     private static readonly Dictionary<string, (string Member, Action Operation)> Entries = Build();
 
@@ -112,6 +119,31 @@ public static class AllocationInventory
         where T : INumberBase<T>
         where TOther : INumberBase<TOther> => T.CreateSaturating(value);
 
+    private static byte[] Encode(BigDecimal value)
+    {
+        var payload = new byte[PostgresNumeric.MaxByteCount];
+        PostgresNumeric.TryWrite(value, payload, out var written);
+
+        return payload[..written];
+    }
+
+    /// <summary>
+    /// A payload of the given number of base-10000 groups, all of them below the point, laid out
+    /// directly rather than decomposed from a number of the same width.
+    /// </summary>
+    private static byte[] Fraction(int count)
+    {
+        var groups = new ushort[count];
+        Array.Fill(groups, (ushort)1);
+
+        return WireFormatOracle.PostgresLayout(
+            count,
+            weight: -1,
+            WireFormatOracle.PostgresPositive,
+            count * WireFormatOracle.PostgresDecDigits,
+            groups);
+    }
+
     private static IEnumerable<string> EnumerateMembers()
     {
         foreach (var entry in Entries.Values)
@@ -154,6 +186,30 @@ public static class AllocationInventory
         Add("Pow at a negative exponent", "Pow", () => Allocations.Sink = BigDecimal.Pow(Left, -7));
         Add("Pow at an exponent of zero", "Pow", () => Allocations.Sink = BigDecimal.Pow(Left, 0));
         Add("Pow of a non-finite value", "Pow", () => Allocations.Sink = BigDecimal.Pow(BigDecimal.NaN, 3));
+        // The wire codecs are internal, so the reflection sweep does not reach them: an entry
+        // missing here is a silence rather than a failure. Each direction of each format is its
+        // own entry, and each ClickHouse width is its own again, because the widths are not
+        // interchangeable - four and eight bytes are one machine word and sixteen and thirty-two
+        // are not.
+        Add("PostgresNumeric.GetByteCount", "PostgresNumeric", () => Allocations.OtherSink = PostgresNumeric.GetByteCount(Left));
+        Add("PostgresNumeric.TryWrite", "PostgresNumeric", () => Allocations.OtherSink = PostgresNumeric.TryWrite(Left, PostgresBuffer, out _) ? 1 : 0);
+        Add("PostgresNumeric.TryWrite of a non-finite value", "PostgresNumeric", () => Allocations.OtherSink = PostgresNumeric.TryWrite(BigDecimal.NaN, PostgresBuffer, out _) ? 1 : 0);
+        Add("PostgresNumeric.Read", "PostgresNumeric", () => Allocations.Sink = PostgresNumeric.Read(PostgresPayload));
+        Add("PostgresNumeric.Read of a non-finite value", "PostgresNumeric", () => Allocations.Sink = PostgresNumeric.Read(PostgresNonFinitePayload));
+
+        // The one entry that fails if a reader ever sizes anything from ndigits: a payload at
+        // PostgreSQL's own limit of fractional digits, thousands of times wider than the result.
+        Add("PostgresNumeric.Read at PostgreSQL's fractional limit", "PostgresNumeric", () => Allocations.Sink = PostgresNumeric.Read(PostgresDeepPayload));
+
+        Add("ClickHouseDecimal.Write at Decimal32", "ClickHouseDecimal", () => ClickHouseDecimal.Write(Narrow, 2, ClickHouseBuffer.AsSpan(0, ClickHouseDecimal.Decimal32Size)));
+        Add("ClickHouseDecimal.Write at Decimal64", "ClickHouseDecimal", () => ClickHouseDecimal.Write(Narrow, 2, ClickHouseBuffer.AsSpan(0, ClickHouseDecimal.Decimal64Size)));
+        Add("ClickHouseDecimal.Write at Decimal128", "ClickHouseDecimal", () => ClickHouseDecimal.Write(Left, 9, ClickHouseBuffer.AsSpan(0, ClickHouseDecimal.Decimal128Size)));
+        Add("ClickHouseDecimal.Write at Decimal256", "ClickHouseDecimal", () => ClickHouseDecimal.Write(Left, 9, ClickHouseBuffer.AsSpan(0, ClickHouseDecimal.Decimal256Size)));
+        Add("ClickHouseDecimal.Read at Decimal32", "ClickHouseDecimal", () => Allocations.Sink = ClickHouseDecimal.Read(ClickHouseBuffer.AsSpan(0, ClickHouseDecimal.Decimal32Size), 2));
+        Add("ClickHouseDecimal.Read at Decimal64", "ClickHouseDecimal", () => Allocations.Sink = ClickHouseDecimal.Read(ClickHouseBuffer.AsSpan(0, ClickHouseDecimal.Decimal64Size), 2));
+        Add("ClickHouseDecimal.Read at Decimal128", "ClickHouseDecimal", () => Allocations.Sink = ClickHouseDecimal.Read(ClickHouseBuffer.AsSpan(0, ClickHouseDecimal.Decimal128Size), 9));
+        Add("ClickHouseDecimal.Read at Decimal256", "ClickHouseDecimal", () => Allocations.Sink = ClickHouseDecimal.Read(ClickHouseBuffer.AsSpan(0, ClickHouseDecimal.Decimal256Size), 9));
+
         Add("Negate", "Negate", () => Allocations.Sink = BigDecimal.Negate(Left));
         Add("Abs", "Abs", () => Allocations.Sink = BigDecimal.Abs(Right));
         Add("Floor", "Floor", () => Allocations.Sink = BigDecimal.Floor(Left));
