@@ -18,6 +18,14 @@
     <InternalsVisibleTo Include="PetToys.BigDecimal.Core.Tests" />
     <InternalsVisibleTo Include="PetToys.BigDecimal.ClickHouse" />
     <InternalsVisibleTo Include="PetToys.BigDecimal.Npgsql" />
+    <!-- The benchmarks, unlike the three above, are not a consumer: they are here so that the
+         wire codecs can be measured as they ship rather than as a copy. DivisionPrimitiveBenchmarks
+         records the opposite call for its own case and it still holds there - copying a thirty-line
+         division loop is cheap and honest. Copying two codecs is five hundred lines that drift, and
+         the budget would then grade the copy. Measured cost of the attribute: 1024 bytes of
+         metadata, carrying the assembly's own public key, so only something signed with this key
+         can be the friend. -->
+    <InternalsVisibleTo Include="PetToys.BigDecimal.Core.Benchmarks" />
   </ItemGroup>
 
 </Project>
