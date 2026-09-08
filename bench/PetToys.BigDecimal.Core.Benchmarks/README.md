@@ -108,12 +108,21 @@ that lasted.
 
 ## Reading a run
 
-| Column      | What it is                                                     |
-| ----------- | -------------------------------------------------------------- |
-| `Mean`      | The average duration of one operation                           |
-| `Ratio`     | `Mean` divided by the baseline's — the number the budgets use   |
-| `RatioSD`   | The dispersion of that ratio — the number the verdict uses      |
-| `Allocated` | Bytes allocated per operation, from the memory diagnoser        |
+| Column      | What it is                                                          |
+| ----------- | ------------------------------------------------------------------- |
+| `Mean`      | The average duration of one operation                                |
+| `Ratio`     | `Mean` divided by the baseline's, the number the budgets are read in |
+| `RatioSD`   | The dispersion of that ratio, which decides the verdict              |
+| `StdDev`    | The dispersion of one row's own iterations, which decides whether that row is read at all |
+| `Error`     | Half a 99.9% confidence interval on `Mean`; no rule reads it         |
+| `Allocated` | Bytes allocated per operation, from the memory diagnoser             |
+
+`RatioSD` and `StdDev` are both dispersions and they answer different questions.
+`RatioSD` belongs to a pair of interleaved arms and says how well the ratio is
+determined; `StdDev` belongs to one row and says how much its own iterations
+disagreed. The first gives the verdict, the second decides whether the row is
+admissible. `Error` is in the report and is read by nothing: the rule that used
+it graded a run as a whole and is gone.
 
 In the budgeted classes the `decimal` method is named `Baseline` and the
 `BigDecimal` one `Measured`, and `Ratio` is `Measured / Baseline` within each
