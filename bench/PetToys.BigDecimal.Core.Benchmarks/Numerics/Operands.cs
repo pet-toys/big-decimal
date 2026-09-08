@@ -26,11 +26,24 @@ namespace PetToys.BigDecimal.Numerics;
 /// </remarks>
 public static class Operands
 {
-    /// <summary>The dividend both division-exactness cases are measured over.</summary>
+    /// <summary>The dividend all three division-exactness cases are measured over.</summary>
     public const string ExactnessDividend = "100";
 
     /// <summary>The divisor that makes <see cref="ExactnessDividend"/> divide exactly.</summary>
     public const string ExactDivisor = "10";
+
+    /// <summary>
+    /// The divisor that divides <see cref="ExactnessDividend"/> exactly, but only after the
+    /// dividend is lifted by the divisor's own factors.
+    /// </summary>
+    /// <remarks>
+    /// Eight is 2^3 and nothing else, so lifting the dividend by three decimal places makes the
+    /// division come out exactly, whatever the dividend is. The quotient itself may need fewer
+    /// places than that - 100 over 8 is 12.5 - and it is not exact at the scale difference, where
+    /// 100 over 8 leaves a remainder of 4. That is the shape the search has to go two depths for,
+    /// and the only one of the three that is not already in the report.
+    /// </remarks>
+    public const string FactorDivisor = "8";
 
     /// <summary>The divisor that makes <see cref="ExactnessDividend"/> divide inexactly.</summary>
     public const string InexactDivisor = "3";

@@ -324,10 +324,12 @@ public readonly partial struct BigDecimal
         destination[1] = _l1;
         destination[2] = _l2;
         destination[3] = _l3;
-        if (destination.Length > WordCount)
-        {
-            destination[WordCount..].Clear();
-        }
+
+        // A work buffer is wider than the magnitude it holds, and nothing reads the words above
+        // it: every helper here is bounded by the length it is given. Zeroing them cost a
+        // twenty-word fill on every operation that copies a magnitude, and the runtime had
+        // already zeroed the buffer on entry. See Words.Poison for what keeps that true.
+        Words.Poison(destination[WordCount..]);
 
         return Words.Normalize(destination[..WordCount]);
     }

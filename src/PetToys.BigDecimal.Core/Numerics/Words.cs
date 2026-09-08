@@ -17,6 +17,15 @@ internal static class Words
     /// <summary>The largest exponent of five a single word holds.</summary>
     private const int MaxFivesPerWord = 27;
 
+    /// <summary>The value <see cref="Poison"/> writes.</summary>
+    /// <remarks>
+    /// Every <see cref="ulong"/> is a valid magnitude word, so this cannot be an invalid value and
+    /// is not one. It is a sentinel: recognisable on sight in a debugger, and far enough from
+    /// anything the suite generates that a value carrying it is wrong by an obvious margin rather
+    /// than by a digit.
+    /// </remarks>
+    private const ulong PoisonWord = 0xDEAD_BEEF_DEAD_BEEFUL;
+
     private static readonly ulong[] Pow5Values =
     [
         1UL,
@@ -420,6 +429,27 @@ internal static class Words
         return low;
     }
 
+    /// <summary>Fills words that nothing is allowed to read with a sentinel, so that reading one shows.</summary>
+    /// <remarks>
+    /// Every helper here is bounded by the length it is given, so the words a work buffer holds
+    /// beyond that length are not readable state and are not zeroed on any hot path. That property
+    /// is true of the consumers that exist, and the next one written is free to read past its
+    /// length and find a zero the runtime happened to leave there - which passes the whole suite
+    /// and produces a wrong value only for operands wide enough to reach those words. This call
+    /// takes the zero away in Debug, so such a consumer fails instead. It compiles to nothing in
+    /// Release, argument included, which is the point: the zeroing it replaces was the cost.
+    /// <para>
+    /// There is a write-side half to the same property, and it is what makes a buffer safe to
+    /// reuse: <see cref="DivRem"/> fills every quotient word it goes on to report and normalises
+    /// the numerator down to the length it reports, so a second division into the same buffers
+    /// cannot read the first one's words. <c>Divide</c> divides into one pair of buffers up to
+    /// three times without zeroing them in between, and that is the reason it is allowed to.
+    /// </para>
+    /// </remarks>
+    /// <param name="value">The words to poison.</param>
+    [Conditional("DEBUG")]
+    internal static void Poison(Span<ulong> value) => value.Fill(PoisonWord);
+
     internal static int Normalize(ReadOnlySpan<ulong> value)
     {
         var len = value.Length;
@@ -732,7 +762,7 @@ internal static class Words
         var estimate = (int)((bits * 19728L) >> 16) + 1;
 
         Span<ulong> power = stackalloc ulong[len + 2];
-        power.Clear();
+        Poison(power);
         power[0] = 1;
         var powerLen = ScaleUp(power, 1, estimate - 1);
         if (Compare(value, len, power, powerLen) < 0)

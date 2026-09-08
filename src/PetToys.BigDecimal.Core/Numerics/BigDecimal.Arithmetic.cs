@@ -236,7 +236,6 @@ public readonly partial struct BigDecimal
         Span<ulong> num = stackalloc ulong[WorkWords];
         Span<ulong> den = stackalloc ulong[WordCount];
         Span<ulong> quotient = stackalloc ulong[WorkWords];
-        var numLen = left.CopyMagnitude(num);
         var denLen = right.CopyMagnitude(den);
 
         var scale = left.Scale - right.Scale;
@@ -252,6 +251,13 @@ public readonly partial struct BigDecimal
         // be tried, it lifts nothing and leaves nothing to strip, and the specification already
         // forbids reducing an exact quotient below that scale, so a zero remainder is the whole
         // answer.
+        //
+        // Each depth of the search starts over from the dividend rather than continuing from the
+        // previous depth's remainder. Continuing is an identity - with N * 10^f = q * D + r, the
+        // quotient at f + k is q * 10^k + (r * 10^k) / D - and it was written, measured and
+        // removed on 2026-09-08: it trades one lift of the dividend for a lift of the quotient
+        // and a lift of the remainder, which cost more than the trial division it saves. The
+        // dividend is four words and copying it is not what this path pays for.
         if (TryDivideExactly(left, num, den, denLen, quotient, floorLift, out var exactLen))
         {
             return Pack(quotient, exactLen, negative, floorScale);
@@ -275,7 +281,7 @@ public readonly partial struct BigDecimal
             }
         }
 
-        numLen = left.CopyMagnitude(num);
+        var numLen = left.CopyMagnitude(num);
         var numDigits = Words.DecimalDigitCount(num, numLen);
         var denDigits = Words.DecimalDigitCount(den, denLen);
         var lift = MaxDigits - 1 - numDigits + denDigits;
@@ -290,7 +296,7 @@ public readonly partial struct BigDecimal
 
         scale += lift;
 
-        quotient.Clear();
+        Words.Poison(quotient);
         var qLen = Words.DivRem(num, numLen, den, denLen, quotient, out var remLen);
 
         if (remLen == 0)
@@ -352,7 +358,7 @@ public readonly partial struct BigDecimal
         }
 
         Span<ulong> quotient = stackalloc ulong[DivideWorkWords];
-        quotient.Clear();
+        Words.Poison(quotient);
         var qLen = Words.DivRem(num, numLen, den, denLen, quotient, out var remLen);
 
         if (remLen != 0)
@@ -374,7 +380,7 @@ public readonly partial struct BigDecimal
         MidpointRounding mode)
     {
         Span<ulong> twice = stackalloc ulong[WorkWords];
-        twice.Clear();
+        Words.Poison(twice);
         remainder[..remainderLength].CopyTo(twice);
         var twiceLen = Words.MulAddSmall(twice, remainderLength, 2, 0);
         var cmp = Words.Compare(twice, twiceLen, divisor, divisorLength);
@@ -427,7 +433,7 @@ public readonly partial struct BigDecimal
         }
 
         Span<ulong> quotient = stackalloc ulong[WorkWords];
-        quotient.Clear();
+        Words.Poison(quotient);
         Words.DivRem(a, aLen, b, bLen, quotient, out var remLen);
         return Pack(a, remLen, left.IsNegative, scale);
     }
@@ -475,7 +481,6 @@ public readonly partial struct BigDecimal
         }
 
         Span<ulong> magnitude = stackalloc ulong[WorkWords];
-        magnitude.Clear();
         var len = value.CopyMagnitude(magnitude);
         if (len > 0)
         {
@@ -539,7 +544,6 @@ public readonly partial struct BigDecimal
         }
 
         Span<ulong> magnitude = stackalloc ulong[WorkWords];
-        magnitude.Clear();
         var len = CopyMagnitude(magnitude);
         len = Words.ScaleUp(magnitude, len, scale - current);
         if (len > WordCount)
@@ -708,7 +712,9 @@ public readonly partial struct BigDecimal
     /// <remarks>
     /// The buffers are the caller's, and both are left in an undefined state when the division is
     /// not exact: the primitive writes the remainder over the dividend. A caller that goes on to
-    /// the full-precision path therefore has to copy the dividend again, which is four words.
+    /// the next depth therefore copies the dividend again, which is four words and was measured to
+    /// be the cheaper half of the trade; the comment on the operator overload says what continuing
+    /// from the remainder instead would cost.
     /// </remarks>
     private static bool TryDivideExactly(
         BigDecimal dividend,
@@ -725,8 +731,9 @@ public readonly partial struct BigDecimal
             numLen = Words.ScaleUp(num, numLen, lift);
         }
 
-        quotient.Clear();
+        Words.Poison(quotient);
         quotientLength = Words.DivRem(num, numLen, den, denLen, quotient, out var remainderLength);
+
         return remainderLength == 0;
     }
 

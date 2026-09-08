@@ -240,7 +240,7 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
         }
 
         Span<ulong> magnitude = stackalloc ulong[WorkWords];
-        magnitude.Clear();
+        Words.Poison(magnitude);
         var length = 0;
         var scale = 0;
         var seenDigit = false;

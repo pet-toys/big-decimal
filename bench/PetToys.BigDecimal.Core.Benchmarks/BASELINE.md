@@ -40,6 +40,11 @@ dry` grades nothing, for the reason in the README.
 | G   | 2026-09-08 | `*Add*`, `*Subtract*`, `*Multiply*` | `nan-infinity` + `NoInlining` | 10 min |
 | H   | 2026-09-08 | `*Add*`, `*Subtract*`    | `cb8bd99`, the code being replaced | 7 min |
 | I   | 2026-09-08 | `*Add*`, `*Subtract*`    | `nan-infinity`, as it ships | 7 min |
+| J   | 2026-09-08 | `*Divide*`, `*ExactDivision*` | `99aa01c`, the code being replaced | ~6 min |
+| K   | 2026-09-08 | `*Divide*`, `*ExactDivision*` | `divide-and-copy-cost`, continuing from the trial remainder | ~6 min |
+| L   | 2026-09-08 | `*Divide*`, `*ExactDivision*` | `divide-and-copy-cost`, as it ships | ~6 min |
+| M   | 2026-09-08 | arithmetic, comparison, parsing | `99aa01c`, the code being replaced | 30 min |
+| N   | 2026-09-08 | `--anyCategories budget` | `divide-and-copy-cost`, as it ships | 66 min |
 
 Run A was taken on the `formatting-parity` work before it merged, which differs
 from `c33486b` only in the formatting path, so the rows below that are not
@@ -64,25 +69,39 @@ missed their budget. G tested one explanation and refuted it. H measured the cod
 replaced, on the same machine in the same session, and established that the miss was a
 real regression rather than an old cost nobody had recorded. I measured the fix.
 
+Runs J through N are the next change's, and every row below now comes from N. J, K and L
+are the same two classes on three versions of the same code, taken so that a decision could
+be made on a reading rather than on the design that proposed it: J is what was there, K is
+the full-precision division continuing from the trial remainder, L is what shipped once K
+was refused. J and M were taken in a detached worktree at `99aa01c` on a short path, since
+BenchmarkDotNet's generated project directories exceed the Windows path limit under a
+deeper one. N is the record run; it is a full budget run because the change took a fixed
+cost out of every operation that copies a magnitude, which is most of them.
+
 ## Verdicts
 
 | Criterion                          | Budget | Ratio | Dispersion | Shape                 | Verdict | Run |
 | ---------------------------------- | -----: | ----: | ---------: | --------------------- | ------- | --- |
-| `Add`                              |   3.5x |  3.26 |       0.02 | two words, aligned    | met     | I   |
-| `Subtract`                         |   3.5x |  2.85 |       0.02 | two words, aligned    | met     | I   |
-| `Multiply`                         |   3.5x |  3.05 |       0.02 | one word, either      | met     | F   |
-| `Divide`                           |    10x |  5.76 |       0.05 | one word, aligned     | met     | F   |
-| `Remainder`                        |    10x |  3.59 |       0.02 | one word, misaligned  | met     | F   |
-| `Parse`, `char`                    |     3x |  1.17 |       0.00 | one word              | met     | E   |
-| `Parse`, UTF-8                     |     3x |  1.31 |       0.00 | one word              | met     | E   |
-| `TryParse`, `char`                 |     3x |  1.24 |       0.00 | one word              | met     | E   |
-| `TryParse`, UTF-8                  |     3x |  1.28 |       0.01 | one word              | met     | E   |
-| `TryFormat`, `char`                |     3x |  2.79 |       0.02 | two words, `#,##0.00` | met     | E   |
-| `TryFormat`, UTF-8                 |     3x |  2.83 |       0.03 | two words, `#,##0.00` | met     | E   |
-| Exact division against inexact     |    1.0 |  0.34 |       0.00 | `100 / 10` vs `/ 3`   | met     | F   |
-| Hashing, widened against narrow    |   2.5x |  2.15 |          - | two words, aligned    | met     | F   |
-| Hashing, nineteen zeros against one|   1.5x |  1.40 |          - | one word, misaligned  | met     | F   |
-| Zero allocations                   | always |     - |          - | every row             | met     | E   |
+| `Add`                              |   3.5x |  2.38 |       0.04 | two words, misaligned | met     | N   |
+| `Subtract`                         |   3.5x |  2.61 |       0.02 | two words, misaligned | met     | N   |
+| `Multiply`                         |   3.5x |  3.13 |       0.01 | one word, misaligned  | met     | N   |
+| `Divide`                           |    10x |  5.34 |       0.05 | two words, aligned    | met     | N   |
+| `Remainder`                        |    10x |  2.80 |       0.03 | one word, aligned     | met     | N   |
+| `Parse`, `char`                    |     3x |  1.10 |          - | one word              | met     | N   |
+| `Parse`, UTF-8                     |     3x |  1.28 |          - | one word              | met     | N   |
+| `TryParse`, `char`                 |     3x |  1.08 |       0.01 | one word              | met     | N   |
+| `TryParse`, UTF-8                  |     3x |  1.25 |          - | one word              | met     | N   |
+| `TryFormat`, `char`                |     3x |  2.77 |       0.02 | two words, `#,##0.00` | met     | N   |
+| `TryFormat`, UTF-8                 |     3x |  2.66 |       0.02 | two words, `#,##0.00` | met     | N   |
+| Exact division against inexact     |    1.0 |  0.25 |       0.00 | `100 / 10` vs `/ 3`   | met     | N   |
+| Hashing, widened against narrow    |   2.5x |  2.17 |          - | two words, aligned    | met     | N   |
+| Hashing, nineteen zeros against one|   1.5x |  1.38 |          - | one word, misaligned  | met     | N   |
+| Zero allocations                   | always |     - |          - | every row             | met     | N   |
+
+Three of the four parsing classes carry no `RatioSD` in run N: BenchmarkDotNet dropped the
+column. Their rows' own standard deviations are between 0.5% and 1.4% of their means, which
+bounds `r + 2s` at 1.32 against a 3x budget, so the verdict does not turn on the missing
+column.
 
 The two hashing rows carry no dispersion because their class has no `[Baseline]` method:
 the ratio is computed here from two of its rows, so BenchmarkDotNet reports no `RatioSD`
@@ -148,6 +167,75 @@ inspection, and where it is written decides what it costs. `Multiply`, `Divide` 
 `Remainder` took the same guard as a statement at the top of bodies that were already too
 large to inline and moved by 0.02, 0.24 and 0.57 - inside their budgets and inside the
 run-to-run spread.
+
+**Continuing a division from the trial remainder is dearer, and two lines of arithmetic
+said so before the code did.** `Divide` searches for an exact quotient before lifting the
+dividend to full precision, and the full-precision pass restarts from the dividend rather
+than continuing from the trial's remainder. Continuing is an identity - with
+`N * 10^f = q * D + r`, the quotient at `f + k` is `q * 10^k + (r * 10^k) / D` - so it was
+written, verified against the form it replaces over the randomised corpus, and measured as
+run K against run J:
+
+| Row                         |      J |      K |     L |
+| --------------------------- | -----: | -----: | ----: |
+| `Divide`, one word aligned  |  92.23 | 103.50 | 84.29 |
+| `Divide`, two words aligned | 101.84 | 106.45 | 99.64 |
+| Exact division, `100 / 3`   |  70.08 |  78.46 | 66.38 |
+| Exact division, `100 / 10`  |  19.05 |  17.15 | 16.12 |
+
+Dearer on every division row, by 1.5% to 12%, against `System.Decimal` arms that agreed to
+within one per cent across the three runs. Run N measured the same two classes again inside
+the full budget scope and agrees with L to within 5%, and to within 2.5% on six of its seven
+rows, which is what one session's spread on identical code looks like at this width. What continuing removes is one lift of the
+dividend; what it adds is a lift of the quotient, a lift of the remainder and an addition.
+The trial division it reuses divides the *unlifted* dividend by a single-word divisor - one
+hardware divide - so the work it saves was never the expensive part. That count is two
+sentences long and cost nothing; it was not made until after the code was written. A cost
+argument that can be settled on paper should be settled on paper, and the run kept for the
+part that cannot.
+
+**Twelve redundant zeroings came out, and what they were worth splits by how much other work
+the operation does.** Nothing in the package reads a work buffer above the length it is
+given, and nothing sets `SkipLocalsInit`, so the runtime had already zeroed each
+`stackalloc` before any of these ran. Run M against run N, on the measured arm:
+
+| Class                      | Moved by |
+| -------------------------- | -------- |
+| `Subtract`                 | -3.0% to -15.8% |
+| `Remainder`                | -4.4% to -24.7% |
+| `Add`                      | -2.2% to -10.0% |
+| `Divide` (J against N)     | -3.6% to -7.1% |
+| Exact division, `100 / 10` | -14.2% |
+| `CompareTo`, two words misaligned | -18.4% |
+| `Multiply`                 | +1.9% to +3.1% |
+| Parsing, one word          | -4.6% to -10.8% |
+| Parsing, two words         | +0.9% to +5.9% |
+
+`Multiply` is the control and it moved the wrong way: its buffers are four words wide, so no
+clear was ever removed from its path, and the two to three per cent it lost is what code
+moving around in the assembly costs. Read the parsing rows the same way - the one-word rows
+gained what a fixed twenty-four word fill is worth against a sixty-nanosecond parse, the
+two-word rows did not, and no direction is claimed from them. The largest single win is the
+comparison of two misaligned operands, which is the one path that carried three clears at
+once: two full work buffers cleared by the caller and then twenty words of each cleared
+again by `CopyMagnitude`.
+
+**Run M's one-word misaligned comparison is disqualified by its own neighbour.** It measured
+15.11 ns against 10.68 ns for the same pairing at two words, and a one-word magnitude is
+strictly less work on that path. Run N put the same two rows at 8.68 and 8.72. So the -42%
+that row appears to show is not claimed; the comparison claim above rests on the two-word
+row, which is readable in both runs.
+
+**The same code, the same machine, eight hours apart, gave `Add` a ratio of 3.26 and then
+2.61.** Run M measured `99aa01c` - exactly what runs F and I measured that morning - and
+three criteria came back well outside anything the dispersion within either run suggests:
+`Add` at two words aligned 3.26 against 2.61, `Subtract` 2.85 against 2.50, `Remainder` at
+one word misaligned 3.59 against 2.73. Two others were unmoved: `Multiply` at 3.05 against
+3.03, `Parse` at 1.17 against 1.18. Which arm moved cannot be recovered, because this file
+deliberately keeps no durations, and that is the point rather than a gap: a ratio is a
+reading of one run and a verdict within a tenth of its budget is not reproducible across
+sessions. The additive budget was moved from 3x to 3.5x in change 8 for a spread measured
+inside single runs; this is the same spread seen between them, and it is wider.
 
 **Two rows were disqualified in run B** for a standard deviation above 5% of
 their mean, which is what a disturbed case looks like when the disturbance shows:
