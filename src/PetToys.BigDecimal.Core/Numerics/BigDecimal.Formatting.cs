@@ -126,6 +126,33 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
         }
     }
 
+    // The format string is never looked at, not even to reject it: double renders NaN for an
+    // invalid specifier where a finite value throws FormatException, and the same holds for
+    // every standard and custom specifier. Measured, not assumed. The symbol's length is
+    // culture data with no cap, so it is reported through required like every other length
+    // here rather than compared against a constant.
+    private bool TryFormatNonFinite(
+        Span<char> destination,
+        out int charsWritten,
+        NumberFormatInfo info,
+        out int required)
+    {
+        var symbol = IsNaN(this)
+            ? info.NaNSymbol
+            : (IsNegative ? info.NegativeInfinitySymbol : info.PositiveInfinitySymbol);
+
+        required = symbol.Length;
+        if (destination.Length < required)
+        {
+            charsWritten = 0;
+            return false;
+        }
+
+        symbol.CopyTo(destination);
+        charsWritten = required;
+        return true;
+    }
+
     internal bool TryFormatInvariant(Span<char> destination, out int charsWritten) =>
         TryFormatCore(destination, out charsWritten, default, NumberFormatInfo.InvariantInfo, out _);
 
@@ -143,6 +170,11 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
         NumberFormatInfo info,
         out int required)
     {
+        if (IsNonFinite)
+        {
+            return TryFormatNonFinite(destination, out charsWritten, info, out required);
+        }
+
         if (!IsStandardSpecifier(format, out var specifier, out var precision))
         {
             return TryFormatCustom(destination, out charsWritten, format, info, out required);

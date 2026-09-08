@@ -32,30 +32,38 @@ public readonly partial struct BigDecimal : INumber<BigDecimal>, ISignedNumber<B
     static bool INumberBase<BigDecimal>.IsEvenInteger(BigDecimal value) =>
         IsIntegerValue(value) && (Truncate(value) % Two).IsZero;
 
-    static bool INumberBase<BigDecimal>.IsFinite(BigDecimal value) => true;
+    static bool INumberBase<BigDecimal>.IsFinite(BigDecimal value) => IsFinite(value);
 
     static bool INumberBase<BigDecimal>.IsImaginaryNumber(BigDecimal value) => false;
 
-    static bool INumberBase<BigDecimal>.IsInfinity(BigDecimal value) => false;
+    static bool INumberBase<BigDecimal>.IsInfinity(BigDecimal value) => IsInfinity(value);
 
     static bool INumberBase<BigDecimal>.IsInteger(BigDecimal value) => IsIntegerValue(value);
 
-    static bool INumberBase<BigDecimal>.IsNaN(BigDecimal value) => false;
+    static bool INumberBase<BigDecimal>.IsNaN(BigDecimal value) => IsNaN(value);
 
     static bool INumberBase<BigDecimal>.IsNegative(BigDecimal value) => value.IsNegative;
 
-    static bool INumberBase<BigDecimal>.IsNegativeInfinity(BigDecimal value) => false;
+    static bool INumberBase<BigDecimal>.IsNegativeInfinity(BigDecimal value) => IsNegativeInfinity(value);
 
-    static bool INumberBase<BigDecimal>.IsNormal(BigDecimal value) => !value.IsZero;
+    // An infinity is not normal and not subnormal either, which is double's answer and not a
+    // consequence of anything: measured, not reasoned about.
+    static bool INumberBase<BigDecimal>.IsNormal(BigDecimal value) => IsFinite(value) && !value.IsZero;
 
     static bool INumberBase<BigDecimal>.IsOddInteger(BigDecimal value) =>
         IsIntegerValue(value) && !(Truncate(value) % Two).IsZero;
 
-    static bool INumberBase<BigDecimal>.IsPositive(BigDecimal value) => !value.IsNegative;
+    // NaN carries no sign here, so the plain negation would call it positive. double answers
+    // false to both IsPositive and IsNegative for its own NaN by a different route: its NaN has
+    // the hardware sign bit set, so IsNegative is true there. Ours is false, which is the one
+    // entry in the predicate table that diverges.
+    static bool INumberBase<BigDecimal>.IsPositive(BigDecimal value) => !value.IsNegative && !IsNaN(value);
 
-    static bool INumberBase<BigDecimal>.IsPositiveInfinity(BigDecimal value) => false;
+    static bool INumberBase<BigDecimal>.IsPositiveInfinity(BigDecimal value) => IsPositiveInfinity(value);
 
-    static bool INumberBase<BigDecimal>.IsRealNumber(BigDecimal value) => true;
+    // True for both infinities and false for NaN, which is double's answer and reads backwards
+    // from the name until you notice that NaN is not a number at all.
+    static bool INumberBase<BigDecimal>.IsRealNumber(BigDecimal value) => !IsNaN(value);
 
     static bool INumberBase<BigDecimal>.IsSubnormal(BigDecimal value) => false;
 
@@ -63,15 +71,21 @@ public readonly partial struct BigDecimal : INumber<BigDecimal>, ISignedNumber<B
 
     static BigDecimal INumberBase<BigDecimal>.MaxMagnitude(BigDecimal x, BigDecimal y) => MaxMagnitude(x, y);
 
-    static BigDecimal INumberBase<BigDecimal>.MaxMagnitudeNumber(BigDecimal x, BigDecimal y) => MaxMagnitude(x, y);
+    static BigDecimal INumberBase<BigDecimal>.MaxMagnitudeNumber(BigDecimal x, BigDecimal y) => MaxMagnitudeNumber(x, y);
 
     static BigDecimal INumberBase<BigDecimal>.MinMagnitude(BigDecimal x, BigDecimal y) => MinMagnitude(x, y);
 
-    static BigDecimal INumberBase<BigDecimal>.MinMagnitudeNumber(BigDecimal x, BigDecimal y) => MinMagnitude(x, y);
+    static BigDecimal INumberBase<BigDecimal>.MinMagnitudeNumber(BigDecimal x, BigDecimal y) => MinMagnitudeNumber(x, y);
 
-    static BigDecimal INumber<BigDecimal>.MaxNumber(BigDecimal x, BigDecimal y) => Max(x, y);
+    static BigDecimal INumber<BigDecimal>.MaxNumber(BigDecimal x, BigDecimal y) => MaxNumber(x, y);
 
-    static BigDecimal INumber<BigDecimal>.MinNumber(BigDecimal x, BigDecimal y) => Min(x, y);
+    static BigDecimal INumber<BigDecimal>.MinNumber(BigDecimal x, BigDecimal y) => MinNumber(x, y);
+
+    // MaxNative, MinNative and ClampNative arrived with .NET 10 as default interface methods
+    // that route to Max, Min and Clamp, and they are left as those defaults. double overrides
+    // them with the hardware's asymmetric behaviour, where MaxNative(NaN, 1) is 1 but
+    // MaxNative(1, NaN) is NaN. Not reproducing that is a decision: an operand order that
+    // changes the answer is a property of an instruction, not of this type.
 
     static BigDecimal INumber<BigDecimal>.Clamp(BigDecimal value, BigDecimal min, BigDecimal max) =>
         Clamp(value, min, max);
@@ -164,10 +178,75 @@ public readonly partial struct BigDecimal : INumber<BigDecimal>, ISignedNumber<B
     private static NotSupportedException NotConvertible<TOther>() =>
         new($"Cannot convert {typeof(TOther)} to BigDecimal.");
 
-    private static bool IsIntegerValue(BigDecimal value) => Truncate(value) == value;
+    // An infinity is an integer to nothing: double answers false to IsInteger, IsEvenInteger
+    // and IsOddInteger for both of them, and the finiteness test here is what makes all three
+    // agree. Without it Truncate(Infinity) == Infinity would report an integer.
+    private static bool IsIntegerValue(BigDecimal value) => IsFinite(value) && Truncate(value) == value;
 
-    private static BigDecimal MaxMagnitude(BigDecimal x, BigDecimal y)
+    // The four selectors come in two families that this type used to implement once. The plain
+    // ones propagate a NaN operand; the Number ones return the other operand instead, which is
+    // the whole content of the suffix.
+    private static BigDecimal MaxMagnitude(BigDecimal x, BigDecimal y) =>
+        IsNaN(x) || IsNaN(y) ? NaN : MaxMagnitudeCore(x, y);
+
+    private static BigDecimal MaxMagnitudeNumber(BigDecimal x, BigDecimal y)
     {
+        if (IsNaN(x))
+        {
+            return y;
+        }
+
+        return IsNaN(y) ? x : MaxMagnitudeCore(x, y);
+    }
+
+    private static BigDecimal MinMagnitude(BigDecimal x, BigDecimal y) =>
+        IsNaN(x) || IsNaN(y) ? NaN : MinMagnitudeCore(x, y);
+
+    private static BigDecimal MinMagnitudeNumber(BigDecimal x, BigDecimal y)
+    {
+        if (IsNaN(x))
+        {
+            return y;
+        }
+
+        return IsNaN(y) ? x : MinMagnitudeCore(x, y);
+    }
+
+    private static BigDecimal MaxNumber(BigDecimal x, BigDecimal y)
+    {
+        if (IsNaN(x))
+        {
+            return y;
+        }
+
+        return IsNaN(y) ? x : Max(x, y);
+    }
+
+    private static BigDecimal MinNumber(BigDecimal x, BigDecimal y)
+    {
+        if (IsNaN(x))
+        {
+            return y;
+        }
+
+        return IsNaN(y) ? x : Min(x, y);
+    }
+
+    // Neither operand is NaN here, so an infinity simply outweighs every finite magnitude and
+    // CompareMagnitude - which reads the words, and a non-finite value's words are zero - is
+    // never asked about one.
+    private static BigDecimal MaxMagnitudeCore(BigDecimal x, BigDecimal y)
+    {
+        if (x.IsNonFinite || y.IsNonFinite)
+        {
+            if (x.IsNonFinite && y.IsNonFinite)
+            {
+                return x.IsNegative ? y : x;
+            }
+
+            return x.IsNonFinite ? x : y;
+        }
+
         var cmp = CompareMagnitude(Abs(x), Abs(y));
         if (cmp != 0)
         {
@@ -177,8 +256,18 @@ public readonly partial struct BigDecimal : INumber<BigDecimal>, ISignedNumber<B
         return x.IsNegative ? y : x;
     }
 
-    private static BigDecimal MinMagnitude(BigDecimal x, BigDecimal y)
+    private static BigDecimal MinMagnitudeCore(BigDecimal x, BigDecimal y)
     {
+        if (x.IsNonFinite || y.IsNonFinite)
+        {
+            if (x.IsNonFinite && y.IsNonFinite)
+            {
+                return x.IsNegative ? x : y;
+            }
+
+            return x.IsNonFinite ? y : x;
+        }
+
         var cmp = CompareMagnitude(Abs(x), Abs(y));
         if (cmp != 0)
         {
@@ -363,7 +452,12 @@ public readonly partial struct BigDecimal : INumber<BigDecimal>, ISignedNumber<B
 
         if (typeof(TOther) == typeof(BigInteger))
         {
-            result = (TOther)(object)(BigInteger)value;
+            // BigInteger is unbounded, so the cast could never overflow and the saturate flag
+            // had nothing to change - until a non-finite value became representable here. NaN
+            // saturates to zero as it does for every other destination; an infinity still
+            // throws, because there is no extreme to clamp to, which is what
+            // BigInteger.CreateSaturating(double.PositiveInfinity) does too.
+            result = (TOther)(object)(saturate && IsNaN(value) ? BigInteger.Zero : (BigInteger)value);
             return true;
         }
 

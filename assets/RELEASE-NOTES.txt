@@ -46,3 +46,27 @@ PetToys.BigDecimal.Core
   standing before the first digit was swallowed with it and the value
   accepted; the same narrowing fixes both. Input that parsed before may now be
   refused.
+- New: NaN, PositiveInfinity and NegativeInfinity, with IsNaN, IsInfinity,
+  IsPositiveInfinity, IsNegativeInfinity and IsFinite beside them. PostgreSQL
+  numeric holds all three and the type had no counterpart for any of them.
+  Arithmetic propagates them the way System.Double does, but nothing finite
+  produces one: division by zero still throws DivideByZeroException and an
+  integer part that does not fit still throws OverflowException.
+- Equality and ordering now answer NaN three different ways, as the base class
+  library does. The == operator is false for two NaNs while Equals is true,
+  CompareTo places NaN below every other value so that Array.Sort is well
+  defined, and the four relational operators are all false whenever either
+  side is NaN. Code that compared values through < or <= sees no change unless
+  a NaN reaches it.
+- Parsing accepts the culture's NaN and infinity symbols, without regard to
+  case and whatever the NumberStyles, and formatting renders a non-finite value
+  as that symbol whatever the format string. An unrecognised format specifier
+  returns the symbol for these three values where it still throws for every
+  other value.
+- Converting a non-finite double or float now gives the matching value instead
+  of throwing or flattening. CreateChecked returned OverflowException,
+  CreateSaturating gave Zero for NaN and MaxValue for an infinity, and the cast
+  operator threw; all three now convert. Converting out to decimal, BigInteger
+  or an integer type throws under the checked contract and saturates under the
+  other two, which is what the base class library does converting a non-finite
+  double the same way.

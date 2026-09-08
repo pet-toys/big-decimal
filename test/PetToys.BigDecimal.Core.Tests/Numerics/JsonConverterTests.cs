@@ -119,6 +119,28 @@ public sealed class JsonConverterTests
         act.Should().Throw<JsonException>();
     }
 
+    [Fact]
+    public void TheNonFiniteValues_RoundTripAsStrings()
+    {
+        // The converter writes a JSON string, so these pass through the ordinary path where
+        // System.Text.Json refuses a bare double.NaN without AllowNamedFloatingPointLiterals.
+        // Verified rather than assumed: the converter itself was not touched by the change.
+        (string Text, BigDecimal Value)[] cases =
+        [
+            ("\"NaN\"", BigDecimal.NaN),
+            ("\"Infinity\"", BigDecimal.PositiveInfinity),
+            ("\"-Infinity\"", BigDecimal.NegativeInfinity),
+        ];
+
+        foreach (var (text, value) in cases)
+        {
+            JsonSerializer.Serialize(value).Should().Be(text);
+            JsonSerializer.Deserialize<BigDecimal>(text).Should().Be(value);
+        }
+
+        BigDecimal.IsNaN(JsonSerializer.Deserialize<BigDecimal>("\"NaN\"")).Should().BeTrue();
+    }
+
     private sealed class Segment : ReadOnlySequenceSegment<byte>
     {
         public Segment(ReadOnlyMemory<byte> memory, long runningIndex)

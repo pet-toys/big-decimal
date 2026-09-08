@@ -180,6 +180,14 @@ public static class AllocationInventory
         Add("Scale", "Scale", () => Allocations.OtherSink = Left.Scale);
         Add("Sign", "Sign", () => Allocations.OtherSink = Left.Sign);
         Add("IsZero", "IsZero", () => Allocations.OtherSink = Left.IsZero ? 1 : 0);
+        Add("NaN", "NaN", () => Allocations.Sink = BigDecimal.NaN);
+        Add("PositiveInfinity", "PositiveInfinity", () => Allocations.Sink = BigDecimal.PositiveInfinity);
+        Add("NegativeInfinity", "NegativeInfinity", () => Allocations.Sink = BigDecimal.NegativeInfinity);
+        Add("IsNaN", "IsNaN", () => Allocations.OtherSink = BigDecimal.IsNaN(Left) ? 1 : 0);
+        Add("IsInfinity", "IsInfinity", () => Allocations.OtherSink = BigDecimal.IsInfinity(Left) ? 1 : 0);
+        Add("IsPositiveInfinity", "IsPositiveInfinity", () => Allocations.OtherSink = BigDecimal.IsPositiveInfinity(Left) ? 1 : 0);
+        Add("IsNegativeInfinity", "IsNegativeInfinity", () => Allocations.OtherSink = BigDecimal.IsNegativeInfinity(Left) ? 1 : 0);
+        Add("IsFinite", "IsFinite", () => Allocations.OtherSink = BigDecimal.IsFinite(Left) ? 1 : 0);
         Add("IsNegative", "IsNegative", () => Allocations.OtherSink = Left.IsNegative ? 1 : 0);
         Add("MaxScale", "MaxScale", () => Allocations.OtherSink = BigDecimal.MaxScale);
 

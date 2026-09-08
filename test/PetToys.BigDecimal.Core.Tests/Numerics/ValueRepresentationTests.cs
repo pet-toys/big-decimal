@@ -10,7 +10,11 @@ namespace PetToys.BigDecimal.Numerics;
 
 public sealed class ValueRepresentationTests
 {
-    private const uint ReservedMask = 0x7FFF_FF00u;
+    // Bits 10 through 30. Bits 8 and 9 stopped being reserved when the non-finite encoding
+    // took them; what is left has no meaning assigned to it and must still be zero everywhere.
+    private const uint ReservedMask = 0x7FFF_FC00u;
+
+    private const uint NonFiniteBits = 0x0000_0300u;
 
     private static BigDecimal Parse(string text) => BigDecimal.Parse(text, CultureInfo.InvariantCulture);
 
@@ -82,7 +86,47 @@ public sealed class ValueRepresentationTests
 
         foreach (var value in produced)
         {
-            (FlagsOf(value) & ReservedMask).Should().Be(0u, "reserved bits 8..30 are held for NaN and the infinities");
+            (FlagsOf(value) & ReservedMask).Should().Be(0u, "bits 10..30 are reserved and carry no meaning");
+            (FlagsOf(value) & NonFiniteBits).Should().Be(0u, "every value here is finite");
+        }
+    }
+
+    [Fact]
+    public void TheNonFiniteValues_CarryTheirEncodingAndNothingElse()
+    {
+        // Bit 8 marks a non-finite value, bit 9 tells NaN from an infinity, and the sign bit
+        // says which infinity. Scale bits zero, magnitude words zero, bits 10..30 zero.
+        FlagsOf(BigDecimal.PositiveInfinity).Should().Be(0x0000_0100u);
+        FlagsOf(BigDecimal.NegativeInfinity).Should().Be(0x8000_0100u);
+        FlagsOf(BigDecimal.NaN).Should().Be(0x0000_0300u);
+
+        foreach (var value in new[] { BigDecimal.NaN, BigDecimal.PositiveInfinity, BigDecimal.NegativeInfinity })
+        {
+            (FlagsOf(value) & ReservedMask).Should().Be(0u);
+            value.Scale.Should().Be(0);
+            value.Precision.Should().Be(0);
+            value.IsZero.Should().BeFalse("a non-finite value shares its zero magnitude with zero");
+            BigDecimal.IsFinite(value).Should().BeFalse();
+        }
+    }
+
+    [Fact]
+    public void EveryRouteToNaN_ProducesTheSameBits()
+    {
+        var produced = new[]
+        {
+            BigDecimal.NaN,
+            BigDecimal.Parse("NaN", CultureInfo.InvariantCulture),
+            BigDecimal.CreateChecked(double.NaN),
+            BigDecimal.PositiveInfinity - BigDecimal.PositiveInfinity,
+            BigDecimal.Zero * BigDecimal.PositiveInfinity,
+            -BigDecimal.NaN,
+        };
+
+        foreach (var value in produced)
+        {
+            FlagsOf(value).Should().Be(FlagsOf(BigDecimal.NaN), "there is one NaN, with no payload and no sign");
+            value.IsNegative.Should().BeFalse();
         }
     }
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -206,41 +206,116 @@ public sealed class ConversionTests
     }
 
     [Fact]
-    public void ANonFiniteSource_SaturatesRatherThanThrowing()
+    public void ANonFiniteSource_ConvertsToTheMatchingValueUnderEveryContract()
     {
-        // decimal.CreateSaturating(double.NaN) is zero and the infinities clamp, and a saturating
-        // conversion that throws is not a saturating conversion. Nothing non-finite is stored: the
-        // results here are ordinary finite values.
-        BigDecimal.CreateSaturating(double.NaN).Should().Be(BigDecimal.Zero);
-        BigDecimal.CreateTruncating(double.NaN).Should().Be(BigDecimal.Zero);
-        BigDecimal.CreateSaturating(float.NaN).Should().Be(BigDecimal.Zero);
-        BigDecimal.CreateSaturating(Half.NaN).Should().Be(BigDecimal.Zero);
+        // Until the type had its own NaN and infinities the checked contract threw here and the
+        // other two flattened NaN to zero and an infinity to MaxValue. The value is representable
+        // now, so none of the three has anything left to refuse and all three agree.
+        foreach (var converted in new[]
+        {
+            BigDecimal.CreateChecked(double.NaN),
+            BigDecimal.CreateSaturating(double.NaN),
+            BigDecimal.CreateTruncating(double.NaN),
+            BigDecimal.CreateSaturating(float.NaN),
+            BigDecimal.CreateSaturating(Half.NaN),
+            (BigDecimal)double.NaN,
+            (BigDecimal)float.NaN,
+        })
+        {
+            BigDecimal.IsNaN(converted).Should().BeTrue();
+        }
 
-        BigDecimal.CreateSaturating(double.PositiveInfinity).Should().Be(BigDecimal.MaxValue);
-        BigDecimal.CreateSaturating(double.NegativeInfinity).Should().Be(BigDecimal.MinValue);
-        BigDecimal.CreateTruncating(float.PositiveInfinity).Should().Be(BigDecimal.MaxValue);
+        BigDecimal.CreateChecked(double.PositiveInfinity).Should().Be(BigDecimal.PositiveInfinity);
+        BigDecimal.CreateSaturating(double.PositiveInfinity).Should().Be(BigDecimal.PositiveInfinity);
+        BigDecimal.CreateTruncating(float.PositiveInfinity).Should().Be(BigDecimal.PositiveInfinity);
+        BigDecimal.CreateSaturating(double.NegativeInfinity).Should().Be(BigDecimal.NegativeInfinity);
+        ((BigDecimal)float.NegativeInfinity).Should().Be(BigDecimal.NegativeInfinity);
+    }
 
-        // A finite value too large for the type clamps the same way.
+    [Fact]
+    public void AFiniteSourceTooLargeForTheType_StillSaturatesAndStillThrowsWhenChecked()
+    {
+        // The non-finite values did not take this behaviour with them: a finite source outside
+        // the range clamps under the saturating contract and throws under the checked one, and
+        // in particular it does not become an infinity.
         BigDecimal.CreateSaturating(double.MaxValue).Should().Be(BigDecimal.MaxValue);
         BigDecimal.CreateSaturating(double.MinValue).Should().Be(BigDecimal.MinValue);
         BigDecimal.CreateSaturating(BigInteger.Pow(10, 100)).Should().Be(BigDecimal.MaxValue);
         BigDecimal.CreateSaturating(-BigInteger.Pow(10, 100)).Should().Be(BigDecimal.MinValue);
+
+        var checkedTooLarge = () => BigDecimal.CreateChecked(double.MaxValue);
+        checkedTooLarge.Should().Throw<OverflowException>();
     }
 
     [Fact]
-    public void ANonFiniteSource_IsRefusedByTheCheckedConversionAndByBothCasts()
+    public void ANonFiniteValue_ConvertsOutByContractRatherThanByDestination()
     {
-        var checkedNaN = () => BigDecimal.CreateChecked(double.NaN);
-        var checkedInfinity = () => BigDecimal.CreateChecked(double.PositiveInfinity);
-        var checkedTooLarge = () => BigDecimal.CreateChecked(double.MaxValue);
-        var castNaN = () => (BigDecimal)double.NaN;
-        var castInfinity = () => (BigDecimal)float.NegativeInfinity;
+        // Measured against what the base class library does converting a non-finite double to an
+        // integer type: the checked route throws and the saturating one answers. A saturating
+        // conversion that throws would not be one, in this direction either.
+        var castToDecimal = () => (decimal)BigDecimal.NaN;
+        var castToInteger = () => (long)BigDecimal.PositiveInfinity;
+        var castToBigInteger = () => (BigInteger)BigDecimal.NegativeInfinity;
+        var checkedToInt = () => int.CreateChecked(BigDecimal.NaN);
+        var checkedToDecimal = () => decimal.CreateChecked(BigDecimal.PositiveInfinity);
 
-        checkedNaN.Should().Throw<OverflowException>();
-        checkedInfinity.Should().Throw<OverflowException>();
-        checkedTooLarge.Should().Throw<OverflowException>();
-        castNaN.Should().Throw<OverflowException>("a cast is checked by nature");
-        castInfinity.Should().Throw<OverflowException>();
+        castToDecimal.Should().Throw<OverflowException>();
+        castToInteger.Should().Throw<OverflowException>();
+        castToBigInteger.Should().Throw<OverflowException>();
+        checkedToInt.Should().Throw<OverflowException>();
+        checkedToDecimal.Should().Throw<OverflowException>();
+
+        int.CreateSaturating(BigDecimal.NaN).Should().Be(0);
+        int.CreateTruncating(BigDecimal.NaN).Should().Be(0);
+        int.CreateSaturating(BigDecimal.PositiveInfinity).Should().Be(int.MaxValue);
+        int.CreateSaturating(BigDecimal.NegativeInfinity).Should().Be(int.MinValue);
+        uint.CreateSaturating(BigDecimal.NegativeInfinity).Should().Be(0u);
+        long.CreateSaturating(BigDecimal.PositiveInfinity).Should().Be(long.MaxValue);
+
+        // Not cross-checked against double here, deliberately: int.CreateSaturating(double.NaN)
+        // is int.MinValue on net8.0 and 0 from net9.0 on, so "what double does" has two answers
+        // and cannot be the oracle. Found by running this suite on all three frameworks, not by
+        // reading release notes. The modern answer is the one pinned above, on every framework
+        // this package targets, so the constants are the contract rather than the platform.
+    }
+
+    [Fact]
+    public void TheSaturatingRouteOut_AnswersNaNWithZeroForEveryDestination()
+    {
+        // decimal and BigInteger each reach the destination by a path of their own, and each of
+        // them fell through to a cast that throws: decimal because both range comparisons are
+        // false against NaN, BigInteger because its cast could never overflow before and so
+        // ignored the saturate flag.
+        decimal.CreateSaturating(BigDecimal.NaN).Should().Be(0m);
+        decimal.CreateTruncating(BigDecimal.NaN).Should().Be(0m);
+        BigInteger.CreateSaturating(BigDecimal.NaN).Should().Be(BigInteger.Zero);
+        BigInteger.CreateTruncating(BigDecimal.NaN).Should().Be(BigInteger.Zero);
+
+        decimal.CreateSaturating(BigDecimal.NaN).Should().Be(decimal.CreateSaturating(double.NaN));
+        BigInteger.CreateSaturating(BigDecimal.NaN).Should().Be(BigInteger.CreateSaturating(double.NaN));
+
+        // The infinities keep their own answers: decimal clamps, BigInteger has no extreme to
+        // clamp to and throws, and both of those are what the same call does for a double.
+        decimal.CreateSaturating(BigDecimal.PositiveInfinity).Should().Be(decimal.MaxValue);
+        decimal.CreateSaturating(BigDecimal.NegativeInfinity).Should().Be(decimal.MinValue);
+
+        var bigInfinity = () => BigInteger.CreateSaturating(BigDecimal.PositiveInfinity);
+        var theirs = () => BigInteger.CreateSaturating(double.PositiveInfinity);
+        bigInfinity.Should().Throw<OverflowException>();
+        theirs.Should().Throw<OverflowException>();
+    }
+
+    [Fact]
+    public void ANonFiniteValue_RoundTripsThroughTheBinaryFloats()
+    {
+        double.IsNaN((double)BigDecimal.NaN).Should().BeTrue();
+        ((double)BigDecimal.PositiveInfinity).Should().Be(double.PositiveInfinity);
+        ((double)BigDecimal.NegativeInfinity).Should().Be(double.NegativeInfinity);
+        float.IsNaN((float)BigDecimal.NaN).Should().BeTrue();
+        ((float)BigDecimal.NegativeInfinity).Should().Be(float.NegativeInfinity);
+
+        ((BigDecimal)(double)BigDecimal.PositiveInfinity).Should().Be(BigDecimal.PositiveInfinity);
+        BigDecimal.IsNaN((BigDecimal)(double)BigDecimal.NaN).Should().BeTrue();
     }
 
     [Fact]
