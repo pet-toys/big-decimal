@@ -27,6 +27,11 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.9168/25H2/2025Update/HudsonValle
 `DefaultJob` is part of the record. A run taken with `--job short` or `--job
 dry` grades nothing, for the reason in the README.
 
+Runs Q and R were taken on the same machine after a Windows update, at build
+`10.0.26200.9445` instead of the `10.0.26200.9168` above. The block is left as
+recorded rather than rewritten, because it is the record for runs A to P and
+those runs did not happen on the newer build. Nothing else in it moved.
+
 ## Runs behind these rows
 
 | Run | Date       | Scope                    | Code                       | Cost   |
@@ -47,6 +52,9 @@ dry` grades nothing, for the reason in the README.
 | N   | 2026-09-08 | `--anyCategories budget` | `divide-and-copy-cost`, as it ships | 66 min |
 | O   | 2026-09-08 | `*Power*`, `*Multiply*`, `*Divide*` | `integer-power`, as it ships | 12 min |
 | P   | 2026-09-08 | `*PowerLoop*`            | `integer-power`, as it ships | 3 min  |
+| Q   | 2026-09-08 | `*Wire*`                 | `db-interop`, as it ships  | 17 min |
+| R   | 2026-09-09 | `*WireWrite*`            | `db-interop`, as it ships  | 4 min  |
+| S   | 2026-09-09 | `*Wire*`                 | `db-interop`, as it ships  | 9 min  |
 
 Run A was taken on the `formatting-parity` work before it merged, which differs
 from `c33486b` only in the formatting path, so the rows below that are not
@@ -91,6 +99,20 @@ Run P is the same code as O and exists because O's loop comparison had two expon
 three orders of magnitude apart, which locates a crossover by interpolation rather than
 by reading it. P adds a twentieth and a fortieth power to that one class.
 
+Runs Q, R and S are `db-interop`'s, and they are the same code three times. Q is the
+change's own measurement - three new classes, twenty-six rows, no shared helper touched,
+so a targeted run rather than a full budget one - and its write class came back
+disturbed. R re-ran that one class alone and was clean. S then repeated Q's exact
+command, to settle whether the disturbance was external or was a property of running
+three classes in one process with the write class third.
+
+It was external. In S the write class ran third, as in Q, and was clean: 3 minutes 46
+seconds against Q's 11 minutes 50 for the same twelve rows, and its PostgreSQL means
+agree with the standalone run R to within 0.4%. **Every wire row below cites S**, which
+is one clean run covering all five criteria with the rows genuinely interleaved; R is
+kept in the table because it is what the verdict rested on until S confirmed it, and Q
+because a discarded run that goes unnamed is a run somebody repeats.
+
 ## Verdicts
 
 | Criterion                          | Budget | Ratio | Dispersion | Shape                 | Verdict | Run |
@@ -110,7 +132,12 @@ by reading it. P adds a twentieth and a fortieth power to that one class.
 | Hashing, widened against narrow    |   2.5x |  2.17 |          - | two words, aligned    | met     | N   |
 | Hashing, nineteen zeros against one|   1.5x |  1.38 |          - | one word, misaligned  | met     | N   |
 | Power, thousandth against fourth   |    40x | 12.68 |          - | four words            | met     | O   |
-| Zero allocations                   | always |     - |          - | every row             | met     | N, O |
+| PostgreSQL write against `TryFormat`|  1.5x |  0.87 |          - | four words            | met     | S   |
+| ClickHouse write against `TryFormat`|  1.5x |  0.20 |          - | one word              | met     | S   |
+| PostgreSQL read against `Parse`    |   1.5x |  0.67 |       0.01 | one word              | met     | S   |
+| ClickHouse read against `Parse`    |   1.5x |  0.18 |       0.00 | one word              | met     | S   |
+| PostgreSQL write, scale 255 over 0 |   1.5x |  1.07 |          - | one word              | met     | S   |
+| Zero allocations                   | always |     - |          - | every row             | met     | N, O, S |
 
 Three of the four parsing classes carry no `RatioSD` in run N: BenchmarkDotNet dropped the
 column. Their rows' own standard deviations are between 0.5% and 1.4% of their means, which
@@ -124,6 +151,19 @@ for it. Both rows' own standard deviations are under 1% of their means.
 The power row is the same shape and for the same reason: its class declares no baseline,
 because `System.Decimal` has no power for one to be declared against. The two rows it is
 computed from carry standard deviations of 0.7% and 1.0% of their means.
+
+The two write rows carry no `RatioSD` because BenchmarkDotNet dropped the column from the
+write class's report in both R and S. Every row in S has a standard deviation between
+0.4% and 1.4% of its own mean, which bounds `r + 2s` for the worst of them at 0.89
+against a 1.5x budget, so no verdict turns on the missing column. The scale row carries
+none for the other reason: its class declares its own baseline but reports a bare
+`Ratio`, and its two rows have standard deviations of 0.82% and 0.22%.
+
+The four wire rows are each the worst shape of the four measured, not the mean of them.
+Both codecs get *cheaper* against the text path as the mantissa widens - the text path
+pays per character and a codec pays per digit group - so the tightest ratio is at the
+narrow end for the readers and at the wide end for the PostgreSQL writer, where the
+group divisions accumulate.
 
 ## What the numbers do not say
 
@@ -166,6 +206,51 @@ recorded duration to compare against and this file deliberately carries none; th
 needs nothing but the run itself, and it is the reason run F was taken. F put `Remainder`
 at one word aligned back at 3.01 against the 3.02 in the row above, on code that differs
 from A's by two flag tests.
+
+**Run Q reproduced run D's lesson exactly, and runs R and S then closed it.** Q's write
+class ran last of its three, took 11 minutes 50 seconds against the reading class's 4
+minutes for the same twelve rows, and reported 12 to 22 outliers per PostgreSQL row
+against the 1 or 2 its neighbours reported. Its `TryFormat` baseline came back at 180.90,
+254.43 and 372.37 ns for the three wider shapes; R and S put the same three at 88.75,
+130.86, 191.26 and 94.09, 128.54, 190.92. The baseline arm was inflated by about a factor
+of two, exactly as five of run D's eight were.
+
+Three of the four PostgreSQL ratios survived it anyway - 0.68, 0.77 and 0.88 in Q against
+0.73, 0.80 and 0.87 in S - because both arms met the same disturbance and it divided out.
+The fourth did not: **one word came back at 1.20 in Q against 0.62 in both R and S**, and
+1.20 with a `RatioSD` of 0.19 grades as `r + 2s` = 1.58, a miss against a 1.5x budget on
+code that is comfortably inside it. That is a disturbance landing on a single arm, which
+interleaving cannot cancel, and it is the second time this file has had to record one.
+
+What marked it was not a cross-run comparison. Q's own report named 13 outliers on that
+row spanning 51.87 to 97.05 ns against a reported mean of 97.25, which says the row is
+bimodal and that the mean sits in the slow mode. `TryWrite` has no data-dependent branch
+and the operand is fixed, so a fixed input producing two modes is the machine talking. R
+then measured the fast mode at 50.06 ns, within a nanosecond of Q's own lowest outlier,
+and S measured it at 50.27. **A row whose outlier span reaches well below its own mean is
+reporting a disturbance, whatever its standard deviation says** - a check that needs
+nothing but the run itself, like the neighbour check in the run E note and unlike the
+recorded-duration check the run D note describes.
+
+**S was taken to rule out the other explanation, and it is the reason the write rows can
+be cited at all.** R answered whether the code is fast; it could not answer why Q was
+slow, because it changed two things at once - it re-ran the class *and* ran it alone. That
+left a live alternative: not an external disturbance but a property of the run itself, the
+write class suffering because it went third, five minutes into a process. Those two have
+different consequences. An external disturbance means re-run and record. A positional
+effect would mean the three classes cannot be graded from one invocation at all, and the
+structure of every targeted run in this repository would need revisiting.
+
+S repeated Q's exact command. The write class ran third again and came back clean in 3
+minutes 46 seconds, its PostgreSQL means inside 0.4% of standalone R's. So the effect is
+external and transient, the run structure is sound, and one clean invocation covers all
+five criteria with the rows interleaved as the budget requires.
+
+The cheap part of this is worth keeping: **a clean run's duration was predictable before
+it started.** Q's own per-class timings gave 4:00 + 0:36 + 3:53 = about nine minutes for a
+clean repeat against Q's seventeen, and S came in at 8:34. The duration is the first
+reading of a run, available before any number in the report is looked at, and it cost
+nothing to state in advance.
 
 **A cold branch in a hot forwarder cost 4.3 nanoseconds, and the fix was where the branch
 sat rather than what it did.** `nan-infinity` first guarded `Add` and `Subtract` by turning
