@@ -8,7 +8,7 @@ namespace PetToys.BigDecimal.Numerics;
 /// </summary>
 /// <remarks>
 /// The <see cref="decimal"/> method is the declared baseline, so the report's ratio column is the
-/// number the 3x budget is written in. Both methods operate on values parsed from the same
+/// number the 3.5x budget is written in. Both methods operate on values parsed from the same
 /// text in <see cref="Setup"/>, and both return their result, so neither operation can be removed
 /// as dead code.
 /// </remarks>
