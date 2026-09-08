@@ -52,6 +52,71 @@ public sealed class ComparisonFuzzTests
 
     [Theory]
     [FuzzData]
+    public void Sorting_StaysTotalWithTheNonFiniteValuesMixedIn(int seed, int cases)
+    {
+        // The three non-finite values are singletons, so drawing them from the generator would add
+        // no coverage of the values themselves: a non-finite operand is answered before any scale
+        // work, so the other operand's shape cannot change the result. What is worth randomising is
+        // the company they keep, because a total order that is only wrong in a long array is a
+        // total order that only Array.Sort finds.
+        var random = new Random(seed);
+        var generator = new ValueGenerator(random);
+        var rounds = Math.Max(cases / 32, 1);
+
+        for (var round = 0; round < rounds; round++)
+        {
+            var values = new BigDecimal[32];
+            for (var index = 0; index < values.Length - 3; index++)
+            {
+                values[index] = generator.Next().Value;
+            }
+
+            values[^3] = BigDecimal.NaN;
+            values[^2] = BigDecimal.PositiveInfinity;
+            values[^1] = BigDecimal.NegativeInfinity;
+            random.Shuffle(values);
+
+            Array.Sort(values);
+
+            for (var index = 1; index < values.Length; index++)
+            {
+                values[index - 1].CompareTo(values[index])
+                    .Should().BeLessThanOrEqualTo(0, "seed {0} round {1} index {2} is out of order", seed, round, index);
+            }
+
+            BigDecimal.IsNaN(values[0]).Should().BeTrue("NaN sorts below every other value");
+            values[1].Should().Be(BigDecimal.NegativeInfinity, "and negative infinity below every finite one");
+            values[^1].Should().Be(BigDecimal.PositiveInfinity);
+        }
+    }
+
+    [Theory]
+    [FuzzData]
+    public void ANonFiniteOperand_KeepsOrderingAntisymmetricAgainstAnyValue(int seed, int cases)
+    {
+        var generator = new ValueGenerator(new Random(seed));
+        BigDecimal[] specials = [BigDecimal.NaN, BigDecimal.PositiveInfinity, BigDecimal.NegativeInfinity];
+
+        for (var index = 0; index < cases; index++)
+        {
+            var finite = generator.Next();
+            var context = FuzzContext.Of(seed, index, finite);
+
+            foreach (var special in specials)
+            {
+                Math.Sign(special.CompareTo(finite.Value))
+                    .Should().Be(-Math.Sign(finite.Value.CompareTo(special)), "{0} ordering is antisymmetric", context);
+
+                // Unordered by the operators whichever side NaN is on, and never equal by them.
+                (special < finite.Value).Should().Be(!BigDecimal.IsNaN(special) && special.CompareTo(finite.Value) < 0);
+                (finite.Value < special).Should().Be(!BigDecimal.IsNaN(special) && finite.Value.CompareTo(special) < 0);
+                (special == finite.Value).Should().BeFalse("{0} is never equal to a finite value", context);
+            }
+        }
+    }
+
+    [Theory]
+    [FuzzData]
     public void CompareTo_IsTransitive(int seed, int cases)
     {
         var generator = new ValueGenerator(new Random(seed));

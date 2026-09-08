@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -73,14 +74,20 @@ public readonly partial struct BigDecimal
     /// form that round-trips through <see cref="double"/>.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <c>(double)(BigDecimal)value</c> returns <c>value</c> for every finite <see cref="double"/>
     /// whose shortest form has at most 77 integer digits and needs a scale of at most
     /// <see cref="MaxScale"/>. Outside that window the ordinary rules apply: a larger value throws
     /// and a smaller one is rounded at <see cref="MaxScale"/>, which may reach zero. This departs
     /// from <see cref="decimal"/>, whose own conversion rounds to 15 significant digits, because
     /// this type has the digits to hand the value back unchanged.
+    /// </para>
+    /// <para>
+    /// A non-finite source converts to the matching value: <see cref="NaN"/>,
+    /// <see cref="PositiveInfinity"/> or <see cref="NegativeInfinity"/>.
+    /// </para>
     /// </remarks>
-    /// <exception cref="OverflowException">The value is NaN, an infinity, or too large for the 256-bit magnitude.</exception>
+    /// <exception cref="OverflowException">The value is too large for the 256-bit magnitude.</exception>
     public static explicit operator BigDecimal(double value) => FromFloatChecked(value);
 
     /// <summary>
@@ -88,12 +95,17 @@ public readonly partial struct BigDecimal
     /// form that round-trips through <see cref="float"/>.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <c>(float)(BigDecimal)value</c> returns <c>value</c> for every finite <see cref="float"/>,
     /// without exception: the whole finite range fits. This departs from <see cref="decimal"/>,
     /// whose own conversion rounds to 7 significant digits, so that <c>(decimal)1.0000001f</c> is
     /// 1 where this conversion keeps 1.0000001.
+    /// </para>
+    /// <para>
+    /// A non-finite source converts to the matching value: <see cref="NaN"/>,
+    /// <see cref="PositiveInfinity"/> or <see cref="NegativeInfinity"/>.
+    /// </para>
     /// </remarks>
-    /// <exception cref="OverflowException">The value is NaN or an infinity.</exception>
     public static explicit operator BigDecimal(float value) => FromFloatChecked(value);
 
     /// <summary>Converts a <see cref="BigInteger"/> to a <see cref="BigDecimal"/> at scale 0.</summary>
@@ -128,6 +140,11 @@ public readonly partial struct BigDecimal
     /// <returns>The signed mantissa.</returns>
     public BigInteger GetMantissa()
     {
+        if (IsNonFinite)
+        {
+            ThrowNonFiniteHasNoMagnitude();
+        }
+
         Span<ulong> magnitude = stackalloc ulong[WordCount];
         var len = CopyMagnitude(magnitude);
         if (len == 0)
@@ -143,9 +160,14 @@ public readonly partial struct BigDecimal
     /// Converts a <see cref="BigDecimal"/> to a <see cref="decimal"/>, rounding a scale wider than
     /// 28 to nearest with ties to even.
     /// </summary>
-    /// <exception cref="OverflowException">The value is outside the range of <see cref="decimal"/>.</exception>
+    /// <exception cref="OverflowException">The value is outside the range of <see cref="decimal"/>, or is NaN or an infinity, which <see cref="decimal"/> cannot represent.</exception>
     public static explicit operator decimal(BigDecimal value)
     {
+        if (value.IsNonFinite)
+        {
+            ThrowNonFiniteUnrepresentable("decimal");
+        }
+
         var source = value.Scale > 28 ? Round(value, 28, MidpointRounding.ToEven) : value;
 
         Span<ulong> magnitude = stackalloc ulong[WordCount];
@@ -184,8 +206,14 @@ public readonly partial struct BigDecimal
     public static explicit operator float(BigDecimal value) => (float)(double)value;
 
     /// <summary>Converts a <see cref="BigDecimal"/> to a <see cref="BigInteger"/>, discarding the fraction towards zero.</summary>
+    /// <exception cref="OverflowException">The value is NaN or an infinity, which <see cref="BigInteger"/> cannot represent.</exception>
     public static explicit operator BigInteger(BigDecimal value)
     {
+        if (value.IsNonFinite)
+        {
+            ThrowNonFiniteUnrepresentable(nameof(BigInteger));
+        }
+
         var whole = Truncate(value);
         Span<ulong> magnitude = stackalloc ulong[WordCount];
         var len = whole.CopyMagnitude(magnitude);
@@ -284,7 +312,7 @@ public readonly partial struct BigDecimal
     {
         if (!TFloat.IsFinite(value))
         {
-            throw new OverflowException("NaN and infinity have no BigDecimal representation.");
+            return FromNonFinite(value);
         }
 
         if (!TryFromFloat(value, out var result))
@@ -302,14 +330,29 @@ public readonly partial struct BigDecimal
     private static BigDecimal FromFloatSaturating<TFloat>(TFloat value)
         where TFloat : IBinaryFloatingPointIeee754<TFloat>
     {
-        if (TFloat.IsNaN(value))
+        if (!TFloat.IsFinite(value))
         {
-            return Zero;
+            return FromNonFinite(value);
         }
 
-        return TFloat.IsFinite(value) && TryFromFloat(value, out var result)
+        return TryFromFloat(value, out var result)
             ? result
             : (TFloat.IsNegative(value) ? MinValue : MaxValue);
+    }
+
+    // All three contracts agree for a non-finite source now that the value is representable:
+    // none of them has anything left to refuse. Before this change the checked one threw and
+    // the other two flattened NaN to zero and an infinity to MaxValue, which is what decimal
+    // still does because decimal has no such value to convert to.
+    private static BigDecimal FromNonFinite<TFloat>(TFloat value)
+        where TFloat : IBinaryFloatingPointIeee754<TFloat>
+    {
+        if (TFloat.IsNaN(value))
+        {
+            return NaN;
+        }
+
+        return TFloat.IsNegative(value) ? NegativeInfinity : PositiveInfinity;
     }
 
     private static bool TryFromFloat<TFloat>(TFloat value, out BigDecimal result)
@@ -355,6 +398,15 @@ public readonly partial struct BigDecimal
 
     private static decimal ToDecimalSaturating(BigDecimal value)
     {
+        // NaN first: both comparisons below are false against it, because the relational
+        // operators leave NaN unordered, so without this it falls through to the cast and
+        // throws. A saturating conversion that throws is not a saturating conversion, and
+        // decimal.CreateSaturating(double.NaN) is zero.
+        if (IsNaN(value))
+        {
+            return decimal.Zero;
+        }
+
         if (value > DecimalMaxValue)
         {
             return decimal.MaxValue;
@@ -442,6 +494,14 @@ public readonly partial struct BigDecimal
 
     private static Int128 ToInt128Saturating(BigDecimal value)
     {
+        // NaN saturates to zero and an infinity to the destination's extreme, which is what the
+        // base class library does converting double to an integer type. Measured. The checked
+        // contract throws instead; a saturating conversion that throws would not be one.
+        if (IsNaN(value))
+        {
+            return Int128.Zero;
+        }
+
         unchecked
         {
             if (!TryToUInt128Magnitude(value, out var magnitude, out var negative))
@@ -460,6 +520,11 @@ public readonly partial struct BigDecimal
 
     private static UInt128 ToUInt128Saturating(BigDecimal value)
     {
+        if (IsNaN(value))
+        {
+            return UInt128.Zero;
+        }
+
         if (!TryToUInt128Magnitude(value, out var magnitude, out var negative))
         {
             return negative ? UInt128.Zero : UInt128.MaxValue;
@@ -470,6 +535,11 @@ public readonly partial struct BigDecimal
 
     private static UInt128 ToUInt128Magnitude(BigDecimal value, out bool negative)
     {
+        if (value.IsNonFinite)
+        {
+            ThrowNonFiniteUnrepresentable("integer");
+        }
+
         if (!TryToUInt128Magnitude(value, out var magnitude, out negative))
         {
             ThrowMantissaOverflow();
@@ -477,6 +547,10 @@ public readonly partial struct BigDecimal
 
         return magnitude;
     }
+
+    [DoesNotReturn]
+    private static void ThrowNonFiniteUnrepresentable(string destination) =>
+        throw new OverflowException($"NaN and infinity have no {destination} representation.");
 
     /// <summary>
     /// Reduces the value to its integral part, truncated towards zero, as a magnitude and a sign.
@@ -488,6 +562,16 @@ public readonly partial struct BigDecimal
     /// <returns><see langword="false"/> when the integral part is wider than 128 bits.</returns>
     private static bool TryToUInt128Magnitude(BigDecimal value, out UInt128 magnitude, out bool negative)
     {
+        if (value.IsNonFinite)
+        {
+            // Its four words are zero, so without this it would report a magnitude of zero and
+            // an infinity would convert to 0 rather than to an extreme. The sign is still
+            // reported, because that is what the saturating caller clamps by.
+            magnitude = UInt128.Zero;
+            negative = value.IsNegative;
+            return false;
+        }
+
         var whole = Truncate(value);
         negative = whole.IsNegative;
         Span<ulong> words = stackalloc ulong[WordCount];

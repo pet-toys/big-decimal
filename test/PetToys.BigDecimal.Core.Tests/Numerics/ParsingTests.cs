@@ -259,6 +259,137 @@ public sealed class ParsingTests
         Text(BigDecimal.Parse("1.5e-3", CultureInfo.InvariantCulture)).Should().Be("0.0015");
     }
 
+    [Fact]
+    public void TheNonFiniteSymbols_ParseUnderEveryStyle()
+    {
+        // Measured, not assumed: double admits them under NumberStyles.None, so no style flag
+        // gates them and the number path never sees them.
+        NumberStyles[] styles =
+        [
+            NumberStyles.None,
+            NumberStyles.Integer,
+            NumberStyles.Number,
+            NumberStyles.Float,
+            NumberStyles.Any,
+        ];
+
+        foreach (var style in styles)
+        {
+            foreach (var text in new[] { "NaN", "Infinity", "-Infinity", "+Infinity" })
+            {
+                var theirs = double.TryParse(text, style, CultureInfo.InvariantCulture, out var expected);
+                var mine = BigDecimal.TryParse(text, style, CultureInfo.InvariantCulture, out var actual);
+
+                mine.Should().Be(theirs, "'{0}' under {1} follows double", text, style);
+                Describe(actual).Should().Be(Describe(expected));
+            }
+        }
+    }
+
+    [Fact]
+    public void ASymbol_IsMatchedWithoutRegardToCaseAndWithSurroundingWhiteSpace()
+    {
+        foreach (var text in new[] { "nan", "NAN", "nAn", " NaN ", "\tNaN\r\n", "infinity", "-INFINITY" })
+        {
+            var theirs = double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var expected);
+            var mine = BigDecimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var actual);
+
+            mine.Should().BeTrue("'{0}' parses", text);
+            mine.Should().Be(theirs);
+            Describe(actual).Should().Be(Describe(expected));
+        }
+    }
+
+    [Fact]
+    public void WhiteSpaceAroundASymbol_IsTrimmedEvenWithBothStylesCleared()
+    {
+        // The white-space styles govern the number path. A symbol is recognised before them, on the
+        // whole trimmed input, which is what double does and is not a contradiction of the rule
+        // that the styles consume exactly what System.Decimal consumes.
+        const NumberStyles Cleared =
+            NumberStyles.Float & ~(NumberStyles.AllowLeadingWhite | NumberStyles.AllowTrailingWhite);
+
+        BigDecimal.TryParse(" NaN ", Cleared, CultureInfo.InvariantCulture, out var value).Should().BeTrue();
+        BigDecimal.IsNaN(value).Should().BeTrue();
+        double.TryParse(" NaN ", Cleared, CultureInfo.InvariantCulture, out _).Should().BeTrue();
+
+        // And the number path is still gated, which is the requirement this sits beside.
+        BigDecimal.TryParse(" 1 ", Cleared, CultureInfo.InvariantCulture, out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public void TheSymbols_ComeFromTheCultureWithNoInvariantFallback()
+    {
+        var foreign = CultureMatrix.Get(CultureCase.ForeignSymbols);
+
+        // Its NaN symbol is not "NaN" and its infinity symbols are not "Infinity", so a parser that
+        // reached for the invariant symbols would pass every other culture in the matrix and fail
+        // exactly here.
+        BigDecimal.TryParse("NaN", NumberStyles.Float, foreign, out _).Should().BeFalse();
+        BigDecimal.TryParse("Infinity", NumberStyles.Float, foreign, out _).Should().BeFalse();
+        double.TryParse("NaN", NumberStyles.Float, foreign, out _).Should().BeFalse();
+
+        BigDecimal.TryParse(foreign.NumberFormat.NaNSymbol, NumberStyles.Float, foreign, out var nan).Should().BeTrue();
+        BigDecimal.IsNaN(nan).Should().BeTrue();
+
+        BigDecimal.Parse(foreign.NumberFormat.PositiveInfinitySymbol, foreign).Should().Be(BigDecimal.PositiveInfinity);
+        BigDecimal.Parse(foreign.NumberFormat.NegativeInfinitySymbol, foreign).Should().Be(BigDecimal.NegativeInfinity);
+    }
+
+    [Fact]
+    public void ASign_MayPrecedeASymbolIndependentlyOfTheSignTheSymbolCarries()
+    {
+        var foreign = CultureMatrix.Get(CultureCase.ForeignSymbols);
+        var positive = foreign.NumberFormat.PositiveInfinitySymbol;
+
+        BigDecimal.Parse("+" + positive, foreign).Should().Be(BigDecimal.PositiveInfinity);
+        BigDecimal.Parse("-" + positive, foreign).Should().Be(BigDecimal.NegativeInfinity);
+        double.Parse("-" + positive, foreign).Should().Be(double.NegativeInfinity);
+
+        // A sign before NaN is accepted and then dropped, because NaN carries none.
+        BigDecimal.IsNaN(BigDecimal.Parse("-NaN", CultureInfo.InvariantCulture)).Should().BeTrue();
+        BigDecimal.Parse("-NaN", CultureInfo.InvariantCulture).IsNegative.Should().BeFalse();
+
+        // One sign, and only leading.
+        BigDecimal.TryParse("--Infinity", NumberStyles.Float, CultureInfo.InvariantCulture, out _).Should().BeFalse();
+        BigDecimal.TryParse("Infinity-", NumberStyles.Float, CultureInfo.InvariantCulture, out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public void AnythingBeyondASymbol_IsRefused()
+    {
+        foreach (var text in new[] { "NaN0", "Infinity5", "N aN", "NaNNaN", "1NaN" })
+        {
+            BigDecimal.TryParse(text, NumberStyles.Any, CultureInfo.InvariantCulture, out _)
+                .Should().BeFalse("'{0}' is not a number", text);
+            double.TryParse(text, NumberStyles.Any, CultureInfo.InvariantCulture, out _)
+                .Should().BeFalse();
+        }
+    }
+
+    [Fact]
+    public void TheUtf8Overload_ReadsTheSymbolsToo()
+    {
+        // The transcode happens before the shared core, so one edit covers both. Asserted rather
+        // than assumed, the way the white-space change was.
+        foreach (var text in new[] { "NaN", "Infinity", "-Infinity" })
+        {
+            BigDecimal.TryParse(Encoding.UTF8.GetBytes(text), NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+                .Should().BeTrue();
+            Describe(value).Should().Be(text);
+        }
+    }
+
+    private static string Describe(BigDecimal value) => BigDecimal.IsNaN(value)
+        ? "NaN"
+        : (BigDecimal.IsPositiveInfinity(value) ? "Infinity"
+            : (BigDecimal.IsNegativeInfinity(value) ? "-Infinity" : Text(value)));
+
+    private static string Describe(double value) => double.IsNaN(value)
+        ? "NaN"
+        : (double.IsPositiveInfinity(value) ? "Infinity"
+            : (double.IsNegativeInfinity(value) ? "-Infinity" : value.ToString(CultureInfo.InvariantCulture)));
+
     private static BigInteger RoundHalfToEven(BigInteger value, int drop)
     {
         if (drop <= 0)

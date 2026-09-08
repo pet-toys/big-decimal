@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace PetToys.BigDecimal.Numerics;
 
@@ -62,15 +63,29 @@ public readonly partial struct BigDecimal
 
     /// <summary>Returns the negation of a value. Zero is returned unsigned.</summary>
     /// <param name="value">The value to negate.</param>
-    /// <returns>The negated value, at the same scale.</returns>
-    public static BigDecimal Negate(BigDecimal value) =>
-        new(value.RawL0, value.RawL1, value.RawL2, value.RawL3, !value.IsNegative, value.Scale);
+    /// <returns>The negated value, at the same scale. NaN negates to itself; an infinity negates to the other one.</returns>
+    public static BigDecimal Negate(BigDecimal value)
+    {
+        if (value.IsNonFinite)
+        {
+            return IsNaN(value) ? value : (value.IsNegative ? PositiveInfinity : NegativeInfinity);
+        }
+
+        return new(value.RawL0, value.RawL1, value.RawL2, value.RawL3, !value.IsNegative, value.Scale);
+    }
 
     /// <summary>Returns the magnitude of a value, dropping its sign.</summary>
     /// <param name="value">The value.</param>
-    /// <returns>The absolute value, at the same scale.</returns>
-    public static BigDecimal Abs(BigDecimal value) =>
-        new(value.RawL0, value.RawL1, value.RawL2, value.RawL3, false, value.Scale);
+    /// <returns>The absolute value, at the same scale. NaN is returned as itself and either infinity as the positive one.</returns>
+    public static BigDecimal Abs(BigDecimal value)
+    {
+        if (value.IsNonFinite)
+        {
+            return IsNaN(value) ? value : PositiveInfinity;
+        }
+
+        return new(value.RawL0, value.RawL1, value.RawL2, value.RawL3, false, value.Scale);
+    }
 
     internal ulong RawL0 => _l0;
 
@@ -82,6 +97,16 @@ public readonly partial struct BigDecimal
 
     private static BigDecimal AddCore(BigDecimal left, BigDecimal right, bool rightNegative)
     {
+        // The guard sits here rather than in Add and Subtract because those two are one-line
+        // forwarders that the caller inlines. A branch and a second call in their bodies stopped
+        // that: the operator then called the forwarder, which called this, and two forty-byte
+        // structs were copied across a frame that had not existed. Measured at 4.3 ns on the
+        // worst shape, against the two flag tests below costing nothing readable.
+        if (left.IsNonFinite || right.IsNonFinite)
+        {
+            return NonFiniteSum(left, right, rightNegative);
+        }
+
         Span<ulong> a = stackalloc ulong[WorkWords];
         Span<ulong> b = stackalloc ulong[WorkWords];
 
@@ -153,6 +178,11 @@ public readonly partial struct BigDecimal
     /// <exception cref="OverflowException">The integer part of the product does not fit the 256-bit magnitude.</exception>
     public static BigDecimal Multiply(BigDecimal left, BigDecimal right)
     {
+        if (left.IsNonFinite || right.IsNonFinite)
+        {
+            return NonFiniteResult(left, right, NonFiniteOp.Multiply);
+        }
+
         Span<ulong> a = stackalloc ulong[WordCount];
         Span<ulong> b = stackalloc ulong[WordCount];
         var aLen = left.CopyMagnitude(a);
@@ -185,6 +215,11 @@ public readonly partial struct BigDecimal
     /// <exception cref="OverflowException">The integer part of the quotient does not fit the 256-bit magnitude.</exception>
     public static BigDecimal Divide(BigDecimal left, BigDecimal right)
     {
+        if (left.IsNonFinite || right.IsNonFinite)
+        {
+            return NonFiniteResult(left, right, NonFiniteOp.Divide);
+        }
+
         if (right.IsZero)
         {
             throw new DivideByZeroException();
@@ -282,6 +317,13 @@ public readonly partial struct BigDecimal
         ArgumentOutOfRangeException.ThrowIfNegative(scale);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(scale, MaxScale);
 
+        if (left.IsNonFinite || right.IsNonFinite)
+        {
+            // The requested scale is dropped rather than applied: a non-finite result carries
+            // scale 0 and has no digits to round.
+            return NonFiniteResult(left, right, NonFiniteOp.Divide);
+        }
+
         if (right.IsZero)
         {
             throw new DivideByZeroException();
@@ -358,6 +400,11 @@ public readonly partial struct BigDecimal
     /// <exception cref="DivideByZeroException"><paramref name="right"/> is zero.</exception>
     public static BigDecimal Remainder(BigDecimal left, BigDecimal right)
     {
+        if (left.IsNonFinite || right.IsNonFinite)
+        {
+            return NonFiniteResult(left, right, NonFiniteOp.Remainder);
+        }
+
         if (right.IsZero)
         {
             throw new DivideByZeroException();
@@ -419,6 +466,9 @@ public readonly partial struct BigDecimal
         ArgumentOutOfRangeException.ThrowIfNegative(scale);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(scale, MaxScale);
 
+        // A non-finite value reports scale 0 and this operation only narrows, so it leaves
+        // through the check below rather than through a guard of its own. Floor, Ceiling and
+        // Truncate all come through here and inherit that.
         if (value.Scale <= scale)
         {
             return value;
@@ -467,6 +517,11 @@ public readonly partial struct BigDecimal
         ArgumentOutOfRangeException.ThrowIfNegative(scale);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(scale, MaxScale);
 
+        if (IsNonFinite)
+        {
+            return this;
+        }
+
         var current = Scale;
         if (scale == current)
         {
@@ -514,19 +569,44 @@ public readonly partial struct BigDecimal
     /// <param name="left">The first value.</param>
     /// <param name="right">The second value.</param>
     /// <returns>The smaller value, with its own scale intact.</returns>
-    public static BigDecimal Min(BigDecimal left, BigDecimal right) => left <= right ? left : right;
+    /// <remarks>NaN on either side wins, as it does for <see cref="double"/>. Use
+    /// <c>INumber&lt;BigDecimal&gt;.MinNumber</c> for the variant that ignores it.</remarks>
+    public static BigDecimal Min(BigDecimal left, BigDecimal right)
+    {
+        if (IsNaN(left) || IsNaN(right))
+        {
+            return NaN;
+        }
+
+        return left <= right ? left : right;
+    }
 
     /// <summary>Returns the larger of two values.</summary>
     /// <param name="left">The first value.</param>
     /// <param name="right">The second value.</param>
     /// <returns>The larger value, with its own scale intact.</returns>
-    public static BigDecimal Max(BigDecimal left, BigDecimal right) => left >= right ? left : right;
+    /// <remarks>NaN on either side wins, as it does for <see cref="double"/>. Use
+    /// <c>INumber&lt;BigDecimal&gt;.MaxNumber</c> for the variant that ignores it.</remarks>
+    public static BigDecimal Max(BigDecimal left, BigDecimal right)
+    {
+        if (IsNaN(left) || IsNaN(right))
+        {
+            return NaN;
+        }
+
+        return left >= right ? left : right;
+    }
 
     /// <summary>Constrains a value to a closed range.</summary>
     /// <param name="value">The value to clamp.</param>
     /// <param name="min">The lower bound.</param>
     /// <param name="max">The upper bound.</param>
     /// <returns><paramref name="min"/>, <paramref name="value"/> or <paramref name="max"/>.</returns>
+    /// <remarks>
+    /// NaN anywhere gives NaN, in a bound as well as in the value. A NaN bound leaves
+    /// <c>min &gt; max</c> false, so it raises nothing on its own and would otherwise hand the
+    /// value back as if the range had been checked.
+    /// </remarks>
     /// <exception cref="ArgumentException"><paramref name="min"/> is greater than <paramref name="max"/>.</exception>
     public static BigDecimal Clamp(BigDecimal value, BigDecimal min, BigDecimal max)
     {
@@ -535,7 +615,90 @@ public readonly partial struct BigDecimal
             throw new ArgumentException("min cannot be greater than max.", nameof(min));
         }
 
+        if (IsNaN(value) || IsNaN(min) || IsNaN(max))
+        {
+            return NaN;
+        }
+
         return value < min ? min : (value > max ? max : value);
+    }
+
+    // Addition and subtraction over a non-finite operand. They differ only in the sign the right
+    // operand is taken with, which is what AddCore already receives, so one helper serves both.
+    // Never inlined: it is called from AddCore, whose stackalloc body is not inlined either, and
+    // keeping it out means a caller reading this file does not have to wonder whether the cold
+    // path is what put the frame back. Measured against System.Double rather than recalled.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static BigDecimal NonFiniteSum(BigDecimal left, BigDecimal right, bool rightNegative)
+    {
+        if (IsNaN(left) || IsNaN(right))
+        {
+            return NaN;
+        }
+
+        if (!right.IsNonFinite)
+        {
+            return left;
+        }
+
+        if (!left.IsNonFinite)
+        {
+            return rightNegative ? NegativeInfinity : PositiveInfinity;
+        }
+
+        // Two infinities: the same sign gives that infinity, opposite signs give NaN.
+        return left.IsNegative == rightNegative ? left : NaN;
+    }
+
+    private enum NonFiniteOp
+    {
+        Multiply,
+        Divide,
+        Remainder,
+    }
+
+    // Multiplication, division and remainder over a non-finite operand, answered before any
+    // scale work and before the IsZero fast paths, which is what keeps 0 * Infinity from taking
+    // the zero shortcut. Measured against System.Double rather than recalled; the only
+    // divergence is that 1 / -Infinity is Zero here, because zero carries no sign in this type.
+    //
+    // Never inlined, for the reason BASELINE.md records under runs F to I: guarding an operation
+    // is not free by inspection, and where the guard is written decides what it costs. These
+    // three callers have bodies too large to inline either way, so the attribute changes nothing
+    // for them; it is here so that a caller which is small does not inherit the problem silently.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static BigDecimal NonFiniteResult(BigDecimal left, BigDecimal right, NonFiniteOp op)
+    {
+        if (IsNaN(left) || IsNaN(right))
+        {
+            return NaN;
+        }
+
+        var leftInfinite = left.IsNonFinite;
+        var rightInfinite = right.IsNonFinite;
+        var negative = left.IsNegative ^ right.IsNegative;
+
+        switch (op)
+        {
+            case NonFiniteOp.Multiply:
+                return left.IsZero || right.IsZero
+                    ? NaN
+                    : (negative ? NegativeInfinity : PositiveInfinity);
+            case NonFiniteOp.Divide:
+                if (leftInfinite && rightInfinite)
+                {
+                    return NaN;
+                }
+
+                // An infinity over zero is an infinity, not a DivideByZeroException: the divisor
+                // never reaches the check below, which is deliberate and is what double does.
+                return leftInfinite
+                    ? (negative ? NegativeInfinity : PositiveInfinity)
+                    : Zero;
+            default:
+                // An infinite dividend has no remainder; a finite one modulo an infinity is itself.
+                return leftInfinite ? NaN : left;
+        }
     }
 
     /// <summary>

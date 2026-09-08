@@ -30,6 +30,7 @@ public static class CultureMatrix
         Build(",", "\u00A0", [3]),
         Build(".", ",", [3, 0]),
         Build(".", ",", []),
+        Build(".", ",", [3], "\u043D\u0435 \u0447\u0438\u0441\u043B\u043E", "\u221E", "-\u221E"),
     ];
 
     /// <summary>Returns the culture for a case.</summary>
@@ -39,7 +40,8 @@ public static class CultureMatrix
     public static CultureInfo Get(CultureCase culture) => culture switch
     {
         CultureCase.Invariant or CultureCase.CommaDecimal or CultureCase.NonUniformGroups
-            or CultureCase.SpaceGroups or CultureCase.StoppedGroups or CultureCase.NoGroups =>
+            or CultureCase.SpaceGroups or CultureCase.StoppedGroups or CultureCase.NoGroups
+            or CultureCase.ForeignSymbols =>
             Shapes[(int)culture],
         _ => throw new ArgumentOutOfRangeException(nameof(culture)),
     };
@@ -96,10 +98,23 @@ public static class CultureMatrix
     {
         var culture = (CultureInfo)CultureInfo.InvariantCulture.Clone();
         apply(culture.NumberFormat, index);
+
+        // Set here as well as in Build, so that every culture in the matrix carries symbols the
+        // harness chose rather than symbols it inherited.
+        culture.NumberFormat.NaNSymbol = "NaN";
+        culture.NumberFormat.PositiveInfinitySymbol = "Infinity";
+        culture.NumberFormat.NegativeInfinitySymbol = "-Infinity";
+
         return CultureInfo.ReadOnly(culture);
     }
 
-    private static CultureInfo Build(string decimalSeparator, string groupSeparator, int[] groupSizes)
+    private static CultureInfo Build(
+        string decimalSeparator,
+        string groupSeparator,
+        int[] groupSizes,
+        string nan = "NaN",
+        string positiveInfinity = "Infinity",
+        string negativeInfinity = "-Infinity")
     {
         var culture = (CultureInfo)CultureInfo.InvariantCulture.Clone();
         var numbers = culture.NumberFormat;
@@ -115,6 +130,13 @@ public static class CultureMatrix
         numbers.PercentGroupSizes = groupSizes;
         numbers.NegativeSign = "-";
         numbers.PositiveSign = "+";
+
+        // Set rather than inherited from the invariant clone, for the same reason the separators
+        // are: what a culture calls these is data, and a test that reads it from the platform is
+        // a test that can change meaning with an ICU version.
+        numbers.NaNSymbol = nan;
+        numbers.PositiveInfinitySymbol = positiveInfinity;
+        numbers.NegativeInfinitySymbol = negativeInfinity;
 
         // Shared from here on, so it is made read-only rather than trusted not to be written to.
         return CultureInfo.ReadOnly(culture);

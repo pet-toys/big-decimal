@@ -35,6 +35,11 @@ dry` grades nothing, for the reason in the README.
 | B   | 2026-09-08 | `*ComparisonBenchmarks*` | `c33486b`                  | 16 min |
 | C   | 2026-09-08 | `*Parse*`                | `parsing`, the set form    | 6 min  |
 | D   | 2026-09-08 | `*Parse*`                | `parsing`, as it ships     | 13 min |
+| E   | 2026-09-08 | `--anyCategories budget` | `nan-infinity`, as first written | 71 min |
+| F   | 2026-09-08 | arithmetic and comparison | `nan-infinity`, as first written | 29 min |
+| G   | 2026-09-08 | `*Add*`, `*Subtract*`, `*Multiply*` | `nan-infinity` + `NoInlining` | 10 min |
+| H   | 2026-09-08 | `*Add*`, `*Subtract*`    | `cb8bd99`, the code being replaced | 7 min |
+| I   | 2026-09-08 | `*Add*`, `*Subtract*`    | `nan-infinity`, as it ships | 7 min |
 
 Run A was taken on the `formatting-parity` work before it merged, which differs
 from `c33486b` only in the formatting path, so the rows below that are not
@@ -51,25 +56,37 @@ A third run of the same four classes sits between them and produced nothing: ele
 minutes, six of its eight baseline arms inflated the way D's five were. It is named
 here because a discarded run that goes unnamed is a run somebody repeats.
 
+Runs E through I are one change's measurement and are worth reading as a sequence. E was
+the full budget run and came back disturbed on the arithmetic and comparison classes and
+clean on parsing and formatting, which is why the rows below cite E for the second group
+and F for the first. F re-ran the disturbed classes and found that `Add` and `Subtract`
+missed their budget. G tested one explanation and refuted it. H measured the code being
+replaced, on the same machine in the same session, and established that the miss was a
+real regression rather than an old cost nobody had recorded. I measured the fix.
+
 ## Verdicts
 
 | Criterion                          | Budget | Ratio | Dispersion | Shape                 | Verdict | Run |
 | ---------------------------------- | -----: | ----: | ---------: | --------------------- | ------- | --- |
-| `Add`                              |   3.5x |  3.00 |       0.06 | one word, aligned     | met     | A   |
-| `Subtract`                         |   3.5x |  2.57 |       0.05 | two words, misaligned | met     | A   |
-| `Multiply`                         |   3.5x |  3.03 |       0.03 | one word, misaligned  | met     | A   |
-| `Divide`                           |    10x |  5.52 |       0.08 | two words, aligned    | met     | A   |
-| `Remainder`                        |    10x |  3.02 |       0.04 | one word, aligned     | met     | A   |
-| `Parse`, `char`                    |     3x |  0.95 |       0.00 | one word              | met     | C   |
-| `Parse`, UTF-8                     |     3x |  1.17 |       0.02 | one word              | met     | C   |
-| `TryParse`, `char`                 |     3x |  0.97 |       0.00 | one word              | met     | C   |
-| `TryParse`, UTF-8                  |     3x |  1.14 |       0.00 | one word              | met     | C   |
-| `TryFormat`, `char`                |     3x |  2.67 |       0.02 | two words, `#,##0.00` | met     | A   |
-| `TryFormat`, UTF-8                 |     3x |  2.80 |       0.03 | two words, `#,##0.00` | met     | A   |
-| Exact division against inexact     |    1.0 |  0.35 |       0.00 | `100 / 10` vs `/ 3`   | met     | A   |
-| Hashing, widened against narrow    |   2.5x |  2.13 |       0.05 | two words, misaligned | met     | B   |
-| Hashing, nineteen zeros against one|   1.5x |  1.43 |       0.02 | one word, aligned     | met     | B   |
-| Zero allocations                   | always |     - |          - | every row             | met     | A   |
+| `Add`                              |   3.5x |  3.26 |       0.02 | two words, aligned    | met     | I   |
+| `Subtract`                         |   3.5x |  2.85 |       0.02 | two words, aligned    | met     | I   |
+| `Multiply`                         |   3.5x |  3.05 |       0.02 | one word, either      | met     | F   |
+| `Divide`                           |    10x |  5.76 |       0.05 | one word, aligned     | met     | F   |
+| `Remainder`                        |    10x |  3.59 |       0.02 | one word, misaligned  | met     | F   |
+| `Parse`, `char`                    |     3x |  1.17 |       0.00 | one word              | met     | E   |
+| `Parse`, UTF-8                     |     3x |  1.31 |       0.00 | one word              | met     | E   |
+| `TryParse`, `char`                 |     3x |  1.24 |       0.00 | one word              | met     | E   |
+| `TryParse`, UTF-8                  |     3x |  1.28 |       0.01 | one word              | met     | E   |
+| `TryFormat`, `char`                |     3x |  2.79 |       0.02 | two words, `#,##0.00` | met     | E   |
+| `TryFormat`, UTF-8                 |     3x |  2.83 |       0.03 | two words, `#,##0.00` | met     | E   |
+| Exact division against inexact     |    1.0 |  0.34 |       0.00 | `100 / 10` vs `/ 3`   | met     | F   |
+| Hashing, widened against narrow    |   2.5x |  2.15 |          - | two words, aligned    | met     | F   |
+| Hashing, nineteen zeros against one|   1.5x |  1.40 |          - | one word, misaligned  | met     | F   |
+| Zero allocations                   | always |     - |          - | every row             | met     | E   |
+
+The two hashing rows carry no dispersion because their class has no `[Baseline]` method:
+the ratio is computed here from two of its rows, so BenchmarkDotNet reports no `RatioSD`
+for it. Both rows' own standard deviations are under 1% of their means.
 
 ## What the numbers do not say
 
@@ -97,6 +114,40 @@ What caught it was comparing the run's own `System.Decimal` arm against what tha
 same arm cost in an earlier run: 115.70 ns against 54.0. That is a per-row check
 and not the whole-run canary the conformance gate carried, which change 8 retired
 for discarding runs wholesale. Whether it becomes a rule is not decided here.
+
+**A disturbed run can be caught inside itself.** Run E was read as unusable for the
+arithmetic classes without comparing anything to an earlier run, because two of its rows
+were impossible against their own neighbours: `Add` measured *aligned* one-word operands
+at 17.10 ns and *misaligned* ones at 14.66 ns, and `Remainder` measured one word at
+40.39 ns against two words at 21.64 ns. Alignment and a narrower magnitude are strictly
+less work on the same code path, so a run that reports them as dearer is reporting its own
+disturbance. Every one of those rows had a standard deviation under 2% of its mean, so the
+row rule saw nothing, exactly as in run D.
+
+This is worth having beside the cross-run check the D notes describe. That one needs a
+recorded duration to compare against and this file deliberately carries none; this one
+needs nothing but the run itself, and it is the reason run F was taken. F put `Remainder`
+at one word aligned back at 3.01 against the 3.02 in the row above, on code that differs
+from A's by two flag tests.
+
+**A cold branch in a hot forwarder cost 4.3 nanoseconds, and the fix was where the branch
+sat rather than what it did.** `nan-infinity` first guarded `Add` and `Subtract` by turning
+each from a one-line forwarder into a conditional expression with two calls. Run F put
+`Add` at 4.21 and `Subtract` at 3.93 against a 3.5x budget, both missed, and run H measured
+the code being replaced at 3.14 and 2.88 on the same shapes: a real regression, not an
+unrecorded old cost. Marking the cold helper `NoInlining` (run G) recovered three of
+`Add`'s four shapes and left the worst one at 4.21 exactly, which is what said the cost was
+not the helper's size but the forwarder's shape. Moving the guard into `AddCore`, which has
+a `stackalloc` body and was never inlined anyway, put `Add` at 3.26 and `Subtract` at 2.85.
+The mechanism: `operator +` inlined the forwarder and called `AddCore` directly; a branch
+and a second call stopped that, and the operator then called the forwarder, which called
+`AddCore`, copying two forty-byte structs across a frame that had not existed.
+
+The reading for next time is that a guard added to the head of an operation is not free by
+inspection, and where it is written decides what it costs. `Multiply`, `Divide` and
+`Remainder` took the same guard as a statement at the top of bodies that were already too
+large to inline and moved by 0.02, 0.24 and 0.57 - inside their budgets and inside the
+run-to-run spread.
 
 **Two rows were disqualified in run B** for a standard deviation above 5% of
 their mean, which is what a disturbed case looks like when the disturbance shows:

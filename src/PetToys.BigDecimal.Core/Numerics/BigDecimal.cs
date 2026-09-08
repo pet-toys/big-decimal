@@ -29,10 +29,13 @@ namespace PetToys.BigDecimal.Numerics;
 /// </para>
 /// <para>
 /// A value occupies four 64-bit magnitude words in little-endian order followed by a packed
-/// 32-bit field holding the sign in bit 31 and the scale in bits 0 through 7. Bits 8 through 30
-/// are reserved, are zero in every value the type produces, and are held for the NaN and infinity
-/// encodings a later version will add. Until then NaN and the infinities are not representable,
-/// which makes them the only PostgreSQL <c>numeric</c> values with no counterpart here.
+/// 32-bit field holding the sign in bit 31, the scale in bits 0 through 7, and the non-finite
+/// encoding in bits 8 and 9. Bit 8 marks a value that is not finite, bit 9 tells
+/// <see cref="NaN"/> from an infinity, and the sign bit says which infinity. Bits 10 through 30
+/// are reserved, have no meaning assigned to them, and are zero in every value the type
+/// produces. A non-finite value carries scale 0 and four zero magnitude words, so it shares its
+/// magnitude with zero and <see cref="IsZero"/> consults the encoding rather than the words
+/// alone.
 /// </para>
 /// </remarks>
 [JsonConverter(typeof(BigDecimalJsonConverter))]
@@ -50,6 +53,12 @@ public readonly partial struct BigDecimal
 
     private const uint SignMask = 0x8000_0000u;
     private const uint ScaleMask = 0x0000_00FFu;
+
+    // Bit 8 says the value is not finite and bit 9 tells NaN from an infinity; the sign bit
+    // says which infinity. Never set on a finite value, so default is still Zero and every bit
+    // pattern the type produced before this encoding existed keeps its meaning.
+    private const uint NonFiniteMask = 0x0000_0100u;
+    private const uint NaNMask = 0x0000_0200u;
 
     private readonly ulong _l0;
     private readonly ulong _l1;
@@ -69,6 +78,17 @@ public readonly partial struct BigDecimal
         _flags = (uint)scale | (negative ? SignMask : 0u);
     }
 
+    private BigDecimal(uint nonFiniteFlags)
+    {
+        Debug.Assert((nonFiniteFlags & NonFiniteMask) != 0, "the encoding bit must be set");
+        Debug.Assert((nonFiniteFlags & ScaleMask) == 0, "a non-finite value carries scale 0");
+        _l0 = 0;
+        _l1 = 0;
+        _l2 = 0;
+        _l3 = 0;
+        _flags = nonFiniteFlags;
+    }
+
     /// <summary>The value zero, at scale 0.</summary>
     public static BigDecimal Zero => default;
 
@@ -77,6 +97,28 @@ public readonly partial struct BigDecimal
 
     /// <summary>The value minus one, at scale 0.</summary>
     public static BigDecimal NegativeOne => new(1, 0, 0, 0, true, 0);
+
+    /// <summary>The value that is not a number.</summary>
+    /// <remarks>
+    /// There is one NaN: no payload, no quiet and signalling distinction, and no sign, so two
+    /// NaNs reached by different routes have identical bits. It exists because a PostgreSQL
+    /// <c>numeric</c> column can hold one, not as a result arithmetic produces: no operation over
+    /// finite operands yields it.
+    /// </remarks>
+    public static BigDecimal NaN => new(NonFiniteMask | NaNMask);
+
+    /// <summary>Positive infinity.</summary>
+    /// <remarks>
+    /// Reachable from a PostgreSQL <c>numeric</c> column, from parsing and from a conversion, but
+    /// never from arithmetic over finite operands: division by zero throws
+    /// <see cref="DivideByZeroException"/> and an integer part that does not fit throws
+    /// <see cref="OverflowException"/>, as they do for <see cref="decimal"/>.
+    /// </remarks>
+    public static BigDecimal PositiveInfinity => new(NonFiniteMask);
+
+    /// <summary>Negative infinity.</summary>
+    /// <remarks>The negation of <see cref="PositiveInfinity"/>, reachable the same ways.</remarks>
+    public static BigDecimal NegativeInfinity => new(NonFiniteMask | SignMask);
 
     /// <summary>
     /// The largest representable value, 2^256-1 at scale 0 — a 78-digit integer.
@@ -92,9 +134,15 @@ public readonly partial struct BigDecimal
     /// The number of fractional digits this value carries, from 0 to <see cref="MaxScale"/>.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The scale is part of the value's representational identity, not of its numeric value:
     /// <c>1.0</c> and <c>1.00</c> are equal and hash alike but report 1 and 2 here, and the
     /// difference survives formatting and the database wire formats.
+    /// </para>
+    /// <para>
+    /// A non-finite value reports 0. <see cref="double"/> has no counterpart to this property, so
+    /// that answer is a decision of this type rather than parity with anything.
+    /// </para>
     /// </remarks>
     public int Scale => (int)(_flags & ScaleMask);
 
@@ -105,15 +153,73 @@ public readonly partial struct BigDecimal
     public bool IsNegative => (_flags & SignMask) != 0;
 
     /// <summary>Whether the magnitude is zero, whatever the scale.</summary>
-    public bool IsZero => (_l0 | _l1 | _l2 | _l3) == 0;
+    /// <remarks>
+    /// The magnitude is tested first and the encoding second, because a non-finite value shares
+    /// its four zero words with zero. The order matters: the second test runs only when the
+    /// magnitude is already zero, which is the branch the arithmetic fast paths take least often.
+    /// </remarks>
+    public bool IsZero => (_l0 | _l1 | _l2 | _l3) == 0 && !IsNonFinite;
+
+    /// <summary>Whether the value is <see cref="NaN"/>.</summary>
+    /// <param name="value">The value to test.</param>
+    /// <returns><see langword="true"/> when the value is NaN.</returns>
+    public static bool IsNaN(BigDecimal value) => (value._flags & NaNMask) != 0;
+
+    /// <summary>Whether the value is either infinity.</summary>
+    /// <param name="value">The value to test.</param>
+    /// <returns><see langword="true"/> when the value is positive or negative infinity.</returns>
+    public static bool IsInfinity(BigDecimal value) =>
+        (value._flags & (NonFiniteMask | NaNMask)) == NonFiniteMask;
+
+    /// <summary>Whether the value is <see cref="PositiveInfinity"/>.</summary>
+    /// <param name="value">The value to test.</param>
+    /// <returns><see langword="true"/> when the value is positive infinity.</returns>
+    public static bool IsPositiveInfinity(BigDecimal value) =>
+        (value._flags & (NonFiniteMask | NaNMask | SignMask)) == NonFiniteMask;
+
+    /// <summary>Whether the value is <see cref="NegativeInfinity"/>.</summary>
+    /// <param name="value">The value to test.</param>
+    /// <returns><see langword="true"/> when the value is negative infinity.</returns>
+    public static bool IsNegativeInfinity(BigDecimal value) =>
+        (value._flags & (NonFiniteMask | NaNMask | SignMask)) == (NonFiniteMask | SignMask);
+
+    /// <summary>Whether the value is neither NaN nor an infinity.</summary>
+    /// <param name="value">The value to test.</param>
+    /// <returns><see langword="true"/> for every value but the three non-finite ones.</returns>
+    public static bool IsFinite(BigDecimal value) => (value._flags & NonFiniteMask) == 0;
 
     /// <summary>
-    /// -1 for a negative value, 0 for zero, 1 for a positive value.
+    /// -1 for a negative value, 0 for zero, 1 for a positive value; 1 and -1 for the two
+    /// infinities.
     /// </summary>
-    public int Sign => IsZero ? 0 : (IsNegative ? -1 : 1);
+    /// <exception cref="ArithmeticException">
+    /// The value is <see cref="NaN"/>, which has no sign. <see cref="Math.Sign(double)"/> and
+    /// <c>INumber&lt;double&gt;.Sign</c> both throw the same way for <see cref="double.NaN"/>, and
+    /// the interface implementation here has to, so the property does too rather than answering
+    /// differently from it.
+    /// </exception>
+    public int Sign
+    {
+        get
+        {
+            if (IsNaN(this))
+            {
+                ThrowNaNHasNoSign();
+            }
+
+            return FiniteSign;
+        }
+    }
+
+    internal bool IsNonFinite => (_flags & NonFiniteMask) != 0;
+
+    // The sign without the NaN check, for callers that have already answered the non-finite
+    // cases and would otherwise pay for the branch on every comparison.
+    internal int FiniteSign => IsZero ? 0 : (IsNegative ? -1 : 1);
 
     /// <summary>
-    /// The number of decimal digits in the unscaled mantissa, from 1 upwards.
+    /// The number of decimal digits in the unscaled mantissa, from 1 upwards for a finite
+    /// value and 0 for a non-finite one.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -133,6 +239,11 @@ public readonly partial struct BigDecimal
     {
         get
         {
+            if (IsNonFinite)
+            {
+                return 0;
+            }
+
             Span<ulong> magnitude = stackalloc ulong[WordCount];
             var length = CopyMagnitude(magnitude);
             return Words.DecimalDigitCount(magnitude, length);
@@ -182,9 +293,20 @@ public readonly partial struct BigDecimal
     /// <param name="scale">Receives the scale.</param>
     /// <returns>The number of significant words written, from 0 for zero to 4.</returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="destination"/> is shorter than four words.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The value is NaN or an infinity, which has no magnitude to copy. Test
+    /// <see cref="IsFinite"/> first. The alternative was reporting four zero words with a
+    /// sign and a scale, which <see cref="FromWords"/> reads back as <see cref="Zero"/>: a
+    /// NaN would reach a database column as 0 with nothing raised anywhere.
+    /// </exception>
     public int GetWords(Span<ulong> destination, out bool isNegative, out int scale)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(destination.Length, WordCount);
+
+        if (IsNonFinite)
+        {
+            ThrowNonFiniteHasNoMagnitude();
+        }
 
         destination[0] = _l0;
         destination[1] = _l1;
@@ -289,4 +411,17 @@ public readonly partial struct BigDecimal
     [DoesNotReturn]
     internal static void ThrowMantissaOverflow() =>
         throw new OverflowException("Value was either too large or too small for a BigDecimal.");
+
+    // The base class library says "floating point Not-a-Number" in this message, but this type
+    // is a fixed-width decimal and repeating that would tell the caller something untrue about
+    // what they are holding.
+    [DoesNotReturn]
+    internal static void ThrowNaNHasNoSign() =>
+        throw new ArithmeticException("Function does not accept Not-a-Number values.");
+
+    // Not an OverflowException: the value is not too large for the destination, it has no
+    // magnitude at all, and the caller's fix is to test IsFinite rather than to widen anything.
+    [DoesNotReturn]
+    internal static void ThrowNonFiniteHasNoMagnitude() =>
+        throw new InvalidOperationException("NaN and the infinities have no magnitude. Test IsFinite first.");
 }

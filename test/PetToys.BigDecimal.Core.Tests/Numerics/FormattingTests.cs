@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -287,6 +288,82 @@ public sealed class FormattingTests
 
         BigDecimal.One.ToString(format, CultureInfo.InvariantCulture).Should().Be(
             1m.ToString(format, CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
+    public void AFormatString_DoesNotReachANonFiniteValue()
+    {
+        string[] formats =
+        [
+            "", "G", "G17", "R", "N2", "C2", "E3", "F4", "P1", "0.00", "#,##0.00;(#,##0.00);nil",
+        ];
+
+        (BigDecimal Mine, double Theirs)[] values =
+        [
+            (BigDecimal.NaN, double.NaN),
+            (BigDecimal.PositiveInfinity, double.PositiveInfinity),
+            (BigDecimal.NegativeInfinity, double.NegativeInfinity),
+        ];
+
+        foreach (var culture in CultureMatrix.Every)
+        {
+            foreach (var (mine, theirs) in values)
+            {
+                foreach (var format in formats)
+                {
+                    mine.ToString(format, culture).Should().Be(
+                        theirs.ToString(format, culture),
+                        "the specifier is not consulted for a non-finite value");
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void AnInvalidSpecifier_DoesNotThrowForANonFiniteValue()
+    {
+        // The one place in this type where an invalid format string does not throw. double answers
+        // the same way, and a finite value still throws for the same strings.
+        foreach (var format in new[] { "D", "D5", "X", "Z" })
+        {
+            BigDecimal.NaN.ToString(format, CultureInfo.InvariantCulture).Should().Be(
+                double.NaN.ToString(format, CultureInfo.InvariantCulture));
+
+            var finite = () => BigDecimal.One.ToString(format, CultureInfo.InvariantCulture);
+            finite.Should().Throw<FormatException>();
+        }
+    }
+
+    [Fact]
+    public void TryFormat_RefusesADestinationShorterThanTheSymbol()
+    {
+        Span<char> tooShort = stackalloc char[2];
+        BigDecimal.NaN.TryFormat(tooShort, out var written, "N2", CultureInfo.InvariantCulture).Should().BeFalse();
+        written.Should().Be(0);
+
+        Span<char> enough = stackalloc char[8];
+        BigDecimal.NaN.TryFormat(enough, out written, "N2", CultureInfo.InvariantCulture).Should().BeTrue();
+        enough[..written].ToString().Should().Be("NaN");
+
+        Span<byte> tooShortUtf8 = stackalloc byte[2];
+        BigDecimal.NegativeInfinity.TryFormat(tooShortUtf8, out var bytes, default, CultureInfo.InvariantCulture)
+            .Should().BeFalse();
+        bytes.Should().Be(0);
+
+        Span<byte> enoughUtf8 = stackalloc byte[16];
+        BigDecimal.NegativeInfinity.TryFormat(enoughUtf8, out bytes, default, CultureInfo.InvariantCulture)
+            .Should().BeTrue();
+        Encoding.UTF8.GetString(enoughUtf8[..bytes]).Should().Be("-Infinity");
+    }
+
+    [Fact]
+    public void ACultureWithItsOwnSymbols_IsHonouredWhateverTheSpecifier()
+    {
+        var foreign = CultureMatrix.Get(CultureCase.ForeignSymbols);
+
+        BigDecimal.NaN.ToString("N2", foreign).Should().Be(foreign.NumberFormat.NaNSymbol);
+        BigDecimal.PositiveInfinity.ToString("C2", foreign).Should().Be(foreign.NumberFormat.PositiveInfinitySymbol);
+        BigDecimal.NegativeInfinity.ToString("0.00", foreign).Should().Be(foreign.NumberFormat.NegativeInfinitySymbol);
     }
 
     private static CultureInfo WithGroupSizes(params int[] groupSizes)

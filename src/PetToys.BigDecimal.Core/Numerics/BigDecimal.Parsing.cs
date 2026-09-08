@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace PetToys.BigDecimal.Numerics;
@@ -189,6 +190,16 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
     {
         result = default;
         var info = NumberFormatInfo.GetInstance(provider);
+
+        // The three non-finite symbols are answered on the whole input, before the styles are
+        // consulted at all. Measured against double rather than assumed: it admits them under
+        // NumberStyles.None and trims around them with both white-space styles cleared. The
+        // style-gated trimming below still governs the number path, which is a different rule
+        // about a different thing.
+        if (TryParseNonFinite(input, info, out result))
+        {
+            return ParseStatus.Ok;
+        }
 
         if ((style & NumberStyles.AllowLeadingWhite) != 0)
         {
@@ -454,6 +465,66 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
 
     private static bool StartsWith(ReadOnlySpan<char> input, string value) =>
         value.Length > 0 && input.StartsWith(value, StringComparison.Ordinal);
+
+    // Cold, and kept out of TryParseCore rather than folded into it. TryParseCore is far too
+    // large to inline into its callers either way, so this costs nothing; it is written this way
+    // because the prologue runs on every parse and a reader should see at a glance how much of
+    // it does.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool TryParseNonFinite(ReadOnlySpan<char> input, NumberFormatInfo info, out BigDecimal result)
+    {
+        result = default;
+        input = TrimWhiteEnd(TrimWhiteStart(input));
+        if (input.IsEmpty)
+        {
+            return false;
+        }
+
+        if (MatchesSymbol(input, info.NaNSymbol))
+        {
+            result = NaN;
+            return true;
+        }
+
+        if (MatchesSymbol(input, info.PositiveInfinitySymbol))
+        {
+            result = PositiveInfinity;
+            return true;
+        }
+
+        if (MatchesSymbol(input, info.NegativeInfinitySymbol))
+        {
+            result = NegativeInfinity;
+            return true;
+        }
+
+        // One sign, leading only: "--Infinity" is not a number. A sign before the NaN symbol is
+        // accepted and then ignored, because NaN carries none - which is what double does for
+        // "-NaN". A sign before the positive infinity symbol is how "+∞" parses under a culture
+        // whose symbols are "∞" and "-∞".
+        var negative = TryConsume(ref input, info.NegativeSign);
+        if (!negative && !TryConsume(ref input, info.PositiveSign))
+        {
+            return false;
+        }
+
+        if (MatchesSymbol(input, info.NaNSymbol))
+        {
+            result = NaN;
+            return true;
+        }
+
+        if (MatchesSymbol(input, info.PositiveInfinitySymbol))
+        {
+            result = negative ? NegativeInfinity : PositiveInfinity;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool MatchesSymbol(ReadOnlySpan<char> input, string symbol) =>
+        symbol.Length > 0 && input.Equals(symbol, StringComparison.OrdinalIgnoreCase);
 
     private static bool TryConsume(ref ReadOnlySpan<char> input, string token)
     {

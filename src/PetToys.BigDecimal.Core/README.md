@@ -48,7 +48,7 @@ digits sit — from 1e-255 to roughly 1.157e77.
 | PostgreSQL `numeric(p, s)`, p up to 77 | Lossless. This covers `numeric(38, 18)`, the common money and blockchain precision, with room to spare. |
 | PostgreSQL `numeric` unconstrained, integer part within the magnitude | Accepted; fractional digits beyond what the magnitude leaves are rounded half to even. PostgreSQL allows 16383 of them, so a value read from such a column can lose digits silently. |
 | PostgreSQL `numeric` unconstrained, integer part beyond the magnitude | `OverflowException`. PostgreSQL allows 131072 integer digits. |
-| PostgreSQL `NaN`, `Infinity`, `-Infinity` | Not representable. These are the only `numeric` values with no counterpart here; the flag bits that will encode them are already reserved. |
+| PostgreSQL `NaN`, `Infinity`, `-Infinity` | Lossless, as `BigDecimal.NaN`, `BigDecimal.PositiveInfinity` and `BigDecimal.NegativeInfinity`. No ClickHouse decimal has a counterpart, so writing one to a ClickHouse column is refused rather than approximated. PostgreSQL sorts `NaN` above every other `numeric` value where this type sorts it below every other value; both make `NaN` equal to itself. |
 
 Presenting a value at a column's declared scale is what `WithScale` is for: it
 pads as well as rounds, where `Round` only ever narrows.

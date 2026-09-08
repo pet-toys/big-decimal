@@ -27,4 +27,12 @@ public enum CultureCase
 
     /// <summary>An empty size list, a culture that asks for no grouping at all.</summary>
     NoGroups,
+
+    /// <summary>
+    /// The invariant shape with the three non-finite symbols spelled another way: a NaN symbol
+    /// that is not <c>NaN</c> and infinity symbols that are not <c>Infinity</c>. A matrix in which
+    /// every culture spells them the invariant way cannot see a parser that falls back to the
+    /// invariant symbols, which is a mistake double's own behaviour makes easy to write.
+    /// </summary>
+    ForeignSymbols,
 }
