@@ -17,7 +17,13 @@ internal static class Words
     /// <summary>The largest exponent of five a single word holds.</summary>
     private const int MaxFivesPerWord = 27;
 
-    /// <summary>The value <see cref="Poison"/> writes: large, odd, and not a power of ten.</summary>
+    /// <summary>The value <see cref="Poison"/> writes.</summary>
+    /// <remarks>
+    /// Every <see cref="ulong"/> is a valid magnitude word, so this cannot be an invalid value and
+    /// is not one. It is a sentinel: recognisable on sight in a debugger, and far enough from
+    /// anything the suite generates that a value carrying it is wrong by an obvious margin rather
+    /// than by a digit.
+    /// </remarks>
     private const ulong PoisonWord = 0xDEAD_BEEF_DEAD_BEEFUL;
 
     private static readonly ulong[] Pow5Values =
@@ -423,7 +429,7 @@ internal static class Words
         return low;
     }
 
-    /// <summary>Fills words that nothing is allowed to read with a value nothing can mistake for a magnitude.</summary>
+    /// <summary>Fills words that nothing is allowed to read with a sentinel, so that reading one shows.</summary>
     /// <remarks>
     /// Every helper here is bounded by the length it is given, so the words a work buffer holds
     /// beyond that length are not readable state and are not zeroed on any hot path. That property

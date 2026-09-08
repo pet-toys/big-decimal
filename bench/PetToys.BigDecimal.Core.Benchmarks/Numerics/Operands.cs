@@ -37,10 +37,11 @@ public static class Operands
     /// dividend is lifted by the divisor's own factors.
     /// </summary>
     /// <remarks>
-    /// Eight is 2^3 and nothing else, so a division by it comes out exactly at three decimal
-    /// places whatever the dividend is - but not at the scale difference, where 100 over 8 leaves
-    /// a remainder of 4. That is the shape the search has to go two depths for, and the only one
-    /// of the three that is not already in the report.
+    /// Eight is 2^3 and nothing else, so lifting the dividend by three decimal places makes the
+    /// division come out exactly, whatever the dividend is. The quotient itself may need fewer
+    /// places than that - 100 over 8 is 12.5 - and it is not exact at the scale difference, where
+    /// 100 over 8 leaves a remainder of 4. That is the shape the search has to go two depths for,
+    /// and the only one of the three that is not already in the report.
     /// </remarks>
     public const string FactorDivisor = "8";
 

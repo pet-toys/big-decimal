@@ -39,8 +39,12 @@ Pull requests target the default branch.
 - Every assembly is strong-named and public-signed; leave the signing properties alone.
 - `assets/RELEASE-NOTES.txt` is the source for the packed `<releaseNotes>` and for
   the GitHub release body: publishing a release replaces whatever the release form
-  says with the top section of this file. Update it in the pull request that
-  prepares a release, newest version on top; never in an unrelated change.
+  says with the top section of this file. A change that alters behaviour a user can
+  see adds its line to the top section as it lands, which is what keeps that section
+  complete when a release is prepared. What belongs to release preparation alone is
+  opening a new version section: only one unreleased section may exist, because the
+  export takes the top one and a second would ship alone and silently. Never edit a
+  section that has already been released.
 - Package metadata that differs per package (`Description`, `PackageTags`) belongs
   in the project file; only settings shared by every package belong in
   `Directory.Build.props`.
