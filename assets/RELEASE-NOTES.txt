@@ -1,9 +1,13 @@
 1.0.0-dev.2
 ===========
 
+This release adds the two database integration packages. One tag versions every
+package in the repository, so PetToys.BigDecimal.Core is republished as
+1.0.0-dev.2 with exactly the public surface it shipped as 1.0.0-dev.1.
+
 PetToys.BigDecimal.Npgsql
 
-The PostgreSQL adapter ships. The core package is unchanged in this release.
+The PostgreSQL adapter ships.
 
 Added:
 - UseBigDecimal, an extension on NpgsqlDataSourceBuilder,
@@ -29,7 +33,7 @@ Notes:
 
 PetToys.BigDecimal.ClickHouse
 
-The ClickHouse adapter ships. The core package is unchanged in this release.
+The ClickHouse adapter ships.
 
 Added:
 - ClickHouseBigDecimal.CreateQueryOptions, which maps the Decimal32, Decimal64,

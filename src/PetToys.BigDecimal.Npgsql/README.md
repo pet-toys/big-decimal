@@ -18,6 +18,13 @@ dotnet add package PetToys.BigDecimal.Npgsql
 The core type's own package, [`PetToys.BigDecimal.Core`][core-url], comes along
 as a dependency.
 
+> **While the packages are in prerelease** they are published to
+> [GitHub Packages][gh-packages-url] rather than to nuget.org, so the command
+> above resolves nothing yet. Add the feed to your `nuget.config` first;
+> GitHub Packages requires a personal access token with `read:packages` even
+> for a public package. The `1.0.0` release goes to nuget.org, from which point
+> the command above is all that is needed.
+
 ## Usage
 
 Register the mapping once, on the data source:
@@ -111,6 +118,7 @@ gets the same mapping and the same `OverflowException`, without the column name.
 Provided under the [Apache License, Version 2.0][license-url].
 
 [repo-url]: https://github.com/pet-toys/big-decimal
+[gh-packages-url]: https://github.com/orgs/pet-toys/packages?repo_name=big-decimal
 [issues-url]: https://github.com/pet-toys/big-decimal/issues
 [nuget-url]: https://www.nuget.org/packages/PetToys.BigDecimal.Npgsql/
 [nuget-v-badge]: https://img.shields.io/nuget/v/PetToys.BigDecimal.Npgsql?style=flat-square&logo=nuget&label=version
