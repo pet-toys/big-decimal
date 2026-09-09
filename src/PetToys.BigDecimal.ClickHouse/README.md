@@ -19,6 +19,127 @@ dotnet add package PetToys.BigDecimal.ClickHouse
 The core type's own package, [`PetToys.BigDecimal.Core`][core-url], comes along
 as a dependency.
 
+## Usage
+
+Ask for the mapping on the query that needs it:
+
+```csharp
+using ClickHouse.Driver;
+using PetToys.BigDecimal.Numerics;
+
+using var client = new ClickHouseClient(connectionString);
+
+await using var reader = await client.ExecuteReaderAsync(
+    "SELECT total FROM invoices WHERE id = 1",
+    null,
+    ClickHouseBigDecimal.CreateQueryOptions(),
+    cancellationToken);
+
+await reader.ReadAsync(cancellationToken);
+
+BigDecimal total = reader.GetBigDecimal("total");
+```
+
+`Nullable(Decimal...)` and `Array(Decimal...)` come with it, as `BigDecimal?`
+and `BigDecimal[]`. Every other column of the same row reads exactly as it would
+without this package.
+
+To write in bulk:
+
+```csharp
+await client.InsertBigDecimalAsync(
+    "invoices",
+    ["id", "total"],
+    rows,
+    options: null,
+    cancellationToken);
+```
+
+`InsertBigDecimalAsync` reads the destination's column types from the server
+once per call, because a width that disagrees with the column does not fail, it
+stores a different number. A loader that inserts many batches should declare them
+instead, through `InsertOptions.ColumnTypes`, which skips the lookup.
+
+To write one value as a query parameter, annotate its type in the statement, as
+ClickHouse requires, and build the connection from settings carrying the mapping:
+
+```csharp
+using ClickHouse.Driver.ADO;
+
+var settings = new ClickHouseClientSettings(connectionString).UseBigDecimal();
+
+await using var connection = new ClickHouseConnection(settings);
+await connection.OpenAsync(cancellationToken);
+
+await using var command = connection.CreateCommand(
+    "INSERT INTO invoices (id, total) VALUES (1, {total:Decimal256(6)})");
+command.AddParameter("total", value);
+await command.ExecuteNonQueryAsync(cancellationToken);
+```
+
+## The two scopes, and what the wide one changes
+
+`CreateQueryOptions` maps one query. `UseBigDecimal` on
+`ClickHouseClientSettings` maps every query on the connection, and the two are
+not equivalent:
+
+- Every decimal column read on that connection becomes a `BigDecimal`, including
+  in code written before this package was referenced.
+- `GetFieldType` keeps reporting the driver's own decimal type while `GetValue`
+  returns a `BigDecimal`. The reader disagrees with itself, and nothing outside
+  the driver can change it, so anything that builds a schema from the reader and
+  then fills it - a `DataTable` above all - sees a column typed for one type
+  receiving another.
+- The read hook is consulted once per **value**, not once per column, so a wide
+  result set pays for every column of every row.
+
+It exists because `ClickHouseCommand` has no per-query hook: an ADO caller, or
+anything layered on one, has no narrower option. Where `ClickHouseClient` is in
+reach, prefer the per-query form.
+
+`GetFieldValue<BigDecimal>` does not work in either scope and cannot be made to:
+the driver casts its own value to the requested type before consulting the hook
+that would have changed it. Use the accessors above.
+
+## Requirements
+
+- **`UseCustomDecimals=true` on the connection.** The mapping needs the driver's
+  own arbitrary-precision decimals. With the option off, a value wider than
+  `decimal` raises inside the driver before this package is reached, which
+  nothing here can rescue. `UseBigDecimal` on the settings switches it on; the
+  per-query form cannot, and says so by name if it meets a column the driver
+  decoded through `decimal`.
+- **`ClickHouse.Driver` 1.4.0 or later**, the version this package's use of
+  `IReadValueConverter` and `IParameterFormatter` was measured against.
+
+## What round-trips, and what does not
+
+| Column | Coverage |
+| ------ | -------- |
+| `Decimal32(s)`, `Decimal64(s)`, `Decimal128(s)`, `Decimal256(s)` | Read losslessly, at every precision and scale ClickHouse allows. |
+| The same, when writing | Lossless while the value fits the column's precision and width. Fractional digits beyond the column's scale are rounded half to even. |
+| A value whose integer part exceeds the column | `OverflowException`, naming the column, its declared type, and which of the two bounds it crossed. |
+| `NaN`, `Infinity`, `-Infinity` | Refused with `NotSupportedException` before anything is sent, naming the value and the width. No ClickHouse decimal type represents them. |
+
+The type's own bounds are 77 significant digits, a largest magnitude of 2^256-1,
+and a range of 1e-255 to approximately 1.157e77. Every ClickHouse decimal fits
+inside them, which is why reading never overflows and never rounds, and writing
+is the direction with a boundary. That is the opposite of the PostgreSQL adapter.
+
+## Two things ClickHouse does that this package does not hide
+
+**A round trip returns the column's scale, not the value's.** Writing 1.5 into a
+`Decimal64(4)` reads back 1.5000. ClickHouse keeps the scale in the column type
+and nowhere in the value, so there is nothing to restore it from; the values
+remain numerically equal.
+
+**Rounding is this package's, not the server's.** ClickHouse truncates toward
+zero when it parses a decimal literal into a narrower column, and so does the
+driver when it lowers a scale: both turn 0.135 into 0.13 at scale 2. This type
+rounds half to even, giving 0.14, and every write path here rescales the value
+itself so that neither of the other two is ever asked to. One rule, whichever
+path a value takes.
+
 ## Links
 
 - [Source and documentation][repo-url]

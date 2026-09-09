@@ -27,6 +27,44 @@ Notes:
 - Npgsql 10.0.3 or later is required. The mapping registers through
   Npgsql.Internal, the driver's only extension point for a new type.
 
+PetToys.BigDecimal.ClickHouse
+
+The ClickHouse adapter ships. The core package is unchanged in this release.
+
+Added:
+- ClickHouseBigDecimal.CreateQueryOptions, which maps the Decimal32, Decimal64,
+  Decimal128 and Decimal256 columns of one query to BigDecimal, and
+  UseBigDecimal on ClickHouseClientSettings, which maps every query on a
+  connection. Prefer the first: the second changes what GetValue answers for
+  every decimal column the connection reads, and it exists because
+  ClickHouseCommand has no per-query hook. Nullable and Array columns come with
+  either form.
+- GetBigDecimal and GetNullableBigDecimal on ClickHouseDataReader, by ordinal
+  and by column name. GetFieldValue<BigDecimal> cannot work in any scope,
+  because the driver casts its own value to the requested type before consulting
+  the hook that would have changed it, and these accessors say so by name.
+- InsertBigDecimalAsync on IClickHouseClient, converting every BigDecimal cell
+  at its column's scale and width before the driver serialises the batch.
+- Writing refuses NaN, Infinity and -Infinity before anything is sent, naming
+  the value and the target width. No ClickHouse decimal type represents them.
+
+Notes:
+- Reading is total and writing is the direction with a boundary, which is the
+  opposite of the PostgreSQL adapter: every ClickHouse decimal fits BigDecimal,
+  and every ClickHouse decimal is narrower than it. A value beyond a column's
+  precision or width throws OverflowException naming the column and its type.
+- Fractional digits beyond a column's scale are rounded half to even by this
+  package. ClickHouse itself truncates toward zero when it parses a literal into
+  a narrower column, and so does the driver when it lowers a scale; every write
+  path here rescales the value first, so neither is ever asked to.
+- A round trip returns the column's scale rather than the value's: 1.5 written
+  into a Decimal64(4) reads back as 1.5000. ClickHouse keeps the scale in the
+  column type and nowhere in the value.
+- UseCustomDecimals=true is required on the connection. UseBigDecimal on the
+  settings switches it on; the per-query form cannot, and names the option if it
+  meets a column the driver decoded through System.Decimal.
+- ClickHouse.Driver 1.4.0 or later is required.
+
 ----------------------------------------------------------------------------
 
 1.0.0-dev.1
