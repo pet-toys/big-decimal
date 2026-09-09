@@ -82,6 +82,45 @@ public sealed class ClickHouseServer : IAsyncDisposable
     private Uri Endpoint => new(
         $"http://{this.Started.Hostname}:{this.Started.GetMappedPublicPort(HttpPort)}/?user={User}&password={Password}&database={Database}");
 
+    /// <summary>The connection string of the started container, for the driver.</summary>
+    /// <param name="useCustomDecimals">
+    /// Whether the driver decodes decimal columns into its own arbitrary-precision type. The
+    /// mapping needs it, and a test of what happens without it needs the other value.
+    /// </param>
+    /// <returns>A connection string.</returns>
+    /// <remarks>
+    /// Composed from the container rather than taken from anything the driver hands back. That is
+    /// not a stylistic preference: the sibling PostgreSQL fixture learned one change ago that a
+    /// driver object can redact the password out of its own connection string, which fails only
+    /// when a second connection is built from it.
+    /// </remarks>
+    public string ConnectionString(bool useCustomDecimals = true) =>
+        $"Host={this.Started.Hostname};Port={this.Started.GetMappedPublicPort(HttpPort)};" +
+        $"Username={User};Password={Password};Database={Database};UseCustomDecimals={useCustomDecimals}";
+
+    /// <summary>Runs a statement over the HTTP interface, which no part of the adapter touches.</summary>
+    /// <param name="statement">The statement.</param>
+    /// <returns>Nothing.</returns>
+    /// <remarks>
+    /// The adapter suite sets its tables up and reads its results back through this rather than
+    /// through the driver, so that the thing under test is never also the thing that says what
+    /// happened.
+    /// </remarks>
+    public async Task RunAsync(string statement) => await this.ExecuteAsync(statement);
+
+    /// <summary>Asks the server to render a query as text, one row per line.</summary>
+    /// <param name="query">The query.</param>
+    /// <returns>The rows, in the order the server produced them.</returns>
+    public async Task<IReadOnlyList<string>> RenderAsync(string query)
+    {
+        var text = await this.ReadTextAsync(query + " FORMAT TabSeparated");
+
+        // Every row ends with a newline, so the split leaves one empty entry at the end and that
+        // one is dropped. The rest are kept: a value that renders as an empty string is a row, and
+        // removing it would shorten the answer where a caller is comparing sequences.
+        return text.TrimEnd('\n').Split('\n');
+    }
+
     /// <summary>
     /// Starts the server if it has not been started, then skips the calling test when it cannot be
     /// used, naming why. On a continuous integration runner the same state is a failure instead: a
