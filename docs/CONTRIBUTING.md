@@ -21,21 +21,27 @@ under `src/` and one test project each:
 
 | Project | Contents |
 | ------- | -------- |
-| `src/PetToys.BigDecimal.Core` | The `BigDecimal` type. No runtime dependencies. Published. |
-| `src/PetToys.BigDecimal.Npgsql` | PostgreSQL `numeric` helpers, on top of Npgsql. Not implemented yet. |
-| `src/PetToys.BigDecimal.ClickHouse` | ClickHouse `Decimal*` helpers, on top of ClickHouse.Driver. Not implemented yet. |
+| `src/PetToys.BigDecimal.Core` | The `BigDecimal` type. No runtime dependencies. |
+| `src/PetToys.BigDecimal.Npgsql` | PostgreSQL `numeric` helpers, on top of Npgsql. |
+| `src/PetToys.BigDecimal.ClickHouse` | ClickHouse `Decimal*` helpers, on top of ClickHouse.Driver. |
 
-The two integration projects are placeholders: they carry a project file, a
-README and a test project, and no code. Both set `IsPackable=false` so that the
-release pipeline keeps compiling them without publishing an empty assembly. The
-change that adds the first public type to one of them sets that back to `true`.
+All three are published, in lockstep: one release tag versions every package, so
+a change to one of them ships a new version of the other two as well. Each
+adapter owns only value mapping - the caller supplies an already configured
+connection or data source - and reaches the core's internal wire codecs through
+`InternalsVisibleTo` rather than through public API. Those codecs are internal
+on purpose; the supported surface is the mapping each adapter exposes.
 
-`PetToys.BigDecimal.Core` is the only project whose folder name is not its
-namespace root: it and its test project pin `RootNamespace` to
-`PetToys.BigDecimal`, because the `.Core` suffix distinguishes the package and
-would be noise in the API. A new file there belongs in the namespace its folder
-implies below that root - `Numerics/Foo.cs` in `PetToys.BigDecimal.Numerics` -
-and a `Release` build fails on IDE0130 if it is not.
+None of the three project folders is its namespace root: all of them, and their
+test projects, pin `RootNamespace` to `PetToys.BigDecimal`. In the core that is
+because the `.Core` suffix distinguishes the package and would be noise in the
+API. In the adapters it is load bearing for a different reason: from any
+namespace under `PetToys.BigDecimal` that does not hold the type, the identifier
+`BigDecimal` binds to the namespace instead, every mention of the type is
+CS0118, and a `using` alias does not override it. A new file belongs in the
+namespace its folder implies below that root - `Numerics/Foo.cs` in
+`PetToys.BigDecimal.Numerics` - and a `Release` build fails on IDE0130 if it is
+not.
 
 Two solution filters narrow the build: `big-decimal.build.slnf` (the packages
 only, which is what the release pipeline packs) and `big-decimal.tests.slnf`
