@@ -56,8 +56,6 @@ public sealed class PostgresServer : IAsyncDisposable
 
     private bool attempted;
 
-    private bool started;
-
     private Exception? failure;
 
     /// <summary>Why the server cannot be used, or <see langword="null"/> when it can.</summary>
@@ -92,15 +90,17 @@ public sealed class PostgresServer : IAsyncDisposable
                     // endpoint: on a machine without one it throws, and a fixture that throws in
                     // its constructor takes every test in the assembly with it, including the ones
                     // that never wanted a server.
-                    this.container = new PostgreSqlBuilder(Image).Build();
+                    this.container ??= new PostgreSqlBuilder(Image).Build();
                     await this.container.StartAsync(TestContext.Current.CancellationToken);
-                    this.started = true;
                 }
                 catch (OperationCanceledException)
                 {
                     // The run is being cancelled, not the container refusing to start. Recording it
                     // as unavailable would latch: every later test would skip, or fail on a runner,
-                    // naming a cause that is not the cause. Let the next caller try again.
+                    // naming a cause that is not the cause. Let the next caller try again - against
+                    // this same instance, which is why the build above is conditional: a second one
+                    // would overwrite whatever the cancelled attempt had already created, and
+                    // nothing would be left holding it.
                     this.attempted = false;
 
                     throw;
@@ -130,7 +130,11 @@ public sealed class PostgresServer : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         this.gate.Dispose();
-        if (this.started && this.container is not null)
+
+        // Whatever was built, started or half-started, is disposed. A container that never
+        // reached the daemon disposes to nothing, and one a cancelled attempt left behind is the
+        // case worth covering.
+        if (this.container is not null)
         {
             await this.container.DisposeAsync();
         }
