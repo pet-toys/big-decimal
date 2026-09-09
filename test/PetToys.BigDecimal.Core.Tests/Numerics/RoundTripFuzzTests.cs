@@ -9,7 +9,7 @@ using Xunit;
 namespace PetToys.BigDecimal.Numerics;
 
 /// <summary>
-/// Checks that a value survives every way out of the type and back in — text, UTF-8 and JSON —
+/// Checks that a value survives every way out of the type and back in - text, UTF-8 and JSON -
 /// carrying both its number and its scale.
 /// </summary>
 public sealed class RoundTripFuzzTests

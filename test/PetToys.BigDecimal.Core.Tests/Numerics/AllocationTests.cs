@@ -13,7 +13,7 @@ namespace PetToys.BigDecimal.Numerics;
 /// Holds the whole public surface to the zero-allocation guarantee, rather than sampling it.
 /// </summary>
 /// <remarks>
-/// Deterministic by construction — a fixed inventory and a fixed reflection walk — so these run on
+/// Deterministic by construction - a fixed inventory and a fixed reflection walk - so these run on
 /// every leg of the continuous integration matrix. They are the tests whose answers differ by
 /// platform and by runtime, which is exactly why they must not be run only on one machine.
 /// </remarks>

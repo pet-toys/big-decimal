@@ -9,7 +9,7 @@ namespace PetToys.BigDecimal.Numerics;
 /// <remarks>
 /// Equality is not measured separately: <c>Equals</c> is <c>CompareTo(other) == 0</c>, so a row for
 /// it would report the cost of the comparison a second time. The misaligned pairing is the
-/// interesting one here — comparing two values of different scale is what forces the alignment
+/// interesting one here - comparing two values of different scale is what forces the alignment
 /// that the aligned pairing skips.
 /// </remarks>
 [BenchmarkCategory(BenchmarkCategories.Budget)]

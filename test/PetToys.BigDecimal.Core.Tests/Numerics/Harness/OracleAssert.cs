@@ -9,7 +9,7 @@ namespace PetToys.BigDecimal.Numerics.Harness;
 /// terms a reader can act on: the seed, the case within it, both operands and both results.
 /// </summary>
 /// <remarks>
-/// An oracle that throws <see cref="OverflowException"/> is a prediction like any other — the
+/// An oracle that throws <see cref="OverflowException"/> is a prediction like any other - the
 /// operation is required to throw as well, and quietly returning a value is a failure.
 /// </remarks>
 public static class OracleAssert

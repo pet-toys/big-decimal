@@ -240,8 +240,8 @@ public readonly partial struct BigDecimal
     /// <remarks>
     /// The quotient is produced to the full precision the magnitude allows and rounded to nearest,
     /// ties to even. A quotient that divides exactly is reduced to its shortest scale, but never
-    /// below the difference of the operands' scales — or below zero, when that difference is
-    /// negative — which mirrors <see cref="decimal"/>.
+    /// below the difference of the operands' scales - or below zero, when that difference is
+    /// negative - which mirrors <see cref="decimal"/>.
     /// </remarks>
     /// <param name="left">The dividend.</param>
     /// <param name="right">The divisor.</param>

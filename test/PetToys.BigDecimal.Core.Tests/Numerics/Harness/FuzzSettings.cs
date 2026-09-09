@@ -7,8 +7,8 @@ namespace PetToys.BigDecimal.Numerics.Harness;
 /// The two knobs the randomised tests answer to, read once from the environment.
 /// </summary>
 /// <remarks>
-/// Both have fixed defaults, so an unconfigured run — a developer's, or a continuous integration
-/// leg's — executes exactly the same cases everywhere. Raising <see cref="CasesVariable"/> turns
+/// Both have fixed defaults, so an unconfigured run - a developer's, or a continuous integration
+/// leg's - executes exactly the same cases everywhere. Raising <see cref="CasesVariable"/> turns
 /// the same tests into a soak run; changing <see cref="SeedVariable"/> sends that soak over ground
 /// the default run never visits. A value that cannot be parsed is an error rather than a silent
 /// fallback: a misconfigured soak that quietly runs the default explores nothing and says nothing.

@@ -9,13 +9,13 @@ roughly 1.157e77. The whole state lives in the struct, so a `BigDecimal` never
 allocates.
 
 It exists because PostgreSQL `numeric` and ClickHouse `Decimal*` columns hold
-values that `decimal` cannot represent — a large integer part, a long fraction,
+values that `decimal` cannot represent - a large integer part, a long fraction,
 sometimes both in the same column. Inside `decimal`'s own domain the semantics
 deliberately mirror `decimal`: trailing zeros survive arithmetic and
 formatting, equality is numeric (`1.0 == 1.00`), and excess fractional digits
 are rounded half-to-even rather than throwing. The 256-bit magnitude is the
 only hard limit: when a value's significant digits do not fit, the scale is
-reduced — the fraction rounded away — as far as needed, and
+reduced - the fraction rounded away - as far as needed, and
 `OverflowException` is reserved for an integer part that still does not fit.
 
 The type implements `INumber<T>`, `ISignedNumber<T>`, `IMinMaxValue<T>`, the
@@ -32,7 +32,7 @@ wherever its own result fits even when the power it inverts does not.
 
 Formatting matches `decimal` string for string: the `C`, `E`, `F`, `G`, `N`,
 `P` and `R` specifiers with an optional precision, custom numeric format
-strings, and the culture's own group sizes and negative patterns — so a culture
+strings, and the culture's own group sizes and negative patterns - so a culture
 that writes `(1,234.5)` gets that rather than a leading sign. Both the `char`
 and the UTF-8 overload write the same text, bounded only by the destination the
 caller passes.
@@ -46,7 +46,7 @@ No runtime dependencies. Database helpers live in separate packages:
 The magnitude spans 0 to 2^256-1 and the scale 0 to 255. Quote those two
 bounds rather than a single digit count: 77 significant digits always fit, a
 78-digit value fits only up to 2^256-1, and the scale decides where those
-digits sit — from 1e-255 to roughly 1.157e77.
+digits sit - from 1e-255 to roughly 1.157e77.
 
 | Column type | Coverage |
 | ----------- | -------- |
@@ -63,7 +63,7 @@ pads as well as rounds, where `Round` only ever narrows.
 ```csharp
 var price = BigDecimal.Parse("1.5", CultureInfo.InvariantCulture);
 price.WithScale(18);                 // 1.500000000000000000, for numeric(38,18)
-BigDecimal.Round(price, 18);         // 1.5 — Round never pads
+BigDecimal.Round(price, 18);         // 1.5 - Round never pads
 ```
 
 ## Installation

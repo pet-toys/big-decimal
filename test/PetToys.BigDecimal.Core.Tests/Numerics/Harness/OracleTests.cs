@@ -7,7 +7,7 @@ namespace PetToys.BigDecimal.Numerics.Harness;
 
 /// <summary>
 /// Tests of the oracles. An oracle is a second implementation, and a wrong one reports its own
-/// errors as the implementation's — so the properties every randomised suite leans on are pinned
+/// errors as the implementation's - so the properties every randomised suite leans on are pinned
 /// here, against `decimal` and against worked examples.
 /// </summary>
 public sealed class OracleTests
@@ -16,7 +16,7 @@ public sealed class OracleTests
     public void Rounding_HappensInOneStepFromTheFullInput()
     {
         // 1.45 is below the halfway point, so one step from the full input gives 1. Chaining
-        // happens to agree here — ties-to-even takes 1.45 to 1.4 and then to 1 — which is why the
+        // happens to agree here - ties-to-even takes 1.45 to 1.4 and then to 1 - which is why the
         // case that actually separates them is further down.
         var value = new OracleValue(145, 2);
 

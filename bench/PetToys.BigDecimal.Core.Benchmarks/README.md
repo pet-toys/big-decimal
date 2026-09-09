@@ -5,7 +5,7 @@ package's acceptance criteria are ratios against `System.Decimal`, and this
 project is where those ratios come from.
 
 Nothing here is a gate. No build, pull request or release fails because of a
-number in this project — see [Why this is not in CI](#why-this-is-not-in-ci).
+number in this project - see [Why this is not in CI](#why-this-is-not-in-ci).
 
 ## Running it
 
@@ -55,7 +55,7 @@ dotnet run -c Release -f net10.0 --project bench/PetToys.BigDecimal.Core.Benchma
 ```
 
 The filter matches on the full name, so `*Parse*` takes all four parsing
-classes and `*.Measured` takes every measured method without its baseline —
+classes and `*.Measured` takes every measured method without its baseline -
 though a run without the baselines has no ratio column, which is usually not
 what you want.
 
@@ -145,7 +145,7 @@ test covered the path it was on.
 
 So a non-zero `Allocated` row means one of two things, and they call for
 opposite reactions. If the operation is in the inventory, the fix is not in this
-project — a test should have failed first, and a benchmark finding it instead is
+project - a test should have failed first, and a benchmark finding it instead is
 itself the more interesting result. If the operation is outside the inventory,
 this project is the only thing measuring it, and closing the gap means adding
 the case to the inventory as well as fixing the allocation.
@@ -260,7 +260,7 @@ would be a mistake in both directions:
 
 - That generator's contract is to randomise. A benchmark must not: two runs
   have to do identical work or their numbers cannot be compared. Drawing from
-  the generator with a fixed seed would only move the problem — comparability
+  the generator with a fixed seed would only move the problem - comparability
   would then depend on the generator never changing.
 - A project reference from here to the test project would pull xunit into this
   assembly, and BenchmarkDotNet copies an assembly's dependencies into every
@@ -282,6 +282,6 @@ everything else.
 
 GitHub's hosted runners are shared, virtualised and subject to noisy
 neighbours. Their run-to-run variance on microbenchmarks is wider than the
-margin between 3x and 4x, so a gate there would fail on noise — and a gate that
+margin between 3x and 4x, so a gate there would fail on noise - and a gate that
 fails on noise gets switched off within a week, leaving the repository with a
 disabled gate instead of an honest manual measurement.

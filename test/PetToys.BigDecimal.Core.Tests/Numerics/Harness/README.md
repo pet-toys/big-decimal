@@ -9,7 +9,7 @@ culture helpers the deterministic suites use.
 `BigIntegerOracle` computes what each operation is **required** to produce, from
 `System.Numerics.BigInteger` arithmetic and the package's documented scale and
 rounding rules. It must never call `BigDecimal`, `Words`, or any other internal
-of the package under test to produce an expected value — an
+of the package under test to produce an expected value - an
 oracle written by reading the code under test agrees with it by construction,
 including where it is wrong.
 
@@ -59,7 +59,7 @@ that seed's batch:
 
 Seeds are derived from a fixed constant and the test's own name, so that line
 reproduces on any machine, operating system and target framework. To replay one
-seed, run the test and read down to that case — the batch is deterministic — or
+seed, run the test and read down to that case - the batch is deterministic - or
 paste the operands into a `[Fact]`.
 
 ## Categories
@@ -68,8 +68,8 @@ paste the operands into a `[Fact]`.
 a randomised test cannot be written without it. The trait is drawn around what is
 *randomised*, not around what is new: the allocation inventory and the culture
 matrix are deterministic and carry no category, so a future decision to drop the
-randomised tests from continuous integration — one clause in the workflow's
-filter — cannot take them along.
+randomised tests from continuous integration - one clause in the workflow's
+filter - cannot take them along.
 
 ## Adding public surface
 
@@ -77,6 +77,6 @@ filter — cannot take them along.
 guarantee, and `AllocationTests` walks the public members of `BigDecimal` by
 reflection to check that each one is either in that list or in the exclusion list
 with a written reason. A new public member fails the suite until it is
-classified. Exclusions are for signatures that make an allocation unavoidable —
-returning a `string`, or a contract expressed in terms of `object` — never for an
+classified. Exclusions are for signatures that make an allocation unavoidable -
+returning a `string`, or a contract expressed in terms of `object` - never for an
 implementation that happens to allocate.

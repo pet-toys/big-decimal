@@ -3,8 +3,8 @@
 [![NuGet Version][nuget-v-badge]][nuget-url] [![NuGet Downloads][nuget-dt-badge]][nuget-url] [![Unit Test][test-badge]][test-url] [![Target frameworks][dotnet-badge]][nuget-url] [![License][license-badge]][license-url]
 
 ClickHouse helpers for [`PetToys.BigDecimal.Core`][core-url]: they map the
-`Decimal32`, `Decimal64`, `Decimal128`, and `Decimal256` column types — whose
-range and scale go well past `decimal` — onto `BigDecimal` when reading and
+`Decimal32`, `Decimal64`, `Decimal128`, and `Decimal256` column types - whose
+range and scale go well past `decimal` - onto `BigDecimal` when reading and
 writing through [ClickHouse.Driver][ch-driver].
 
 Bring your own configured connection; this package only deals with the value

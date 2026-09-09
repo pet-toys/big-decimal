@@ -20,7 +20,7 @@ namespace PetToys.BigDecimal.Numerics;
 /// report, which makes a regression in the zero-allocation guarantee visible in the table a
 /// performance change is already reading. Enforcement of that guarantee stays in the test suite;
 /// nothing here asserts on it. The GitHub-flavoured markdown export that the recorded baseline is
-/// a copy of needs no addition — the default configuration already emits it.
+/// a copy of needs no addition - the default configuration already emits it.
 /// </para>
 /// <para>
 /// The artifacts path is pinned to the directory the benchmark assembly was built into, rather
