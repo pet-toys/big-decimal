@@ -74,18 +74,18 @@ dotnet add package PetToys.BigDecimal.Core
 
 The `.Core` suffix names the package, not the API. The type lives in
 `PetToys.BigDecimal.Numerics`, which is also the namespace the database
-integration packages will put their helpers in.
+integration packages put their helpers in.
 
 ```csharp
 using PetToys.BigDecimal.Numerics;
 ```
 
-> **While the package is in prerelease** it is published to
+> **While the packages are in prerelease** they are published to
 > [GitHub Packages][gh-packages-url] rather than to nuget.org, so the command
 > above resolves nothing yet. Add the feed to your `nuget.config` first;
 > GitHub Packages requires a personal access token with `read:packages` even
-> for a public package. The `1.0.0` release goes to nuget.org, from which
-> point the command above is all that is needed.
+> for a public package. The `1.0.0` release goes to nuget.org, from which point
+> the command above is all that is needed.
 
 ## Getting started
 
@@ -312,29 +312,37 @@ value fits only up to 2^256-1, and the scale decides where those digits sit.
 | Package | Status | What it does |
 | ------- | ------ | ------------ |
 | [`PetToys.BigDecimal.Core`][core-url] | Prerelease | The `BigDecimal` type itself. No runtime dependencies. |
-| `PetToys.BigDecimal.Npgsql` | Not yet published | PostgreSQL `numeric` mapping for [Npgsql][npgsql-home]. |
-| `PetToys.BigDecimal.ClickHouse` | Not yet published | The ClickHouse `Decimal32/64/128/256` family, for [ClickHouse.Driver][ch-driver]. |
+| [`PetToys.BigDecimal.Npgsql`][npgsql-url] | Prerelease | PostgreSQL `numeric` mapping for [Npgsql][npgsql-home]. |
+| [`PetToys.BigDecimal.ClickHouse`][ch-url] | Prerelease | The ClickHouse `Decimal32/64/128/256` family, for [ClickHouse.Driver][ch-driver]. |
 
-The two integration packages are the next milestone and are not published yet.
-Their binary wire codecs, which are the hard part, already live inside the core
-and are exercised by its test suite; what remains is the public mapping surface
-each driver needs.
+All three version in lockstep, and an adapter brings the core along as a
+dependency. The binary wire codecs the adapters run on, which are the hard part,
+live inside the core and are exercised by its test suite, and they stay internal
+on purpose: the supported surface is the mapping each adapter exposes, not the
+bytes underneath it. A caller who works the wire directly, without either
+driver, is the case that would change that, and it is a
+[feature request][issues-url] rather than a gap.
 
 ## Roadmap
 
-The core type is complete and its public surface is frozen. Versions are
-released in lockstep across every package in the repository.
+The core type is complete and its public surface is frozen, and so is the
+surface of each adapter. Versions are released in lockstep across every package
+in the repository.
 
 | Milestone | Version | Contents |
 | --------- | ------- | -------- |
-| Core type | `1.0.0-dev.N` | The `BigDecimal` type: representation, arithmetic, conversions, formatting, parsing, non-finite values, integer powers, JSON. Complete. |
-| Database integration | `1.0.0` | `PetToys.BigDecimal.Npgsql` and `PetToys.BigDecimal.ClickHouse`: reading and writing `numeric` and `Decimal*` columns through the two drivers. |
-| ORM integration | `1.1.0` | `PetToys.BigDecimal.Npgsql.EntityFrameworkCore`, `PetToys.BigDecimal.Npgsql.Dapper` and `PetToys.BigDecimal.ClickHouse.Dapper`, split so that a Dapper caller never pulls EF Core and an Npgsql caller never pulls the ClickHouse driver. |
+| Core type | `1.0.0-dev.1` | The `BigDecimal` type: representation, arithmetic, conversions, formatting, parsing, non-finite values, integer powers, JSON. Complete. |
+| Database integration | `1.0.0-dev.2` | `PetToys.BigDecimal.Npgsql` and `PetToys.BigDecimal.ClickHouse`: reading and writing `numeric` and `Decimal*` columns through the two drivers. |
+| ORM integration | `1.0.0` | `PetToys.BigDecimal.Npgsql.EntityFrameworkCore`, `PetToys.BigDecimal.Npgsql.Dapper` and `PetToys.BigDecimal.ClickHouse.Dapper`, split so that a Dapper caller never pulls EF Core and an Npgsql caller never pulls the ClickHouse driver. |
 
-A prerelease exists so that the public surface meets a real consumer before an
-integration package freezes it. Feedback on the API, while it can still change,
-is the most useful thing this repository can receive right now: open an
-[issue][issues-url] or a [discussion][discussions-url].
+`1.0.0` arrives with all six packages at once and is the first release to reach
+nuget.org. Everything before it is a `1.0.0-dev.N` prerelease on
+[GitHub Packages][gh-packages-url], which is what lets each surface meet a real
+consumer while it can still change: a package that reaches nuget.org is out
+there for good, and this project would rather find out what an adapter gets
+wrong before that than after. Feedback is the most useful thing this repository
+can receive right now: open an [issue][issues-url] or a
+[discussion][discussions-url].
 
 ## Contributing
 
@@ -358,6 +366,8 @@ Provided under the [Apache License, Version 2.0][license-url].
 [license-badge]: https://img.shields.io/github/license/pet-toys/big-decimal?style=flat-square&color=blue
 [license-url]: https://www.apache.org/licenses/LICENSE-2.0
 [core-url]: https://www.nuget.org/packages/PetToys.BigDecimal.Core/
+[npgsql-url]: https://www.nuget.org/packages/PetToys.BigDecimal.Npgsql/
+[ch-url]: https://www.nuget.org/packages/PetToys.BigDecimal.ClickHouse/
 [gh-packages-url]: https://github.com/orgs/pet-toys/packages?repo_name=big-decimal
 [npgsql-home]: https://www.npgsql.org/
 [ch-driver]: https://www.nuget.org/packages/ClickHouse.Driver/

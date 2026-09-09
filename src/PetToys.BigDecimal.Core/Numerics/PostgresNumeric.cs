@@ -10,9 +10,11 @@ namespace PetToys.BigDecimal.Numerics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Internal on purpose. The two adapter packages reach it through <c>InternalsVisibleTo</c>;
-/// publishing it is additive and is decided in stage 2, once an adapter has shown the shape a
-/// caller wants, because a public codec frozen by the first prerelease cannot be taken back.
+/// Internal on purpose, and settled: the two adapter packages reach it through
+/// <c>InternalsVisibleTo</c>, and the surface this repository supports is the mapping each
+/// adapter exposes rather than the bytes underneath it. Publishing stays additive, so a caller
+/// who works the wire without either driver can still ask for it; the shape would be theirs and
+/// would live in the adapter package rather than here.
 /// </para>
 /// <para>
 /// The layout is <c>ndigits</c>, <c>weight</c>, <c>sign</c>, <c>dscale</c>, then <c>ndigits</c>

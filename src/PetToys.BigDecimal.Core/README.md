@@ -76,6 +76,13 @@ The `.Core` suffix belongs to the package, not to the API: the type is
 `PetToys.BigDecimal.Numerics.BigDecimal`, the same namespace the database
 packages put their helpers in.
 
+> **While the packages are in prerelease** they are published to
+> [GitHub Packages][gh-packages-url] rather than to nuget.org, so the command
+> above resolves nothing yet. Add the feed to your `nuget.config` first;
+> GitHub Packages requires a personal access token with `read:packages` even
+> for a public package. The `1.0.0` release goes to nuget.org, from which point
+> the command above is all that is needed.
+
 ## Links
 
 - [Source and documentation][repo-url]
@@ -86,6 +93,7 @@ packages put their helpers in.
 Provided under the [Apache License, Version 2.0][license-url].
 
 [repo-url]: https://github.com/pet-toys/big-decimal
+[gh-packages-url]: https://github.com/orgs/pet-toys/packages?repo_name=big-decimal
 [issues-url]: https://github.com/pet-toys/big-decimal/issues
 [nuget-url]: https://www.nuget.org/packages/PetToys.BigDecimal.Core/
 [nuget-v-badge]: https://img.shields.io/nuget/v/PetToys.BigDecimal.Core?style=flat-square&logo=nuget&label=version
