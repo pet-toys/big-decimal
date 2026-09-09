@@ -99,6 +99,103 @@ public sealed class PowerTests
     }
 
     [Fact]
+    public void APowerReducedByItsScaleAlone_LandsInTheDigitBand()
+    {
+        // The exact square is 10^110 at scale 288. The scale cap asks for 33 digits, which would
+        // leave 78 of them and still fit four words, so nothing downstream would narrow it: the
+        // shape is a result that was reduced and came back one digit wider than the band, which is
+        // the width the rule reserves for a value that was never reduced at all.
+        var value = BigDecimal.FromScaled(BigInteger.Pow(10, 55), 144);
+
+        var result = BigDecimal.Pow(value, 2);
+
+        result.GetMantissa().Should().Be(BigInteger.Pow(10, 76));
+        result.Scale.Should().Be(254);
+        result.Precision.Should().Be(77);
+    }
+
+    [Fact]
+    public void APowerReducedByItsScaleAlone_LandsInTheDigitBandAtAWiderExponent()
+    {
+        // The same shape reached the other way round, from a 20-digit magnitude and an exponent of
+        // ten rather than from a wide magnitude squared, so that the case does not stand on one
+        // arrangement of the chain.
+        var value = BigDecimal.FromScaled(BigInteger.Parse("-15998970921129598847", CultureInfo.InvariantCulture), 37);
+
+        var result = BigDecimal.Pow(value, 10);
+
+        result.GetMantissa()
+            .Should()
+            .Be(BigInteger.Parse(
+                "10988046548032671402029280283244067487492344156149405474243755307901936162049",
+                CultureInfo.InvariantCulture));
+        result.Scale.Should().Be(254);
+        result.Precision.Should().Be(77);
+    }
+
+    [Fact]
+    public void APowerThatGivesUpDigits_RoundsOnceFromTheExactPower()
+    {
+        // The exact fifth power has 93 digits at scale 270 and the 16 digits it gives up are below
+        // half, so one rounding ends in 411. Reducing to MaxScale first and rounding what that
+        // produced ends in 412: the first rounding creates a tie the second one carries.
+        var value = BigDecimal.FromScaled(BigInteger.Parse("-2799474262758357318", CultureInfo.InvariantCulture), 54);
+
+        var result = BigDecimal.Pow(value, 5);
+
+        result.GetMantissa()
+            .Should()
+            .Be(BigInteger.Parse(
+                "-17194216688885948636321720370297956692529429862388386009258476655764322099411",
+                CultureInfo.InvariantCulture));
+        result.Scale.Should().Be(254);
+    }
+
+    [Fact]
+    public void APowerThatGivesUpDigits_RoundsOnceWhereTheSecondRoundingWouldRoundDown()
+    {
+        // The mirror of the case above: the double rounding moves the last digit down rather than
+        // up, so a fix that only ever rounded away from zero would still be wrong here.
+        var value = BigDecimal.FromScaled(
+            BigInteger.Parse("70120460866688589708676248986381474105", CultureInfo.InvariantCulture),
+            97);
+
+        var result = BigDecimal.Pow(value, 3);
+
+        result.GetMantissa()
+            .Should()
+            .Be(BigInteger.Parse(
+                "34477382376059297776766444086711052775807531924617158296218177367506101631769",
+                CultureInfo.InvariantCulture));
+        result.Scale.Should().Be(254);
+    }
+
+    [Fact]
+    public void APowerThatRunsOutOfFractionalDigits_KeepsWhatFits()
+    {
+        // The exact square has 154 digits at scale 76, so the band asks for 77 digits and only 76
+        // exist to give. The reduction stops at the decimal point and what is left fits the
+        // mantissa, so the result is 78 digits wide: the one case where the width says nothing
+        // about whether the value was reduced, and the reason the band cannot be enforced by
+        // testing the width at the point a value is packed.
+        var value = BigDecimal.FromScaled(
+            BigInteger.Parse(
+                "-33097929454724321734568101113074430888076216457856852223986730306351718400624",
+                CultureInfo.InvariantCulture),
+            38);
+
+        var result = BigDecimal.Pow(value, 2);
+
+        result.Scale.Should().Be(0);
+        result.Precision.Should().Be(78);
+        result.GetMantissa()
+            .Should()
+            .Be(BigInteger.Parse(
+                "109547293418990783746199248957372052389243190677326517524758093283100022219556",
+                CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
     public void APowerThatOutgrowsTheMantissaWithNoFractionToGiveUp_Throws()
     {
         var act = () => BigDecimal.Pow(Parse("10"), 100);

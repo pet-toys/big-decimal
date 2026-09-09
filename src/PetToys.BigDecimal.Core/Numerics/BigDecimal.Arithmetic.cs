@@ -34,6 +34,17 @@ public readonly partial struct BigDecimal
     // therefore decides nothing the arithmetic had not already decided.
     private const int PowMinScale = -(MaxScale + PowWorkDigits);
 
+    // The ceiling the chain's scale saturates at, and the mirror of the floor. It is not MaxScale:
+    // capping a working value where a result is capped rounds it to the result's scale while it is
+    // still an intermediate, so packing it rounds a second time, and what packing receives has
+    // already been reduced at a width where 78 digits are inside the band - which is exactly the
+    // 78-digit result the reduction rule says cannot happen. The two extra digits are what put the
+    // cap out of reach of a result: a value that has just been reduced here carries at most
+    // PowWorkDigits + 1 digits, so at this scale it is below 1.4e-257, which is under half a unit
+    // in the last place of MaxScale and packs to zero. The accumulator and the squared factor are
+    // powers of one base and move together, so a chain that reached this scale only gets smaller.
+    private const int PowMaxScale = MaxScale + PowWorkDigits + 2;
+
     /// <summary>Adds two values.</summary>
     /// <remarks>
     /// The result carries the wider of the two scales. An integer part that does not fit throws
@@ -472,7 +483,11 @@ public readonly partial struct BigDecimal
     /// fractional digits remain to give up, which is the same rule multiplication answers to. The
     /// result's scale is the value's scale multiplied by the exponent, capped at
     /// <see cref="MaxScale"/>, so trailing zeros are preserved exactly as multiplication preserves
-    /// them.
+    /// them. The digits are given up once, from the exact power rather than from an intermediate
+    /// standing in for it, and a result that had to give any up is reduced into the same 77-digit
+    /// band a product that does not fit is reduced into, for as long as it has fractional digits
+    /// to give. A reduction that reaches scale 0 stops there, so a power with no fraction left can
+    /// still come back at the 78 digits the mantissa holds.
     /// <para>
     /// A negative exponent is the reciprocal of the positive power, to the full precision the
     /// magnitude allows and rounded to nearest with ties to even, under the contract
@@ -876,6 +891,13 @@ public readonly partial struct BigDecimal
     /// gives up digits the way the mantissa does and cannot drift from it. It is reached only when
     /// the exact power does not fit, and never on the way to one that does.
     /// <para>
+    /// The width it states is the chain's own, <c>PowMaxScale</c> included. A working value is not
+    /// a result and is not rounded like one: reducing it to <see cref="MaxScale"/> here would spend
+    /// the one rounding the result is entitled to, and packing would then round what came out of it
+    /// again. Everything that shapes a representable result is therefore the single reduction
+    /// <c>TryPack</c> performs, which is where the digit band belongs.
+    /// </para>
+    /// <para>
     /// Nothing here refuses. A step that has no fractional digits left to give up goes below scale
     /// 0 rather than reporting overflow, which is what lets the whole operation throw for the one
     /// reason a caller can check - the result does not fit - instead of for an intermediate the
@@ -896,7 +918,7 @@ public readonly partial struct BigDecimal
         var length = Words.Mul(accumulator, accumulatorLength, factor, factorLength, product);
         var scale = accumulatorScale + factorScale;
 
-        var reduced = TryReduce(product, ref length, ref scale, PowWorkWords, PowWorkDigits, isNegative, allowNegativeScale: true);
+        var reduced = TryReduce(product, ref length, ref scale, PowWorkWords, PowWorkDigits, PowMaxScale, isNegative, allowNegativeScale: true);
         Debug.Assert(reduced, "a reduction allowed to go below scale 0 has nothing left to refuse on");
 
         product[..length].CopyTo(accumulator);
@@ -916,6 +938,15 @@ public readonly partial struct BigDecimal
     /// the quotient carries the full significant-digit capacity. The rounding is the code that
     /// rounds a division rather than a second implementation of it, so an exact reciprocal comes
     /// back at its shortest scale exactly as an exact quotient does.
+    /// </para>
+    /// <para>
+    /// <c>S</c> reaches <c>PowMaxScale</c> rather than <see cref="MaxScale"/>, since the chain is
+    /// capped where the cap decides nothing. Both bounds this rests on still hold. <c>t</c> clamps
+    /// to 0 as soon as <c>S</c> passes <c>MaxDigits - 2</c> plus the digit count, so the lifted
+    /// numerator is at most <c>10^PowMaxScale</c> and fits the 32-word buffer, which holds a little
+    /// over 616 digits. And every power at a scale above <see cref="MaxScale"/> has a reciprocal of
+    /// at least 1e256 over the working width, about 7.4e101, so all of them overflow - the same
+    /// answer they reached before by underflowing to a zero power, arrived at from the result.
     /// </para>
     /// </remarks>
     private static BigDecimal Reciprocal(ReadOnlySpan<ulong> power, int powerLength, int powerScale, bool isNegative)

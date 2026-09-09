@@ -382,7 +382,7 @@ public readonly partial struct BigDecimal
             scale = 0;
         }
 
-        if (!TryReduce(magnitude, ref length, ref scale, WordCount, MaxDigits, isNegative, allowNegativeScale: false))
+        if (!TryReduce(magnitude, ref length, ref scale, WordCount, MaxDigits, MaxScale, isNegative, allowNegativeScale: false))
         {
             return false;
         }
@@ -408,7 +408,19 @@ public readonly partial struct BigDecimal
     /// <paramref name="maxDigits"/> is not derived from <paramref name="maxWords"/> because it is
     /// not the same question: every 77-digit value fits four words and only some 78-digit ones do,
     /// so a result that has to be reduced is reduced into the band where every value of that width
-    /// fits. The caller states both.
+    /// fits. The caller states both. It states them as a pair, though, and the pair has to be the
+    /// one the width actually gives: a magnitude no wider than <paramref name="maxWords"/> carries
+    /// at most <paramref name="maxDigits"/> + 1 digits. That is what makes it safe to widen the
+    /// excess to the digit band only when the magnitude is too wide - entering the loop for the
+    /// scale alone gives up at least one digit, which lands inside the band on its own - and it is
+    /// what a third caller would have to preserve.
+    /// </para>
+    /// <para>
+    /// <paramref name="maxScale"/> is the third number of that width and not a property of the
+    /// type: a working value is capped where the cap cannot decide anything, and only a result is
+    /// capped at <see cref="MaxScale"/>. Rounding an intermediate to the result's scale would
+    /// round twice, and would hand back a value already reduced at a width where 78 digits are
+    /// inside the band, which the caller that packs it cannot tell from one that never was.
     /// </para>
     /// <para>
     /// <paramref name="allowNegativeScale"/> is what separates a result from a working value. A
@@ -426,18 +438,19 @@ public readonly partial struct BigDecimal
         ref int scale,
         int maxWords,
         int maxDigits,
+        int maxScale,
         bool isNegative,
         bool allowNegativeScale)
     {
         if (length == 0)
         {
-            scale = Math.Min(scale, MaxScale);
+            scale = Math.Min(scale, maxScale);
             return true;
         }
 
-        while (length > maxWords || scale > MaxScale)
+        while (length > maxWords || scale > maxScale)
         {
-            var excess = Math.Max(scale - MaxScale, 0);
+            var excess = Math.Max(scale - maxScale, 0);
             if (length > maxWords)
             {
                 excess = Math.Max(excess, Words.DecimalDigitCount(magnitude, length) - maxDigits);

@@ -74,10 +74,15 @@ PetToys.BigDecimal.Core
   power is representable, so 1.05 to the 30th comes back as all 61 of its
   digits, where a multiplication loop written by hand rounds at every step. A
   power that does not fit gives up fractional digits half to even, as a product
-  does, and throws only when there are none left. A negative exponent is the
-  reciprocal, to the precision a division without an explicit scale gives, and
-  it answers wherever its own result fits even where the power it inverts does
-  not: Pow(2, -300) is a value, though 2 to the 300th is out of range.
+  does, and throws only when there are none left; it gives them up once, from
+  the exact power, and is reduced into the same 77-digit band as any other
+  result that did not fit, for as long as it has fractional digits to give. A
+  reduction that reaches scale 0 stops there, so a power with no fraction left
+  can still come back at the 78 digits the mantissa holds. A negative exponent
+  is the reciprocal, to the precision a division without an explicit scale
+  gives, and it answers wherever its own result fits even where the power it
+  inverts does not: Pow(2, -300) is a value, though 2 to the 300th is out of
+  range.
 - Arithmetic, comparison and parsing are faster, by 3% to 25% depending on the
   operation and the width of its operands. Every operation prepared its working
   buffer by zeroing memory the runtime had already zeroed; the largest gains are
