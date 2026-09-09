@@ -78,6 +78,36 @@ public sealed class ScaleAndRoundingTests
     }
 
     [Fact]
+    public void AReductionClampedByTheScale_KeepsWhatFits()
+    {
+        // The sum needs 79 digits at scale 1. The band asks for two of them and the scale has one
+        // to give, so the reduction stops at the decimal point without having reached 77. What is
+        // left fits the mantissa and is the exact sum, and refusing it would refuse an answer the
+        // type can hold: 78 digits at scale 0 therefore says the value fits and nothing at all
+        // about whether it was reduced.
+        var left = BigDecimal.FromScaled(5 * BigInteger.Pow(10, 76), 1);
+        var right = BigDecimal.FromScaled(BigInteger.Pow(10, 77), 0);
+
+        var sum = left + right;
+
+        sum.GetMantissa().Should().Be(105 * BigInteger.Pow(10, 75));
+        sum.Scale.Should().Be(0);
+        sum.Precision.Should().Be(78);
+    }
+
+    [Fact]
+    public void AReductionWithNothingLeftToGiveThatStillDoesNotFit_Throws()
+    {
+        // The mirror of the case above, and the edge it must not move: at scale 0 there is nothing
+        // to give up and the sum is past the mantissa, so it is refused rather than truncated.
+        var value = BigDecimal.FromScaled(BigInteger.Pow(10, 77), 0);
+
+        var act = () => value + value;
+
+        act.Should().Throw<OverflowException>();
+    }
+
+    [Fact]
     public void RoundingCarry_PropagatesIntoTheIntegerPart()
     {
         Text(BigDecimal.Round(Parse("9.99"), 1)).Should().Be("10.0");

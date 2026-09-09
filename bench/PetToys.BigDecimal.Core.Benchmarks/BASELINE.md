@@ -55,6 +55,14 @@ those runs did not happen on the newer build. Nothing else in it moved.
 | Q   | 2026-09-08 | `*Wire*`                 | `db-interop`, as it ships  | 17 min |
 | R   | 2026-09-09 | `*WireWrite*`            | `db-interop`, as it ships  | 4 min  |
 | S   | 2026-09-09 | `*Wire*`                 | `db-interop`, as it ships  | 9 min  |
+| T   | 2026-09-09 | `*PowerUnderOne*`        | `pow-rounds-once`, as it ships | 1 min  |
+| U   | 2026-09-09 | `*PowerUnderOne*`        | `pow-rounds-once`, as it ships | 1 min  |
+| V   | 2026-09-09 | `*PowerUnderOne*`        | `pow-rounds-once`, as it ships | 1 min  |
+| W   | 2026-09-09 | `*PowerUnderOne*`        | `ab80267`, the code being replaced | 1 min  |
+| X   | 2026-09-09 | `*PowerUnderOne*`        | `ab80267`, the code being replaced | 1 min  |
+| Y   | 2026-09-09 | `*PowerUnderOne*`        | `ab80267`, the code being replaced | 1 min  |
+| Z   | 2026-09-09 | `*MultiplyBenchmarks*`   | `pow-rounds-once`, as it ships | 3 min  |
+| AA  | 2026-09-09 | `*DivideBenchmarks*`     | `pow-rounds-once`, as it ships | 3 min  |
 
 Run A was taken on the `formatting-parity` work before it merged, which differs
 from `c33486b` only in the formatting path, so the rows below that are not
@@ -70,6 +78,58 @@ the table says. What D was good for is below.
 A third run of the same four classes sits between them and produced nothing: eleven
 minutes, six of its eight baseline arms inflated the way D's five were. It is named
 here because a discarded run that goes unnamed is a run somebody repeats.
+
+Runs T through AA are `pow-rounds-once`'s: one comparison measured three times on each
+arm, and a control. The change moves the power chain's scale cap off `MaxScale` onto a
+wider one of its own, so that the chain stops rounding an intermediate to the result's
+scale.
+
+`PowerBenchmarks` cannot answer it and never could. Its three bases are all a little above
+one, and a working value of at least one carries at least as many digits as its scale, so
+the digit term of the reduction always dominates the scale term and neither cap decides
+anything: simulating the chain over those three bases puts the widest working scale they
+reach at 153 against the old cap of 255, and both arms execute identically. A class named
+for an operation is not a class that covers the operation's regimes.
+`PowerUnderOneBenchmarks` is added for the regime the cap does govern, and is deliberately
+outside the budget subset because no acceptance criterion is read from it.
+
+The pair, in nanoseconds, three readings each, every row's StdDev under 1% of its mean:
+
+| Exponent | cap 255 (W, X, Y)      | cap 411 (T, U, V)         | means            |
+| -------- | ---------------------- | ------------------------- | ---------------- |
+| 4        | 30.48, 30.44, 30.70    | 29.39, 30.04, 31.29       | 30.54 -> 30.24   |
+| 600      | 824.14, 894.26, 865.38 | 981.97, 1044.69, 1015.83  | 861.3 -> 1014.2  |
+
+At the fourth power the arms are the same code and measure as such: the ranges overlap and
+the new one's mean is 1% lower. At the six hundredth they do not overlap at all - the
+slowest old reading is 894 and the fastest new one 982 - so the direction is not in
+question even though the row is noisier than the 5% a repeated run usually holds to.
+**+17.8% on the means, and at least +9.8% taken as the worst new against the best old.**
+
+The cause is not that the chain reduces more; it reduces less. The old cap was also what
+kept the accumulator narrow: for a value near 1e-181 it cut back to about 74 digits and
+four words on every step, where the new one leaves the full 154 digits and eight, and a
+full-width multiplication there is 64 word products against 16. That is the price of the
+correctness rather than a regression to fix, because the digits the old cap discarded
+early are exactly the ones whose loss misrounded the result. No criterion is stated over
+this class, so the number is a cost recorded rather than a verdict passed.
+
+Runs Z and AA are the control on the shared line, and they are `Multiply` and `Divide` for
+the same reason run O used them: the change alters the signature of the reduction helper
+that `TryPack` calls on the path of every operation that produces a value, so an argument
+was added to a call every value pays for. Worst shapes came back at 3.15 (RatioSD 0.05)
+and 5.28 (0.04) against run O's 3.21 (0.03) and 5.33 (0.09), both met with `r + 2s` at
+3.25 against 3.5x and 5.36 against 10x, and zero allocations throughout. The rows below
+keep citing O for those two criteria; Z and AA confirm them rather than replace them.
+
+**One earlier attempt at all of this is not in the table, and is worth a sentence.** The
+same six runs were taken while the machine was not quiet, and the first of them read the
+six hundredth power at 1,943 ns - a 2.2x regression that is not there - with its own
+StdDev at 1.07% of its mean. The tell was beside it rather than in it: the same process
+measured the fourth power at 58.63 ns with a StdDev of 22.6%, and a process disturbed
+enough to double one case is not to be read for another. All six were discarded and
+retaken on a quiet machine, which is what T through AA are. Announce a run and wait for
+the machine before starting it; the estimate is not the point, the quiet is.
 
 Runs E through I are one change's measurement and are worth reading as a sequence. E was
 the full budget run and came back disturbed on the arithmetic and comparison classes and

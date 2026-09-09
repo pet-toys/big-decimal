@@ -196,4 +196,16 @@ public sealed class OracleTests
         BigIntegerOracle.DigitCount(BigIntegerOracle.MaxMagnitude).Should().Be(78);
         BigIntegerOracle.DigitCount(BigInteger.Pow(10, 76)).Should().Be(77);
     }
+
+    [Fact]
+    public void TheRequiredResult_IsAMagnitudeAndAScaleTogether()
+    {
+        // A reduction that stopped one digit wide of the band denotes the same number at a scale
+        // one wider, so a comparison by value alone would pass over it. The whole point of the
+        // 77-digit rule is which of the two a result comes back as.
+        var band = new OracleValue(BigInteger.Pow(10, 76), 254);
+        var oneDigitWide = new OracleValue(BigInteger.Pow(10, 77), 255);
+
+        oneDigitWide.Should().NotBe(band);
+    }
 }
