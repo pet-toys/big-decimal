@@ -44,7 +44,7 @@ body:
     attributes:
       label: Package version
       description: Which version of the selected package are you using?
-      placeholder: "1.0.0-dev.1"
+      placeholder: "1.0.0-dev.2"
     validations:
       required: true
   - type: dropdown
