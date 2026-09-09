@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 using System.Numerics;
 
@@ -41,4 +42,33 @@ public readonly record struct OracleValue(BigInteger Unscaled, int Scale)
     /// <summary>Describes the value for a failure message.</summary>
     /// <returns>The mantissa and the scale.</returns>
     public override string ToString() => string.Create(CultureInfo.InvariantCulture, $"{Unscaled}e-{Scale}");
+
+    /// <summary>
+    /// Renders the value in plain decimal notation, with exactly <see cref="Scale"/> digits after
+    /// the point.
+    /// </summary>
+    /// <remarks>
+    /// This is what a database server prints for a value carrying this mantissa and this scale, and
+    /// the server's own rendering is what the differential tests compare against. It is composed
+    /// from <see cref="BigInteger"/> alone: comparing against the type's own formatter would put
+    /// the formatter on trial in a test about a wire format, and would agree with a codec that had
+    /// dropped the scale in the same direction.
+    /// </remarks>
+    /// <returns>The value as a server prints it.</returns>
+    public string ToDecimalString()
+    {
+        var digits = BigInteger.Abs(Unscaled).ToString(CultureInfo.InvariantCulture);
+        var sign = Unscaled.Sign < 0 ? "-" : string.Empty;
+
+        if (Scale == 0)
+        {
+            return sign + digits;
+        }
+
+        // A magnitude shorter than the scale is entirely below the point, and the leading zero is
+        // printed rather than implied.
+        digits = digits.PadLeft(Scale + 1, '0');
+
+        return string.Concat(sign, digits.AsSpan(0, digits.Length - Scale), ".", digits.AsSpan(digits.Length - Scale));
+    }
 }
