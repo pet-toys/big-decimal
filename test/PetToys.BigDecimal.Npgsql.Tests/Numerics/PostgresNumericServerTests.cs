@@ -27,9 +27,9 @@ namespace PetToys.BigDecimal.Numerics;
 /// The reading direction is the interesting one for that reason, and it comes first below.
 /// </para>
 /// </remarks>
-/// <param name="server">The server, one per assembly, started on first use.</param>
+/// <param name="server">The server, one per this class, started on first use.</param>
 [Trait(TestCategories.TraitName, TestCategories.Integration)]
-public sealed class PostgresNumericServerTests(PostgresServer server)
+public sealed class PostgresNumericServerTests(PostgresServer server) : IClassFixture<PostgresServer>
 {
     /// <summary>The largest magnitude the type holds: every 77-digit value fits, and this
     /// 78-digit one is the last that does.</summary>

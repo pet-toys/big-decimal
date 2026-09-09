@@ -35,9 +35,9 @@ namespace PetToys.BigDecimal.Numerics;
 /// problem to name, not this layer's.
 /// </para>
 /// </remarks>
-/// <param name="server">The server, one per assembly, started on first use.</param>
+/// <param name="server">The server, one per this class, started on first use.</param>
 [Trait(TestCategories.TraitName, TestCategories.Integration)]
-public sealed class ClickHouseDecimalServerTests(ClickHouseServer server)
+public sealed class ClickHouseDecimalServerTests(ClickHouseServer server) : IClassFixture<ClickHouseServer>
 {
     /// <summary>Each width with the column it is declared as, the scale used here, and the number
     /// of digits ClickHouse itself allows at that width.</summary>

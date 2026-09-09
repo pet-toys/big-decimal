@@ -9,12 +9,10 @@ using System.Threading.Tasks;
 using Testcontainers.ClickHouse;
 using Xunit;
 
-[assembly: AssemblyFixture(typeof(PetToys.BigDecimal.Numerics.Harness.ClickHouseServer))]
-
 namespace PetToys.BigDecimal.Numerics.Harness;
 
 /// <summary>
-/// The ClickHouse the wire format is checked against, one per assembly.
+/// The ClickHouse the wire format is checked against, one per test class that asks for it.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -30,11 +28,12 @@ namespace PetToys.BigDecimal.Numerics.Harness;
 /// on the wire. The driver's own mapping belongs to the adapter that will ship it.
 /// </para>
 /// <para>
-/// The container starts on first use rather than when the fixture is built. An assembly fixture is
-/// initialised before any test in the assembly runs, so an eager start would demand Docker of every
-/// leg that merely happens to include this project - including the macOS and Windows legs, which
-/// have no Docker at all and which exclude these tests by category anyway. Starting it from the
-/// first test that actually needs a server keeps that cost where the need is.
+/// It is a class fixture rather than an assembly one, which is how the rest of the fleet scopes a
+/// container. A class the category filter removed is never constructed, so a leg that excludes
+/// these tests never reaches Docker at all, whatever the runner has. The container is also created
+/// and started on first use rather than when the fixture is built, because building one resolves
+/// the Docker endpoint and throws where there is none: that keeps a developer without Docker on a
+/// skip rather than on a constructor that fails.
 /// </para>
 /// <para>
 /// Starting the container is how availability is decided, because Testcontainers exposes no
