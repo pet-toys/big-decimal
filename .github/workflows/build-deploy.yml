@@ -25,15 +25,64 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Runs before anything else so that a bad release fails in seconds rather
+  # than after the full test matrix. The release is already published by the
+  # time this workflow starts, so neither check can prevent a mistake, only
+  # stop it from reaching a feed.
+  validate:
+    name: validate
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+    - name: Validate the release tag
+      id: version
+      env:
+        TAG_NAME: ${{ github.event.release.tag_name }}
+        IS_PRERELEASE: ${{ github.event.release.prerelease }}
+      run: |
+        # beta is deliberately absent: prerelease identifiers order as strings,
+        # so beta would sort below dev. The ladder that stays ordered is
+        # dev, then preview, then rc, then the release itself.
+        pattern='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(dev|rc|preview)\.(0|[1-9][0-9]*))?$'
+        if [[ ! $TAG_NAME =~ $pattern ]]; then
+          echo "::error title=Malformed release tag::'$TAG_NAME' is not a v-prefixed semantic version. Expected v1.2.3, or a prerelease such as v1.2.3-dev.4 (dev, preview, rc)."
+          exit 1
+        fi
+
+        version="${TAG_NAME#v}"
+
+        # Which feed a package reaches is decided by the release's prerelease
+        # checkbox and not by the tag, so the two can disagree silently: a
+        # v1.0.0-dev.1 published with the box unticked lands on nuget.org, and a
+        # v1.0.0 published with it ticked never leaves GitHub Packages. Neither
+        # is reversible once pushed.
+        if [[ $version == *-* ]]; then
+          tagged_as_prerelease=true
+        else
+          tagged_as_prerelease=false
+        fi
+
+        if [[ $tagged_as_prerelease != "$IS_PRERELEASE" ]]; then
+          echo "::error title=Release flag does not match the tag::'$TAG_NAME' carries prerelease=$tagged_as_prerelease, but the GitHub release is marked prerelease=$IS_PRERELEASE. The checkbox picks the feed: ticked publishes to GitHub Packages, unticked publishes to nuget.org. Edit the release to agree with the tag and publish it again."
+          exit 1
+        fi
+
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
   test:
     name: test
+    needs: validate
     uses: ./.github/workflows/test.yml
 
   build:
-    needs: test
+    needs: [validate, test]
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      PACKAGE_VERSION: ${{ needs.validate.outputs.version }}
 
     steps:
     - name: Checkout
@@ -44,22 +93,26 @@ jobs:
       with:
         global-json-file: global.json
 
-    - name: Version
-      env:
-        TAG_NAME: ${{ github.event.release.tag_name }}
-      run: |
-        pattern='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(dev|rc|beta|preview)\.(0|[1-9][0-9]*))?$'
-        if [[ ! $TAG_NAME =~ $pattern ]]; then
-          echo "::error title=Malformed release tag::'$TAG_NAME' is not a v-prefixed semantic version. Expected v1.2.3, or a prerelease such as v1.2.3-dev.4 (dev, rc, beta, preview)."
-          exit 1
-        fi
-        echo "PACKAGE_VERSION=${TAG_NAME#v}" >> "$GITHUB_ENV"
-
     - name: Restore
       run: dotnet restore ${{ env.SolutionToPack }}
 
     - name: Build
       run: dotnet build ${{ env.SolutionToPack }} --configuration Release --no-restore -p:Version=${{ env.PACKAGE_VERSION }}
+
+    # Before the pack, because the packed <releaseNotes> is generated from the
+    # same file: PreparePackageReleaseNotesFromFile overwrites the property
+    # unconditionally, so an empty file ships as empty notes rather than as an
+    # obvious omission, and `gh release edit` below would then wipe the release
+    # body with it.
+    - name: Export the release notes
+      run: |
+        notes="${{ runner.temp }}/release-notes.txt"
+        dotnet msbuild ${{ env.ReleaseNotesProject }} \
+          --target:ExportPackageReleaseNotes -p:ReleaseNotesExportPath="$notes"
+        if [[ ! -s $notes ]]; then
+          echo "::error title=Empty release notes::assets/RELEASE-NOTES.txt exported nothing for $PACKAGE_VERSION. It is the only source of the packed <releaseNotes> and of the GitHub release body."
+          exit 1
+        fi
 
     - name: Pack
       run: dotnet pack ${{ env.SolutionToPack }} --configuration Release  --no-build --include-symbols --output ${{ github.workspace }}/${{ env.PackagesSubfolder }} -p:PackageVersion=${{ env.PACKAGE_VERSION }}
@@ -68,9 +121,7 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
         TAG_NAME: ${{ github.event.release.tag_name }}
-      run: |
-        dotnet msbuild ${{ env.ReleaseNotesProject }} --target:ExportPackageReleaseNotes -p:ReleaseNotesExportPath="${{ runner.temp }}/release-notes.txt"
-        gh release edit "$TAG_NAME" --notes-file "${{ runner.temp }}/release-notes.txt"
+      run: gh release edit "$TAG_NAME" --notes-file "${{ runner.temp }}/release-notes.txt"
 
     - name: Upload artifacts
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
