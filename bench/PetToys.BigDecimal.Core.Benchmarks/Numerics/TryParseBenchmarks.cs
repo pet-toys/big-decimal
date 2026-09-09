@@ -10,7 +10,7 @@ namespace PetToys.BigDecimal.Numerics;
 /// The input is prepared in <see cref="Setup"/>, which parses it once as each type, through the
 /// throwing overload rather than the non-throwing one measured here. That asymmetry is deliberate:
 /// a failed <c>TryParse</c> returns <see langword="false"/> and leaves zero behind, so an operand
-/// neither type could parse would not stop the run — it would quietly have the baseline measure a
+/// neither type could parse would not stop the run - it would quietly have the baseline measure a
 /// rejection instead of a parse, which is faster, and flatter the ratio. Only the parse itself is
 /// inside the measured method.
 /// </remarks>

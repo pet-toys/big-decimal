@@ -20,8 +20,8 @@ namespace PetToys.BigDecimal.Numerics.Harness;
 /// </para>
 /// <para>
 /// The reflection check is keyed on member names, which is what reflection can compare against a
-/// hand-written list. Overloads whose behaviour differs — parsing from characters and from UTF-8,
-/// division with and without an explicit scale — carry their own entries rather than relying on a
+/// hand-written list. Overloads whose behaviour differs - parsing from characters and from UTF-8,
+/// division with and without an explicit scale - carry their own entries rather than relying on a
 /// sibling's.
 /// </para>
 /// </remarks>

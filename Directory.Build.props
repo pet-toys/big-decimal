@@ -1,7 +1,13 @@
 ﻿<Project>
   <PropertyGroup>
     <Authors>andbaz</Authors>
-    <Copyright>Copyright © 2026 - $([System.DateTime]::UtcNow.ToString(`yyyy`)) $(Authors). All rights reserved.</Copyright>
+    <!-- A range only where there is one to state: the first form rendered
+         "2026 - 2026" for the whole of the first year. -->
+    <CopyrightFirstYear>2026</CopyrightFirstYear>
+    <CopyrightCurrentYear>$([System.DateTime]::UtcNow.ToString(`yyyy`))</CopyrightCurrentYear>
+    <CopyrightYears>$(CopyrightFirstYear)</CopyrightYears>
+    <CopyrightYears Condition="'$(CopyrightCurrentYear)' != '$(CopyrightFirstYear)'">$(CopyrightFirstYear) - $(CopyrightCurrentYear)</CopyrightYears>
+    <Copyright>Copyright © $(CopyrightYears) $(Authors). All rights reserved.</Copyright>
   </PropertyGroup>
 
   <PropertyGroup>

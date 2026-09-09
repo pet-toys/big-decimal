@@ -22,8 +22,8 @@ namespace PetToys.BigDecimal.Numerics;
 /// Semantics follow <see cref="decimal"/> inside <see cref="decimal"/>'s own domain: trailing
 /// zeros are preserved, equality is numeric so that <c>1.0</c> equals <c>1.00</c>, and fractional
 /// digits that do not fit are rounded to nearest with ties to even. The 256-bit magnitude is the
-/// only hard limit: when a value's significant digits do not fit, the scale is reduced — the
-/// fraction rounded away — as far as needed, and only an integer part that still does not fit
+/// only hard limit: when a value's significant digits do not fit, the scale is reduced - the
+/// fraction rounded away - as far as needed, and only an integer part that still does not fit
 /// throws <see cref="OverflowException"/>. There is no wrapping mode and no silent truncation.
 /// Zero is the one deliberate divergence from <see cref="decimal"/>: it never carries a sign.
 /// </para>
@@ -121,7 +121,7 @@ public readonly partial struct BigDecimal
     public static BigDecimal NegativeInfinity => new(NonFiniteMask | SignMask);
 
     /// <summary>
-    /// The largest representable value, 2^256-1 at scale 0 — a 78-digit integer.
+    /// The largest representable value, 2^256-1 at scale 0 - a 78-digit integer.
     /// </summary>
     public static BigDecimal MaxValue => new(ulong.MaxValue, ulong.MaxValue, ulong.MaxValue, ulong.MaxValue, false, 0);
 

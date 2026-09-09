@@ -12,7 +12,7 @@ namespace PetToys.BigDecimal.Numerics.Harness;
 /// Nothing here consults <see cref="BigDecimal"/> or its internals. An oracle written by reading
 /// the code under test agrees with it by construction, including where it is wrong, which is worth
 /// nothing. When this disagrees with the implementation, the documented rule decides which one moves
-/// — and if the specification is silent, it gets written before either does.
+/// - and if the specification is silent, it gets written before either does.
 /// </para>
 /// <para>
 /// Every reduction rounds once, from the full exact input. Rounding to an intermediate scale first
@@ -119,8 +119,8 @@ public static class BigIntegerOracle
     }
 
     /// <summary>
-    /// Takes the remainder of a division. When the division does not happen — the dividend is zero,
-    /// or smaller in magnitude than the divisor — the dividend comes back untouched, at its own
+    /// Takes the remainder of a division. When the division does not happen - the dividend is zero,
+    /// or smaller in magnitude than the divisor - the dividend comes back untouched, at its own
     /// scale rather than at the wider of the two.
     /// </summary>
     /// <param name="left">The dividend.</param>
@@ -290,7 +290,7 @@ public static class BigIntegerOracle
 
         while (true)
         {
-            // Rounding can carry — 999 becomes 1000 — so the fit is rechecked rather than assumed
+            // Rounding can carry - 999 becomes 1000 - so the fit is rechecked rather than assumed
             // after one reduction.
             if (magnitude <= MaxMagnitude && scale <= MaxScale)
             {
@@ -318,7 +318,7 @@ public static class BigIntegerOracle
             // by the digit count leaves at most 10^77, which is inside the mantissa even when the
             // rounding carries, and one driven by the scale is clamped to the scale, so the only
             // way back here is with nothing left to give and an overflow to report. The recheck is
-            // therefore a guard rather than a path — and a guard that rounded a rounded value would
+            // therefore a guard rather than a path - and a guard that rounded a rounded value would
             // be the very defect this reference exists to catch, written into the reference.
             magnitude = DivideRound(exact, Pow10(exactScale - scale), sign, MidpointRounding.ToEven);
         }

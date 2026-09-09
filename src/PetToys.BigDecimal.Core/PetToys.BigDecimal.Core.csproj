@@ -10,8 +10,8 @@
   </PropertyGroup>
 
   <PropertyGroup Label="NuGet package">
-    <Description>A 256-bit decimal floating-point value type for .NET that represents the large PostgreSQL numeric and ClickHouse Decimal values .NET decimal cannot — stack-only, allocation-free, and exact to 77 significant digits.</Description>
-    <PackageTags>bigdecimal;decimal;numeric;numerics;arbitrary-precision</PackageTags>
+    <Description>A 256-bit decimal floating-point value type for .NET that represents the large PostgreSQL numeric and ClickHouse Decimal values .NET decimal cannot - stack-only, allocation-free, and exact to 77 significant digits.</Description>
+    <PackageTags>bigdecimal;decimal;numeric;numerics;arbitrary-precision;postgresql;clickhouse</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

@@ -2,6 +2,12 @@
 
   <PropertyGroup>
     <TargetFrameworks>$(TargetFrameworkVersions)</TargetFrameworks>
+    <!-- The ClickHouse mapping surface does not exist yet. Packing it would ship an
+         assembly with no types in it, carrying a description that promises helpers
+         and a hard dependency on the driver. The project stays in
+         big-decimal.build.slnf so the release path keeps compiling it; set this
+         back to true in the change that adds the first public type. -->
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <PropertyGroup Label="NuGet package">

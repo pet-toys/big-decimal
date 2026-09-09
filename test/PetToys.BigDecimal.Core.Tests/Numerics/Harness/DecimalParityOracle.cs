@@ -11,8 +11,8 @@ namespace PetToys.BigDecimal.Numerics.Harness;
 /// <remarks>
 /// <see cref="decimal"/> holds 28 or 29 significant digits, which is the domain this package exists
 /// to escape, so it can never be the primary reference. It is authoritative about exactly the
-/// things parity is claimed for — the five rounding modes, how lenient parsing is about group
-/// separators, and culture-sensitive output — and where both oracles apply they have to agree.
+/// things parity is claimed for - the five rounding modes, how lenient parsing is about group
+/// separators, and culture-sensitive output - and where both oracles apply they have to agree.
 /// </remarks>
 public static class DecimalParityOracle
 {

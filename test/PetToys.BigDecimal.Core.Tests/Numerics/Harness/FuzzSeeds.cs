@@ -8,7 +8,7 @@ namespace PetToys.BigDecimal.Numerics.Harness;
 /// <remarks>
 /// The mix is FNV-1a over the identity, the row index and the base seed. It has to be written out
 /// rather than delegated to <see cref="string.GetHashCode()"/>, whose value is randomised per
-/// process — the one thing a reproducible seed cannot tolerate. The result is masked to a
+/// process - the one thing a reproducible seed cannot tolerate. The result is masked to a
 /// non-negative value so that the seed a failure reports is the seed a reader types back in.
 /// </remarks>
 public static class FuzzSeeds

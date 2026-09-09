@@ -32,7 +32,7 @@ body:
     attributes:
       label: Reproduction
       description: >-
-        A minimal code sample — the literal, parsed text, or column value that
+        A minimal code sample - the literal, parsed text, or column value that
         goes in, the operation performed on it, and the result you observed.
         For a database issue, include the column type (for example,
         numeric(40,20) or Decimal128(20)) as well.
@@ -44,7 +44,7 @@ body:
     attributes:
       label: Package version
       description: Which version of the selected package are you using?
-      placeholder: "10.0.0"
+      placeholder: "1.0.0-dev.1"
     validations:
       required: true
   - type: dropdown
@@ -63,6 +63,6 @@ body:
     id: context
     attributes:
       label: Additional context
-      description: Anything else that might help — logs, environment details, screenshots.
+      description: Anything else that might help - logs, environment details, screenshots.
     validations:
       required: false

@@ -10,7 +10,7 @@ namespace PetToys.BigDecimal.Numerics.Harness;
 /// <para>
 /// Never collect inside or before the window. <see cref="GC.GetAllocatedBytesForCurrentThread"/>
 /// is a monotonic per-thread total that a collection does not reset, and a gen2 collection
-/// <em>trims</em> <see cref="System.Buffers.ArrayPool{T}.Shared"/> — so the next rent inside the
+/// <em>trims</em> <see cref="System.Buffers.ArrayPool{T}.Shared"/> - so the next rent inside the
 /// window allocates a fresh buffer and the measurement reports bytes the operation did not cause.
 /// That is what made a UTF-8 parse measurement report exactly 1 048 bytes, the size of a
 /// <c>char[512]</c>, on macOS arm64 and nowhere else.
@@ -18,7 +18,7 @@ namespace PetToys.BigDecimal.Numerics.Harness;
 /// <para>
 /// The operation runs once before the window so that just-in-time compilation and static
 /// initialisation are not counted, results go through <see cref="Sink"/> rather than an
-/// <see cref="object"/> so that nothing boxes, and the assertion is left to the caller — an
+/// <see cref="object"/> so that nothing boxes, and the assertion is left to the caller - an
 /// assertion-library call inside the window measures the assertion library.
 /// </para>
 /// </remarks>

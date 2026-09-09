@@ -3,8 +3,8 @@
 [![NuGet Version][nuget-v-badge]][nuget-url] [![NuGet Downloads][nuget-dt-badge]][nuget-url] [![Unit Test][test-badge]][test-url] [![Target frameworks][dotnet-badge]][nuget-url] [![License][license-badge]][license-url]
 
 PostgreSQL helpers for [`PetToys.BigDecimal.Core`][core-url]: they map the
-arbitrary `numeric` values that PostgreSQL allows — and that `decimal` cannot
-hold — onto `BigDecimal` when reading and writing through [Npgsql][npgsql-home].
+arbitrary `numeric` values that PostgreSQL allows - and that `decimal` cannot
+hold - onto `BigDecimal` when reading and writing through [Npgsql][npgsql-home].
 
 Bring your own configured `NpgsqlConnection` or data source; this package only
 deals with the value mapping.

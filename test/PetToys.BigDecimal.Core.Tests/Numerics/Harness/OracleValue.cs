@@ -9,7 +9,7 @@ namespace PetToys.BigDecimal.Numerics.Harness;
 /// </summary>
 /// <remarks>
 /// Both halves are compared. Two values that are numerically equal but carry different scales are
-/// different <see cref="OracleValue"/>s, which is the point — scale is half of what
+/// different <see cref="OracleValue"/>s, which is the point - scale is half of what
 /// <see cref="BigDecimal"/> promises, and an oracle that reduced to a rational number would be
 /// blind to exactly the half that is hardest to get right.
 /// </remarks>
@@ -32,7 +32,7 @@ public readonly record struct OracleValue(BigInteger Unscaled, int Scale)
 
     /// <summary>
     /// Reads what the type under test actually produced. This is an observation of the result, not
-    /// a source of expected values — the oracle never calls it to compute one.
+    /// a source of expected values - the oracle never calls it to compute one.
     /// </summary>
     /// <param name="value">The value to describe.</param>
     /// <returns>Its mantissa and scale.</returns>

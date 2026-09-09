@@ -16,27 +16,32 @@ be discussed before you invest time in a pull request.
 
 ## Repository layout
 
-The solution ([`big-decimal.slnx`](../big-decimal.slnx)) holds three shipping
-packages and one test project each:
+The solution ([`big-decimal.slnx`](../big-decimal.slnx)) holds three projects
+under `src/` and one test project each:
 
-| Project | Package |
-| ------- | ------- |
-| `src/PetToys.BigDecimal.Core` | The `BigDecimal` type. No runtime dependencies. |
-| `src/PetToys.BigDecimal.Npgsql` | PostgreSQL `numeric` helpers, on top of Npgsql. |
-| `src/PetToys.BigDecimal.ClickHouse` | ClickHouse `Decimal*` helpers, on top of ClickHouse.Driver. |
+| Project | Contents |
+| ------- | -------- |
+| `src/PetToys.BigDecimal.Core` | The `BigDecimal` type. No runtime dependencies. Published. |
+| `src/PetToys.BigDecimal.Npgsql` | PostgreSQL `numeric` helpers, on top of Npgsql. Not implemented yet. |
+| `src/PetToys.BigDecimal.ClickHouse` | ClickHouse `Decimal*` helpers, on top of ClickHouse.Driver. Not implemented yet. |
+
+The two integration projects are placeholders: they carry a project file, a
+README and a test project, and no code. Both set `IsPackable=false` so that the
+release pipeline keeps compiling them without publishing an empty assembly. The
+change that adds the first public type to one of them sets that back to `true`.
 
 `PetToys.BigDecimal.Core` is the only project whose folder name is not its
 namespace root: it and its test project pin `RootNamespace` to
 `PetToys.BigDecimal`, because the `.Core` suffix distinguishes the package and
 would be noise in the API. A new file there belongs in the namespace its folder
-implies below that root — `Numerics/Foo.cs` in `PetToys.BigDecimal.Numerics` —
+implies below that root - `Numerics/Foo.cs` in `PetToys.BigDecimal.Numerics` -
 and a `Release` build fails on IDE0130 if it is not.
 
 Two solution filters narrow the build: `big-decimal.build.slnf` (the packages
 only, which is what the release pipeline packs) and `big-decimal.tests.slnf`
 (the test projects, which is what CI runs).
 
-Each package has its own `README.md` next to the project file — that file is the
+Each package has its own `README.md` next to the project file - that file is the
 one shipped inside the `.nupkg`. The repository-root `README.md` is the landing
 page and is not packed.
 
@@ -65,6 +70,23 @@ The integration tests spin up real PostgreSQL and ClickHouse instances with
 required to execute them. They are tagged `Category=Integration`; CI skips them
 with `--filter Category!=Integration`, and you can do the same for an offline
 run.
+
+Arithmetic, formatting and parsing are also covered by a randomised suite that
+checks every result against a `BigInteger` or `System.Decimal` oracle. It is
+deterministic by default, so an unconfigured run executes the same cases
+everywhere and a failure reports the seed that produced it. Two environment
+variables turn it into a soak: `BIGDECIMAL_FUZZ_CASES` raises the case count per
+test from 2000, and `BIGDECIMAL_FUZZ_SEED` moves it onto ground the default run
+never visits.
+
+```bash
+BIGDECIMAL_FUZZ_SEED=305441741 BIGDECIMAL_FUZZ_CASES=100000 dotnet test big-decimal.tests.slnf
+```
+
+The harness has a README of its own next to it, in
+`test/PetToys.BigDecimal.Core.Tests/Numerics/Harness`. Read it before adding an
+oracle: an oracle that reads the implementation it checks agrees with it by
+construction, including where it is wrong.
 
 Package versions are managed centrally
 ([`Directory.Packages.props`](../Directory.Packages.props) for the packages,
@@ -110,7 +132,7 @@ spells out its `using` directives.
 Tests use xUnit and follow the `Method_State_ExpectedResult` naming pattern
 (for example, `Parse_MoreFractionalDigitsThanScale_RoundsHalfToEven`). Keep test
 data close to the tests that use it, and prefer deterministic tests over ones
-that depend on a container, the network, or timing — cover the arithmetic and
+that depend on a container, the network, or timing - cover the arithmetic and
 formatting rules with plain in-memory cases and reserve the Testcontainers-based
 tests for the actual database round trip.
 

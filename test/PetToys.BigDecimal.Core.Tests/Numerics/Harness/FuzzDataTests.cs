@@ -114,7 +114,7 @@ public sealed class FuzzDataTests
     public void TheCategory_IsVisibleBeforeTheTestRuns()
     {
         // Rows are produced when a randomised test runs, not when it is discovered, so a trait
-        // carried only by the rows is invisible to a runner filtering by trait — and the workflow's
+        // carried only by the rows is invisible to a runner filtering by trait - and the workflow's
         // off switch would silently do nothing.
         var traits = new FuzzDataAttribute().GetTraits();
 
