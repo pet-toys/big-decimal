@@ -71,6 +71,33 @@ matrix are deterministic and carry no category, so a future decision to drop the
 randomised tests from continuous integration - one clause in the workflow's
 filter - cannot take them along.
 
+## The server layer
+
+The two wire codecs have a fourth layer that does not live here. The vectors, the
+`BigInteger` oracle and the round trip over the corpus all share our reading of
+the documented layout with the code they check, so a misreading of it would be
+invisible to all three: the oracle would compose the same wrong bytes the codec
+writes. Only a real server disproves that, and the tests that ask one live in
+`test/PetToys.BigDecimal.Npgsql.Tests` and `test/PetToys.BigDecimal.ClickHouse.Tests`
+under `Numerics/`, carrying `Category=Integration`.
+
+The rule there is the same one as here, one step further out. The server is the
+oracle, and our own decoder never judges our own encoder: the server composes the
+payload for a value it was given as text, we decode that, and separately we
+encode and let the server render what it stored. The payload crosses by a route
+that converts nothing - a raw binary `COPY` stream for PostgreSQL, `RowBinary`
+over the HTTP interface for ClickHouse - so no driver stands between the codec
+and the bytes. `WireFormatOracle` and `ValueGenerator` are reused from here
+rather than copied, which is why those projects reference this one.
+
+It reaches two things the layers here cannot. A payload composed by the server
+for a value larger than this type holds, or with a longer fraction than the scale
+carries, exercises the overflow and rounding contract from the side that
+originates it. And the servers disagree about what text is: PostgreSQL renders
+the display scale, trailing zeros included, while ClickHouse trims them and
+prints a bare `0` for zero, because there the scale lives in the column type and
+nowhere in the value.
+
 ## Adding public surface
 
 `AllocationInventory` lists every operation held to the zero-allocation
