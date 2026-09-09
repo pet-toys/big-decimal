@@ -65,11 +65,22 @@ same issues CI will. `Debug` builds additionally enable
 `CheckForOverflowUnderflow`, so run the tests in `Debug` too when you touch
 arithmetic.
 
-The integration tests spin up real PostgreSQL and ClickHouse instances with
-[Testcontainers](https://testcontainers.com/), so a running Docker engine is
-required to execute them. They are tagged `Category=Integration`; CI skips them
-with `--filter Category!=Integration`, and you can do the same for an offline
-run.
+The integration tests check both database wire formats against the servers that
+define them, and they spin up real PostgreSQL and ClickHouse instances with
+[Testcontainers](https://testcontainers.com/) to do it. A running Docker engine
+executes them; without one they skip, with a reason naming the server, and the
+rest of the suite still passes, so an offline `dotnet test` is green rather than
+red. On a continuous integration runner the same state is a failure instead - a
+leg that skipped every server test would otherwise report success over a suite
+that ran nothing - and the switch is the `CI` environment variable, which GitHub
+Actions always sets.
+
+They are tagged `Category=Integration`, which the three legs of `test.yml`
+exclude with `--filter Category!=Integration`; you can do the same for a run
+without Docker, though skipping does it for you. They have a leg of their own,
+`integration.yml`, over `big-decimal.integration.slnf`. It is deliberately not a
+job in `test.yml`: that workflow is called by the release pipeline, so a
+container that fails to pull would block publishing a package.
 
 Arithmetic, formatting and parsing are also covered by a randomised suite that
 checks every result against a `BigInteger` or `System.Decimal` oracle. It is

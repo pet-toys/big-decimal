@@ -18,6 +18,14 @@
     <InternalsVisibleTo Include="PetToys.BigDecimal.Core.Tests" />
     <InternalsVisibleTo Include="PetToys.BigDecimal.ClickHouse" />
     <InternalsVisibleTo Include="PetToys.BigDecimal.Npgsql" />
+    <!-- The two adapter test projects reach the codecs directly, because the differential
+         tests against a live server check the wire format itself rather than a mapping
+         over it, and the adapter code that would legitimately stand in the middle does
+         not exist yet. The access is meant to outlive those adapters: a test that states
+         what the wire carries should say it in terms of the wire and not through whatever
+         the handler happens to expose. -->
+    <InternalsVisibleTo Include="PetToys.BigDecimal.ClickHouse.Tests" />
+    <InternalsVisibleTo Include="PetToys.BigDecimal.Npgsql.Tests" />
     <!-- The benchmarks, unlike the three above, are not a consumer: they are here so that the
          wire codecs can be measured as they ship rather than as a copy. DivisionPrimitiveBenchmarks
          records the opposite call for its own case and it still holds there - copying a thirty-line

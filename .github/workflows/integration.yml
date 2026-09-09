@@ -1,0 +1,58 @@
+name: integration
+
+# The server-backed tests live here rather than in test.yml on purpose, and moving them would cost
+# more than it looks. build-deploy.yml calls test.yml through `uses:` and its build job needs it, so
+# a job added there becomes a gate on publishing a package: a container that fails to pull would
+# block a release. This leg is also not a required status check - the branch ruleset pins the three
+# contexts in test.yml by name, and container startup is the flakiest thing in any of this. What it
+# is for is that the wire formats are checked against the servers that define them before a pull
+# request merges, which no other leg does.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+    - dev
+  pull_request:
+    branches:
+    - dev
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: test-integration
+    runs-on: ubuntu-latest
+
+    # Docker is on the GitHub-hosted Ubuntu runners and on neither of the other two, which is why
+    # this leg is one job rather than a matrix.
+    timeout-minutes: 20
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      with:
+        global-json-file: global.json
+
+    - name: Restore
+      run: dotnet restore big-decimal.integration.slnf
+
+    # No category filter. The solution filter already selects the two projects that hold these
+    # tests, and a filter that matches nothing is a failed run under the Microsoft Testing Platform
+    # rather than an empty one, so filtering again only adds a way to be wrong. One framework: the
+    # bytes are the same on all three, and the codecs are covered on all three by the byte-level
+    # layers in the required legs.
+    #
+    # GitHub Actions sets CI, which the fixtures read: with it set, a server that cannot be started
+    # fails the run instead of skipping the tests, so this leg cannot report success over a suite
+    # that ran nothing.
+    - name: Test
+      run: dotnet test big-decimal.integration.slnf --no-restore --configuration Release --framework net10.0
