@@ -1,3 +1,34 @@
+1.0.0-dev.2
+===========
+
+PetToys.BigDecimal.Npgsql
+
+The PostgreSQL adapter ships. The core package is unchanged in this release.
+
+Added:
+- UseBigDecimal, an extension on NpgsqlDataSourceBuilder,
+  NpgsqlSlimDataSourceBuilder and INpgsqlTypeMapper, mapping PostgreSQL numeric
+  to BigDecimal and numeric[] to BigDecimal[] through the binary wire format and
+  never through System.Decimal. The nullable and List<T> forms come with it, and
+  a binary COPY import uses the same mapping.
+- GetBigDecimal, GetNullableBigDecimal and their asynchronous forms, on
+  NpgsqlDataReader, by ordinal and by column name. A numeric whose integer part
+  is larger than BigDecimal can represent throws OverflowException naming the
+  column; the same read through GetFieldValue throws the same exception without
+  the name, because a converter never learns which column it was handed.
+- NaN, Infinity and -Infinity cross as themselves. The infinities need
+  PostgreSQL 14 or later, which is where numeric gained them.
+
+Notes:
+- Registering the mapping does not change what the driver answers by default. A
+  numeric column read with GetValue is still a System.Decimal and GetFieldType
+  still reports one, so existing code that does not ask for BigDecimal reads
+  exactly what it read before.
+- Npgsql 10.0.3 or later is required. The mapping registers through
+  Npgsql.Internal, the driver's only extension point for a new type.
+
+----------------------------------------------------------------------------
+
 1.0.0-dev.1
 ===========
 
