@@ -115,6 +115,32 @@ public sealed class CopyBinaryFrameTests
         read.Should().Throw<FormatException>();
     }
 
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(int.MaxValue)]
+    public void AHeaderExtensionTheStreamCannotHold_IsRefusedRatherThanRead(int extension)
+    {
+        // The length comes off the wire, so a reader that trusted it would slice from a negative
+        // index or overflow the addition, and either way the span would throw where this file says
+        // a malformed envelope is a FormatException.
+        var mangled = Export(Payload(1, 0));
+        BinaryPrimitives.WriteInt32BigEndian(mangled.AsSpan(15), extension);
+
+        var read = () => CopyBinaryFrame.ReadRows(mangled);
+
+        read.Should().Throw<FormatException>();
+    }
+
+    [Fact]
+    public void AStreamCutShort_IsRefusedRatherThanRead()
+    {
+        var truncated = Export(Payload(12345678, 4))[..^3];
+
+        var read = () => CopyBinaryFrame.ReadRows(truncated);
+
+        read.Should().Throw<FormatException>("a stream that ends mid-row is an envelope fault");
+    }
+
     [Fact]
     public void AStreamOfTheWrongShape_IsRefusedRatherThanRead()
     {

@@ -228,7 +228,7 @@ public sealed class ClickHouseServer : IAsyncDisposable
 
             var rendered = await this.ReadTextAsync($"SELECT toString(v) FROM {table} ORDER BY i FORMAT TabSeparated");
 
-            return rendered.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            return Same(rendered.Split('\n', StringSplitOptions.RemoveEmptyEntries), payloads.Count);
         }
         finally
         {

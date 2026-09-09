@@ -94,8 +94,15 @@ public static class CopyBinaryFrame
 
         Needs(stream, HeaderSize, "a header");
 
+        // Read as a long and checked for a sign, because this length comes off the wire: a negative
+        // one would slice from a negative index and a large one would overflow the addition, and
+        // both would leave a span throwing where this method promises a FormatException.
         var extension = BinaryPrimitives.ReadInt32BigEndian(stream[15..]);
-        Needs(stream, HeaderSize + extension, "the header extension it declares");
+        if (extension < 0 || HeaderSize + (long)extension > stream.Length)
+        {
+            throw new FormatException(
+                $"The header declares an extension of {extension} bytes, and the stream is {stream.Length} bytes long.");
+        }
 
         var cursor = stream[(HeaderSize + extension)..];
 
