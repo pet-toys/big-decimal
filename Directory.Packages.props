@@ -1,4 +1,4 @@
-<Project>
+﻿<Project>
   <PropertyGroup>
     <FrameworkVersion Condition="'$(TargetFramework)' == 'net8.0'">[8.0.0,9.0.0)</FrameworkVersion>
     <FrameworkVersion Condition="'$(TargetFramework)' == 'net9.0'">[9.0.0,10.0.0)</FrameworkVersion>
@@ -10,6 +10,13 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="ClickHouse.Driver" Version="[1.4.0,)" />
+    <!-- The Npgsql floor is not cosmetic. The adapter registers through
+         Npgsql.Internal, which the driver publishes as [Experimental("NPG9001")]
+         and reserves the right to reshape, so the floor has to be the version the
+         registration API was read from and compiled against: 10.0.3, read on
+         2026-09-09. The range stays open at the top per the fleet convention, and
+         the consequence is accepted rather than hidden - a driver major can move
+         the extension point, and the integration leg is what would find it. -->
     <PackageVersion Include="Npgsql" Version="[10.0.3,)" />
   </ItemGroup>
   <ItemGroup>

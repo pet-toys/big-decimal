@@ -52,6 +52,8 @@ public sealed class PostgresServer : IAsyncDisposable
 
     private PostgreSqlContainer? container;
 
+    private NpgsqlDataSource? dataSource;
+
     private readonly SemaphoreSlim gate = new(1, 1);
 
     private bool attempted;
@@ -126,10 +128,41 @@ public sealed class PostgresServer : IAsyncDisposable
         Assert.SkipUnless(this.IsAvailable, this.Unavailable ?? string.Empty);
     }
 
+    /// <summary>
+    /// The connection string for this container, password included.
+    /// </summary>
+    /// <remarks>
+    /// Taken from the container rather than from <see cref="DataSource"/>: Npgsql redacts the
+    /// password from a data source's own connection string, so a second data source built from
+    /// that one cannot authenticate.
+    /// </remarks>
+    public string ConnectionString => this.Started.GetConnectionString();
+
+    /// <summary>
+    /// A data source over this container with the package's own registration applied, for the
+    /// tests that go through the driver rather than around it.
+    /// </summary>
+    /// <remarks>
+    /// Built through <c>UseBigDecimal</c> and not by hand, so that a registration which stopped
+    /// taking effect fails the suite rather than being replaced by the suite. It stands beside the
+    /// raw <c>COPY</c> helpers rather than replacing them: those travel by a route that converts
+    /// nothing, which is what makes a byte assertion mean anything, and this one exists to exercise
+    /// the layer that route deliberately bypasses.
+    /// </remarks>
+    public NpgsqlDataSource DataSource =>
+        this.dataSource ??= new NpgsqlDataSourceBuilder(this.ConnectionString)
+            .UseBigDecimal()
+            .Build();
+
     /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
         this.gate.Dispose();
+
+        if (this.dataSource is not null)
+        {
+            await this.dataSource.DisposeAsync();
+        }
 
         // Whatever was built, started or half-started, is disposed. A container that never
         // reached the daemon disposes to nothing, and one a cancelled attempt left behind is the
