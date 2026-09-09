@@ -3,88 +3,88 @@
 
 PetToys.BigDecimal.Core
 
-- The N format specifier now honours the whole of the culture's group size list,
-  as System.Decimal does. A culture that groups three digits and then two is
-  grouped that way rather than uniformly in threes, a size list ending in zero
-  stops grouping where it says to, and a culture that asks for no grouping gets
-  none rather than groups of three. Output changes under those cultures.
-- Formatting with N no longer allocates. It cost 64 bytes on every call, in the
-  char and the UTF-8 overload alike, and was the last exception to the package's
-  zero-allocation guarantee.
-- Conversion from double and float now takes the shortest decimal form that
-  round-trips, where it took 15 and 7 significant digits before. A double or a
-  float the type can hold comes back unchanged, so (double)(BigDecimal)value
-  returns value. Values that used to arrive rounded now arrive with more digits.
-- The generic conversions honour their own contracts. CreateChecked throws where
-  the value does not fit, CreateSaturating and CreateTruncating clamp to the
-  target's range, and all three ask the other type to convert itself before
-  giving up with NotSupportedException instead of silently returning zero. Half,
-  NFloat and char are recognised in both directions.
-- CreateChecked, CreateSaturating and CreateTruncating are callable on the type
-  itself, as they are on every numeric type in the base class library.
-- New: Precision, the number of decimal digits in the unscaled mantissa, so that
-  a caller can decide whether a value fits a column before writing it.
-- Converting out of the type no longer boxes, and TryParse no longer allocates
-  an exception for a value too large to parse.
-- Formatting now matches System.Decimal across its whole surface. The C, P and R
-  specifiers are accepted where they threw, custom numeric format strings are
-  supported, and G with a precision counts significant digits and switches to
-  scientific notation instead of ignoring the precision.
-- N lays a negative value out by the culture's NumberNegativePattern. A culture
-  that writes (1,234.5) got -1,234.5 before, and C and P follow their own
-  patterns for the first time. Output changes under those cultures.
-- The UTF-8 TryFormat overload is bounded by the destination it is given. It
-  formatted through a 366-character buffer of its own and declined anything
-  longer, so MaxValue with F300 failed into an 8 KB destination while the char
-  overload wrote 379 characters into one the same size.
-- ToString no longer caps a format string at 64 KB of output.
-- Parsing accepts the same white space as System.Decimal, which is a tab,
-  newline, vertical tab, form feed, carriage return or space and nothing else.
-  A leading or trailing non-breaking space, and eighteen other characters that
-  char.IsWhiteSpace accepts, were consumed before and are refused now. Where
-  such a character was also the culture's group separator, a separator
-  standing before the first digit was swallowed with it and the value
-  accepted; the same narrowing fixes both. Input that parsed before may now be
-  refused.
-- New: NaN, PositiveInfinity and NegativeInfinity, with IsNaN, IsInfinity,
-  IsPositiveInfinity, IsNegativeInfinity and IsFinite beside them. PostgreSQL
-  numeric holds all three and the type had no counterpart for any of them.
-  Arithmetic propagates them the way System.Double does, but nothing finite
-  produces one: division by zero still throws DivideByZeroException and an
-  integer part that does not fit still throws OverflowException.
-- Equality and ordering now answer NaN three different ways, as the base class
-  library does. The == operator is false for two NaNs while Equals is true,
-  CompareTo places NaN below every other value so that Array.Sort is well
-  defined, and the four relational operators are all false whenever either
-  side is NaN. Code that compared values through < or <= sees no change unless
-  a NaN reaches it.
-- Parsing accepts the culture's NaN and infinity symbols, without regard to
-  case and whatever the NumberStyles, and formatting renders a non-finite value
-  as that symbol whatever the format string. An unrecognised format specifier
-  returns the symbol for these three values where it still throws for every
-  other value.
-- Converting a non-finite double or float now gives the matching value instead
-  of throwing or flattening. CreateChecked returned OverflowException,
-  CreateSaturating gave Zero for NaN and MaxValue for an infinity, and the cast
-  operator threw; all three now convert. Converting out to decimal, BigInteger
-  or an integer type throws under the checked contract and saturates under the
-  other two, which is what the base class library does converting a non-finite
-  double the same way.
-- New: Pow, raising a value to an integer power. It is exact whenever the exact
-  power is representable, so 1.05 to the 30th comes back as all 61 of its
-  digits, where a multiplication loop written by hand rounds at every step. A
-  power that does not fit gives up fractional digits half to even, as a product
-  does, and throws only when there are none left; it gives them up once, from
-  the exact power, and is reduced into the same 77-digit band as any other
-  result that did not fit, for as long as it has fractional digits to give. A
-  reduction that reaches scale 0 stops there, so a power with no fraction left
-  can still come back at the 78 digits the mantissa holds. A negative exponent
-  is the reciprocal, to the precision a division without an explicit scale
-  gives, and it answers wherever its own result fits even where the power it
-  inverts does not: Pow(2, -300) is a value, though 2 to the 300th is out of
+First prerelease. The core value type is complete and its public surface is
+frozen ahead of the database integration packages that follow, so this build
+exists to meet a real consumer while the API can still change. The
+PetToys.BigDecimal.Npgsql and PetToys.BigDecimal.ClickHouse packages are not
+published yet.
+
+Added:
+- BigDecimal, a stack-only decimal value type: a 256-bit unsigned magnitude, a
+  sign, and a decimal scale of 0 to 255, denoting
+  (-1)^sign * magnitude * 10^-scale. Every value of at most 77 significant
+  digits is representable, the largest representable magnitude has 78 digits,
+  and the range runs from 1e-255 to roughly 1.157e77. That covers every
+  ClickHouse Decimal32, Decimal64, Decimal128 and Decimal256 value, and every
+  PostgreSQL numeric(p, s) up to 77 digits of precision.
+- System.Decimal semantics inside System.Decimal's own domain: trailing zeros
+  are preserved by arithmetic and by formatting, equality is numeric so that
+  1.0 equals 1.00, and fractional digits that do not fit are rounded to nearest
+  with ties to even rather than throwing. The 256-bit magnitude is the only
+  hard limit: when a result's significant digits do not fit, the scale is
+  reduced as far as needed and OverflowException is reserved for an integer
+  part that still does not fit. There is no wrapping mode and no silent
+  truncation. Zero is the one deliberate divergence: it never carries a sign.
+- Arithmetic: addition, subtraction, multiplication, division, remainder,
+  negation and Abs, through both the operators and named methods. Division
+  without an explicit scale runs to the full precision the magnitude allows and
+  reduces an exact quotient to its shortest scale; an overload takes an explicit
+  scale and rounding mode.
+- Pow, raising a value to an integer power. It is exact whenever the exact power
+  is representable, so 1.05 to the 30th comes back as all 61 of its digits where
+  a multiplication loop written by hand rounds at every step. A negative
+  exponent is the reciprocal, to the precision a division without an explicit
+  scale gives, and it answers wherever its own result fits even where the power
+  it inverts does not: Pow(2, -300) is a value, though 2 to the 300th is out of
   range.
-- Arithmetic, comparison and parsing are faster, by 3% to 25% depending on the
-  operation and the width of its operands. Every operation prepared its working
-  buffer by zeroing memory the runtime had already zeroed; the largest gains are
-  the remainder, the comparison of two values at different scales, and a
-  division that comes out exactly. No result changes.
+- Rounding and scale control: Round, Floor, Ceiling, Truncate, Min, Max and
+  Clamp, and WithScale as the widening counterpart to Round. WithScale pads with
+  zeros as well as rounding, which is what presenting a value at a column's
+  declared scale needs; Round only ever narrows. All five MidpointRounding modes
+  are honoured.
+- Precision, the number of decimal digits in the unscaled mantissa, so that a
+  caller can decide whether a value fits a column before writing it.
+- The generic math surface: INumber, ISignedNumber and IMinMaxValue, alongside
+  IEquatable, IComparable and the full operator set, so the type drops into code
+  written against those constraints. CreateChecked, CreateSaturating and
+  CreateTruncating are callable on the type itself and each honours its own
+  contract: CreateChecked throws where the value does not fit, the other two
+  clamp to the target's range, and all three ask the other type to convert
+  itself before giving up with NotSupportedException.
+- Conversions to and from every built-in numeric type, plus Int128, UInt128,
+  decimal and BigInteger. Conversions from the integer types and from decimal
+  are implicit; conversions from double and float, and every conversion out of
+  the type, are explicit. Half, NFloat and char are recognised in both
+  directions through the generic conversions. Conversion from double and float
+  takes the shortest decimal form that round-trips, so (double)(BigDecimal)value
+  returns value; this is a deliberate divergence from System.Decimal's own cast,
+  which rounds to 15 and 7 significant digits.
+- Formatting that matches System.Decimal across its whole surface: the C, E, F,
+  G, N, P and R specifiers with an optional precision, custom numeric format
+  strings, and the culture's own group size list and negative patterns, so a
+  culture that writes (1,234.5) gets that rather than a leading sign. The char
+  and UTF-8 TryFormat overloads write the same text and are bounded only by the
+  destination the caller passes.
+- Parsing through the IParsable, ISpanParsable and IUtf8SpanParsable families,
+  honouring NumberStyles in full. The white space accepted is exactly what
+  System.Decimal accepts, which is a tab, newline, vertical tab, form feed,
+  carriage return or space and nothing else.
+- NaN, PositiveInfinity and NegativeInfinity, with IsNaN, IsInfinity,
+  IsPositiveInfinity, IsNegativeInfinity and IsFinite beside them. PostgreSQL
+  numeric carries all three. Arithmetic propagates them the way System.Double
+  does, but nothing finite produces one: division by zero still throws
+  DivideByZeroException and an integer part that does not fit still throws
+  OverflowException. Equality and ordering answer NaN the three ways the base
+  class library does: the == operator is false for two NaNs while Equals is
+  true, CompareTo places NaN below every other value so that Array.Sort is well
+  defined, and the four relational operators are all false whenever either side
+  is NaN. Parsing accepts the culture's NaN and infinity symbols whatever the
+  NumberStyles, and formatting renders a non-finite value as that symbol
+  whatever the format string.
+- A System.Text.Json converter, applied to the type itself so no registration is
+  needed. A value is written as a JSON string, which is what preserves digits a
+  double reader would lose, and it is supported as a property name as well.
+- Zero allocations on every operation without exception, held by a test rather
+  than claimed.
+- net8.0, net9.0 and net10.0, strong-named and public-signed, with Source Link
+  and a symbol package.

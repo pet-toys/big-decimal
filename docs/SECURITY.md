@@ -2,14 +2,18 @@
 
 ## Supported versions
 
-The package major version tracks the latest supported .NET major version. Only
-the latest major line receives security fixes.
+Every release of every package in this repository carries the same version and
+targets `net8.0`, `net9.0` and `net10.0` together, so the package version line
+is independent of any single .NET version. Only the latest release of the
+current major line receives security fixes.
 
 | Version | Supported          |
 | ------- | :----------------: |
-| 10.x    | :white_check_mark: |
-| 8.x     | :x:                |
-| < 8.0   | :x:                |
+| 1.0.x   | :white_check_mark: |
+
+Prereleases (`1.0.0-dev.N`) are previews of the release above them. Each one is
+superseded by the next, so only the most recent prerelease is supported until
+`1.0.0` ships.
 
 ## Reporting a vulnerability
 
@@ -38,10 +42,10 @@ When reporting, please include as much of the following as you can:
 
 These packages are a numeric value type and the code that maps it to and from
 PostgreSQL `numeric` and ClickHouse `Decimal*` columns. They do not open
-connections, manage credentials, or build SQL text on your behalf — the caller
+connections, manage credentials, or build SQL text on your behalf: the caller
 supplies an already configured connection.
 
-In scope are reports about values being corrupted rather than rejected — a
+In scope are reports about values being corrupted rather than rejected - a
 parsed, formatted, converted, or round-tripped value that silently comes back
 different, an overflow that wraps instead of throwing `OverflowException`, or a
 database mapping that truncates or misplaces the decimal point. Untrusted input
