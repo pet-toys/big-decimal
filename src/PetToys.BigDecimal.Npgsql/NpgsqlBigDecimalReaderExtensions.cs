@@ -54,9 +54,11 @@ public static class NpgsqlBigDecimalReaderExtensions
     /// <exception cref="ArgumentNullException"><paramref name="reader"/> is
     /// <see langword="null"/>.</exception>
     /// <exception cref="OverflowException">The column's integer part is larger than this type's
-    /// magnitude. The message names the column and the original is the inner exception.</exception>
-    /// <exception cref="FormatException">The column's payload is not a well-formed
-    /// <c>numeric</c>.</exception>
+    /// magnitude. The message names the column and its ordinal, and the exception the converter
+    /// threw is the inner exception.</exception>
+    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.
+    /// The message names the column and its ordinal, and the exception the converter threw is the
+    /// inner exception.</exception>
     /// <exception cref="InvalidCastException">The column is NULL.</exception>
     public static BigDecimal GetBigDecimal(this NpgsqlDataReader reader, int ordinal)
     {
@@ -79,9 +81,11 @@ public static class NpgsqlBigDecimalReaderExtensions
     /// <exception cref="ArgumentNullException"><paramref name="reader"/> is
     /// <see langword="null"/>.</exception>
     /// <exception cref="OverflowException">The column's integer part is larger than this type's
-    /// magnitude.</exception>
-    /// <exception cref="FormatException">The column's payload is not a well-formed
-    /// <c>numeric</c>.</exception>
+    /// magnitude. The message names the column and its ordinal, and the exception the converter
+    /// threw is the inner exception.</exception>
+    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.
+    /// The message names the column and its ordinal, and the exception the converter threw is the
+    /// inner exception.</exception>
     /// <exception cref="InvalidCastException">The column is NULL.</exception>
     public static BigDecimal GetBigDecimal(this NpgsqlDataReader reader, string name)
     {
@@ -97,9 +101,11 @@ public static class NpgsqlBigDecimalReaderExtensions
     /// <exception cref="ArgumentNullException"><paramref name="reader"/> is
     /// <see langword="null"/>.</exception>
     /// <exception cref="OverflowException">The column's integer part is larger than this type's
-    /// magnitude.</exception>
-    /// <exception cref="FormatException">The column's payload is not a well-formed
-    /// <c>numeric</c>.</exception>
+    /// magnitude. The message names the column and its ordinal, and the exception the converter
+    /// threw is the inner exception.</exception>
+    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.
+    /// The message names the column and its ordinal, and the exception the converter threw is the
+    /// inner exception.</exception>
     public static BigDecimal? GetNullableBigDecimal(this NpgsqlDataReader reader, int ordinal)
     {
         ArgumentNullException.ThrowIfNull(reader);
@@ -121,9 +127,11 @@ public static class NpgsqlBigDecimalReaderExtensions
     /// <exception cref="ArgumentNullException"><paramref name="reader"/> is
     /// <see langword="null"/>.</exception>
     /// <exception cref="OverflowException">The column's integer part is larger than this type's
-    /// magnitude.</exception>
-    /// <exception cref="FormatException">The column's payload is not a well-formed
-    /// <c>numeric</c>.</exception>
+    /// magnitude. The message names the column and its ordinal, and the exception the converter
+    /// threw is the inner exception.</exception>
+    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.
+    /// The message names the column and its ordinal, and the exception the converter threw is the
+    /// inner exception.</exception>
     public static BigDecimal? GetNullableBigDecimal(this NpgsqlDataReader reader, string name)
     {
         ArgumentNullException.ThrowIfNull(reader);
@@ -139,9 +147,11 @@ public static class NpgsqlBigDecimalReaderExtensions
     /// <exception cref="ArgumentNullException"><paramref name="reader"/> is
     /// <see langword="null"/>.</exception>
     /// <exception cref="OverflowException">The column's integer part is larger than this type's
-    /// magnitude.</exception>
-    /// <exception cref="FormatException">The column's payload is not a well-formed
-    /// <c>numeric</c>.</exception>
+    /// magnitude. The message names the column and its ordinal, and the exception the converter
+    /// threw is the inner exception.</exception>
+    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.
+    /// The message names the column and its ordinal, and the exception the converter threw is the
+    /// inner exception.</exception>
     /// <exception cref="InvalidCastException">The column is NULL.</exception>
     public static async Task<BigDecimal> GetBigDecimalAsync(
         this NpgsqlDataReader reader,
@@ -170,9 +180,11 @@ public static class NpgsqlBigDecimalReaderExtensions
     /// <exception cref="ArgumentNullException"><paramref name="reader"/> is
     /// <see langword="null"/>.</exception>
     /// <exception cref="OverflowException">The column's integer part is larger than this type's
-    /// magnitude.</exception>
-    /// <exception cref="FormatException">The column's payload is not a well-formed
-    /// <c>numeric</c>.</exception>
+    /// magnitude. The message names the column and its ordinal, and the exception the converter
+    /// threw is the inner exception.</exception>
+    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.
+    /// The message names the column and its ordinal, and the exception the converter threw is the
+    /// inner exception.</exception>
     /// <exception cref="InvalidCastException">The column is NULL.</exception>
     public static Task<BigDecimal> GetBigDecimalAsync(
         this NpgsqlDataReader reader,
@@ -194,9 +206,11 @@ public static class NpgsqlBigDecimalReaderExtensions
     /// <exception cref="ArgumentNullException"><paramref name="reader"/> is
     /// <see langword="null"/>.</exception>
     /// <exception cref="OverflowException">The column's integer part is larger than this type's
-    /// magnitude.</exception>
-    /// <exception cref="FormatException">The column's payload is not a well-formed
-    /// <c>numeric</c>.</exception>
+    /// magnitude. The message names the column and its ordinal, and the exception the converter
+    /// threw is the inner exception.</exception>
+    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.
+    /// The message names the column and its ordinal, and the exception the converter threw is the
+    /// inner exception.</exception>
     public static async Task<BigDecimal?> GetNullableBigDecimalAsync(
         this NpgsqlDataReader reader,
         int ordinal,
@@ -224,9 +238,11 @@ public static class NpgsqlBigDecimalReaderExtensions
     /// <exception cref="ArgumentNullException"><paramref name="reader"/> is
     /// <see langword="null"/>.</exception>
     /// <exception cref="OverflowException">The column's integer part is larger than this type's
-    /// magnitude.</exception>
-    /// <exception cref="FormatException">The column's payload is not a well-formed
-    /// <c>numeric</c>.</exception>
+    /// magnitude. The message names the column and its ordinal, and the exception the converter
+    /// threw is the inner exception.</exception>
+    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.
+    /// The message names the column and its ordinal, and the exception the converter threw is the
+    /// inner exception.</exception>
     public static Task<BigDecimal?> GetNullableBigDecimalAsync(
         this NpgsqlDataReader reader,
         string name,
