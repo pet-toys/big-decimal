@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Net.Http;
@@ -7,7 +8,6 @@ using System.Threading.Tasks;
 using AwesomeAssertions;
 using ClickHouse.Driver;
 using ClickHouse.Driver.ADO;
-using ClickHouse.Driver.ADO.Readers;
 using ClickHouse.Driver.Utility;
 using PetToys.BigDecimal.Numerics.Harness;
 using Xunit;
@@ -29,6 +29,14 @@ namespace PetToys.BigDecimal.Numerics;
 /// The oracle is the server's own rendering compared against a <see cref="BigInteger"/>
 /// decomposition, never the package reading back what the package wrote. Tables are created and
 /// read back over the fixture's HTTP interface, in which no part of the adapter takes part.
+/// </para>
+/// </remarks>
+/// <remarks>
+/// <para>
+/// The absent <c>using</c> is deliberate and is the only pin there can be on it. This file reaches
+/// its readers through <c>var</c> and never imports <c>ClickHouse.Driver.ADO.Readers</c>, which is
+/// the call shape a caller has: if the accessors moved back to the namespace their receiver lives
+/// in, this file would stop compiling rather than quietly stop being reachable.
 /// </para>
 /// </remarks>
 /// <param name="server">The server, one per this class, started on first use.</param>
@@ -548,6 +556,88 @@ public sealed class BigDecimalMappingServerTests(ClickHouseServer server) : ICla
                 $"SELECT concat(toString(v), '|', s, '|', toString(isNull(n))) FROM {table}");
 
             stored.Should().Equal("1.5|text|1");
+        }
+        finally
+        {
+            await this.DropAsync(table);
+        }
+    }
+
+    [Fact]
+    public async Task ADeclaredTypeWithSurroundingSpace_IsRefusedByTheDriverBeforeAnyRow()
+    {
+        await server.RequireAsync();
+
+        // Recorded because a review asked whether an untrimmed declared type would make a decimal
+        // array fall through this package quietly. It cannot: the driver builds its schema from
+        // InsertOptions.ColumnTypes before a row is serialised and refuses the string itself.
+        var table = $"adapter_{Guid.NewGuid():N}";
+        await server.RunAsync($"CREATE TABLE {table} (i UInt32, a Array(Decimal64(4))) ENGINE = Memory");
+
+        try
+        {
+            using var client = new ClickHouseClient(server.ConnectionString());
+            var options = new InsertOptions
+            {
+                ColumnTypes = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["i"] = " UInt32 ",
+                    ["a"] = " Array(Decimal64(4)) ",
+                },
+            };
+
+            var writing = async () => await client.InsertBigDecimalAsync(
+                table,
+                ["i", "a"],
+                [[1U, new[] { BigDecimal.Parse("1.5", CultureInfo.InvariantCulture) }]],
+                options,
+                TestContext.Current.CancellationToken);
+
+            await writing.Should().ThrowAsync<ArgumentException>();
+
+            var stored = await server.RenderAsync($"SELECT count() FROM {table}");
+
+            stored.Should().Equal(["0"], "the refusal comes before anything is written");
+        }
+        finally
+        {
+            await this.DropAsync(table);
+        }
+    }
+
+    [Fact]
+    public async Task AValueAimedAtAColumnThisPackageCannotRead_IsRefusedRatherThanNarrowed()
+    {
+        await server.RequireAsync();
+
+        // ClickHouse has type constructors around a decimal that this package does not read, and
+        // this is one the server accepts. Handing the value on would put it through IConvertible
+        // and store whatever System.Decimal made of it, which is the one outcome that must never
+        // happen quietly.
+        var table = $"adapter_{Guid.NewGuid():N}";
+        await server.RunAsync(
+            $"CREATE TABLE {table} (k UInt32, v SimpleAggregateFunction(max, Decimal64(4))) ENGINE = AggregatingMergeTree ORDER BY k");
+
+        try
+        {
+            using var client = new ClickHouseClient(server.ConnectionString());
+
+            var writing = async () => await client.InsertBigDecimalAsync(
+                table,
+                ["k", "v"],
+                [[1U, BigDecimal.Parse("1.5", CultureInfo.InvariantCulture)]],
+                null,
+                TestContext.Current.CancellationToken);
+
+            var thrown = await writing.Should().ThrowAsync<Exception>();
+
+            thrown.Which.Should().Match<Exception>(
+                exception => Names(exception, "'v'") && Names(exception, "SimpleAggregateFunction"),
+                "the refusal names the column and how it is declared");
+
+            var stored = await server.RenderAsync($"SELECT count() FROM {table}");
+
+            stored.Should().Equal(["0"]);
         }
         finally
         {

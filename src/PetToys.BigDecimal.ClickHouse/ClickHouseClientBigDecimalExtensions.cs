@@ -49,7 +49,8 @@ public static class ClickHouseClientBigDecimalExtensions
     /// message names the column.
     /// </exception>
     /// <exception cref="NotSupportedException">
-    /// A value is NaN or an infinity, which no ClickHouse decimal represents.
+    /// A value is NaN or an infinity, which no ClickHouse decimal represents, or a
+    /// <see cref="BigDecimal"/> is aimed at a column this package does not read as a decimal one.
     /// </exception>
     /// <remarks>
     /// The column types are resolved rather than assumed, because a width that disagrees with the
@@ -72,18 +73,18 @@ public static class ClickHouseClientBigDecimalExtensions
 
         options ??= new InsertOptions();
 
-        var types = await ResolveColumnTypesAsync(client, table, columns, options, cancellationToken)
+        var mappings = await ResolveColumnTypesAsync(client, table, columns, options, cancellationToken)
             .ConfigureAwait(false);
 
         return await client
-            .InsertBinaryAsync(table, columns, Convert(rows, columns, types), options, cancellationToken)
+            .InsertBinaryAsync(table, columns, Convert(rows, columns, mappings), options, cancellationToken)
             .ConfigureAwait(false);
     }
 
     /// <summary>Replaces the mapped cells of each row, leaving the rest as they are.</summary>
     /// <param name="rows">The caller's rows.</param>
     /// <param name="columns">The column names, for the failure messages.</param>
-    /// <param name="types">The decimal type of each column, where it has one.</param>
+    /// <param name="mappings">What was resolved about each column.</param>
     /// <returns>The rows, converted lazily.</returns>
     /// <remarks>
     /// A row is copied only when something in it changes, so a batch with no decimal cells
@@ -92,7 +93,7 @@ public static class ClickHouseClientBigDecimalExtensions
     private static IEnumerable<object?[]> Convert(
         IEnumerable<object?[]> rows,
         IReadOnlyList<string> columns,
-        ClickHouseColumnType?[] types)
+        ColumnMapping[] mappings)
     {
         foreach (var row in rows)
         {
@@ -101,11 +102,22 @@ public static class ClickHouseClientBigDecimalExtensions
             ArgumentNullException.ThrowIfNull(row, nameof(rows));
 
             object?[]? converted = null;
-            var count = Math.Min(row.Length, types.Length);
+            var count = Math.Min(row.Length, mappings.Length);
             for (var i = 0; i < count; i++)
             {
-                if (types[i] is not { } type)
+                if (mappings[i].Type is not { } type)
                 {
+                    // The column is not one this package recognises as carrying decimals, and the
+                    // caller put a value of ours in it anyway. Passing it on is the one outcome
+                    // that must not happen quietly: the driver would hand it to IConvertible and
+                    // store whatever System.Decimal made of it. ClickHouse has type constructors
+                    // this parser does not read, SimpleAggregateFunction among them, so this is
+                    // reachable without anybody making a mistake.
+                    if (row[i] is BigDecimal or BigDecimal[])
+                    {
+                        throw Unrecognised(columns[i], mappings[i].Declared);
+                    }
+
                     continue;
                 }
 
@@ -129,6 +141,15 @@ public static class ClickHouseClientBigDecimalExtensions
         }
     }
 
+    /// <summary>Refuses a value aimed at a column this package could not read.</summary>
+    /// <param name="column">The column's name.</param>
+    /// <param name="declared">How the column is declared, when that is known.</param>
+    /// <returns>The exception to throw.</returns>
+    private static NotSupportedException Unrecognised(string column, string? declared) =>
+        new(string.Create(
+            CultureInfo.InvariantCulture,
+            $"Column '{column}' is declared as {declared ?? "an unknown type"}, which this package does not read as a decimal column, so a BigDecimal cannot be written to it exactly. It is refused rather than passed to the driver, which would narrow it through System.Decimal. Declare the column's own decimal type through InsertOptions.ColumnTypes if its payload is one."));
+
     /// <summary>Finds the decimal type of each column, where it has one.</summary>
     /// <param name="client">The client.</param>
     /// <param name="table">The destination table.</param>
@@ -136,10 +157,10 @@ public static class ClickHouseClientBigDecimalExtensions
     /// <param name="options">The insert options, which may declare the types.</param>
     /// <param name="cancellationToken">Cancels the lookup.</param>
     /// <returns>
-    /// One entry per column: its decimal type, or the element's for an array of them, and
-    /// <see langword="null"/> for a column this package does not map.
+    /// One entry per column: its decimal type where this package reads one, and how it is declared
+    /// either way, since a refusal has to be able to name it.
     /// </returns>
-    private static async Task<ClickHouseColumnType?[]> ResolveColumnTypesAsync(
+    private static async Task<ColumnMapping[]> ResolveColumnTypesAsync(
         IClickHouseClient client,
         string table,
         IReadOnlyList<string> columns,
@@ -152,17 +173,22 @@ public static class ClickHouseClientBigDecimalExtensions
             declared = await DescribeAsync(client, table, options, cancellationToken).ConfigureAwait(false);
         }
 
-        var types = new ClickHouseColumnType?[columns.Count];
+        var mappings = new ColumnMapping[columns.Count];
         for (var i = 0; i < columns.Count; i++)
         {
-            if (declared.TryGetValue(columns[i], out var type) && TryParseElement(type, out var parsed))
-            {
-                types[i] = parsed;
-            }
+            declared.TryGetValue(columns[i], out var type);
+            mappings[i] = TryParseElement(type, out var parsed)
+                ? new ColumnMapping(parsed, type)
+                : new ColumnMapping(null, type);
         }
 
-        return types;
+        return mappings;
     }
+
+    /// <summary>What is known about one column of the destination.</summary>
+    /// <param name="Type">Its decimal type, or the element's, where this package reads one.</param>
+    /// <param name="Declared">How the column is declared, for a message.</param>
+    private readonly record struct ColumnMapping(ClickHouseColumnType? Type, string? Declared);
 
     /// <summary>Answers whether the caller declared a type for every column.</summary>
     /// <param name="declared">What the caller declared.</param>
@@ -231,6 +257,14 @@ public static class ClickHouseClientBigDecimalExtensions
     /// <param name="declared">The declared type.</param>
     /// <param name="type">The decimal type, when this returns <see langword="true"/>.</param>
     /// <returns><see langword="true"/> when the column carries decimals.</returns>
+    /// <remarks>
+    /// No trimming here, and that is measured rather than assumed. A type read from the server
+    /// never carries surrounding space, and one declared through
+    /// <see cref="InsertOptions.ColumnTypes"/> with space around it is refused by the driver's own
+    /// schema resolver before a row is serialised, so it cannot reach this and fall through
+    /// quietly. What can fall through is a shape this does not recognise, and that is answered
+    /// where the value is, not here.
+    /// </remarks>
     private static bool TryParseElement(string? declared, out ClickHouseColumnType type)
     {
         const string Array = "Array(";

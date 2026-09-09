@@ -1,18 +1,26 @@
 using System;
 using System.Data.Common;
 using System.Globalization;
+using ClickHouse.Driver.ADO.Readers;
 using PetToys.BigDecimal.Numerics;
 using DriverDecimal = ClickHouse.Driver.Numerics.ClickHouseDecimal;
 
-#pragma warning disable IDE0130 // The namespace is the one the extended type lives in, on purpose.
+#pragma warning disable IDE0130 // See the remarks: the namespace is the driver's root on purpose.
 
-namespace ClickHouse.Driver.ADO.Readers;
+namespace ClickHouse.Driver;
 
 /// <summary>
 /// Reads a mapped decimal column as a <see cref="BigDecimal"/>, and says what went wrong when it
 /// cannot.
 /// </summary>
 /// <remarks>
+/// <para>
+/// In <c>ClickHouse.Driver</c> rather than in the namespace <see cref="ClickHouseDataReader"/>
+/// itself lives in. A caller reaches a reader through <c>ExecuteReaderAsync</c> and holds it in a
+/// <c>var</c>, so they never import <c>ClickHouse.Driver.ADO.Readers</c> and would not see these
+/// at all; the whole public surface of this package is in the one namespace a ClickHouse caller
+/// already has.
+/// </para>
 /// <para>
 /// These accessors are not here to catch an exception, because reading cannot fail: every
 /// ClickHouse decimal fits, at every width and every precision the server allows. They are here to

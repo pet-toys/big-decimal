@@ -13,8 +13,11 @@ namespace ClickHouse.Driver;
 /// <remarks>
 /// <para>
 /// In the driver's namespace, so that a caller holding a <see cref="QueryOptions"/> reaches this
-/// without a <c>using</c> they do not already have. It is one of the namespaces this package
-/// declares and does not own, and IDE0130 is suppressed per file for that reason.
+/// without a <c>using</c> they do not already have. The whole public surface of this package is
+/// here, including the extensions on types that live in namespaces below this one: it is the
+/// namespace a ClickHouse caller already imports, and one import is one thing to get wrong. It is
+/// the only namespace this package declares and does not own, and IDE0130 is suppressed per file
+/// for that reason.
 /// </para>
 /// <para>
 /// <b>Prefer the per-query form.</b> The read hook is consulted once per value rather than once per

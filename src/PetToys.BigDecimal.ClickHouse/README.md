@@ -64,6 +64,7 @@ To write one value as a query parameter, annotate its type in the statement, as
 ClickHouse requires, and build the connection from settings carrying the mapping:
 
 ```csharp
+using ClickHouse.Driver;
 using ClickHouse.Driver.ADO;
 
 var settings = new ClickHouseClientSettings(connectionString).UseBigDecimal();
@@ -100,6 +101,11 @@ reach, prefer the per-query form.
 `GetFieldValue<BigDecimal>` does not work in either scope and cannot be made to:
 the driver casts its own value to the requested type before consulting the hook
 that would have changed it. Use the accessors above.
+
+Everything this package adds lives in the `ClickHouse.Driver` namespace, the one
+a caller already imports, including the extensions on types that live below it:
+`ClickHouse.Driver.ADO` is needed only where the snippet names
+`ClickHouseClientSettings` or `ClickHouseConnection` itself.
 
 ## Requirements
 

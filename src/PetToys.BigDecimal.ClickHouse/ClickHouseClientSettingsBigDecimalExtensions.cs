@@ -1,16 +1,18 @@
 using System;
+using ClickHouse.Driver.ADO;
 using PetToys.BigDecimal.Numerics;
 
-#pragma warning disable IDE0130 // The namespace is the one the extended type lives in, on purpose.
+#pragma warning disable IDE0130 // See the remarks: the namespace is the driver's root on purpose.
 
-namespace ClickHouse.Driver.ADO;
+namespace ClickHouse.Driver;
 
 /// <summary>
 /// Installs the <see cref="BigDecimal"/> mapping on a whole connection.
 /// </summary>
 /// <remarks>
-/// In the namespace of the type it extends, so that a caller holding
-/// <see cref="ClickHouseClientSettings"/> has the call in scope.
+/// In <c>ClickHouse.Driver</c>, with the rest of this package's public surface, rather than in the
+/// namespace <see cref="ClickHouseClientSettings"/> itself lives in. One namespace to import is one
+/// thing to get wrong, and it is the one a ClickHouse caller already has.
 /// </remarks>
 public static class ClickHouseClientSettingsBigDecimalExtensions
 {
