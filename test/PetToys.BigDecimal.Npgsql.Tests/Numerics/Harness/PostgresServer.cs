@@ -51,7 +51,7 @@ public sealed class PostgresServer : IAsyncDisposable
     private const string Image =
         "postgres:18-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2";
 
-    private readonly PostgreSqlContainer container = new PostgreSqlBuilder(Image).Build();
+    private PostgreSqlContainer? container;
 
     private readonly SemaphoreSlim gate = new(1, 1);
 
@@ -68,6 +68,9 @@ public sealed class PostgresServer : IAsyncDisposable
     public bool IsAvailable => this.Unavailable is null;
 
     private static bool DockerIsRequired => Environment.GetEnvironmentVariable("CI") is { Length: > 0 };
+
+    private PostgreSqlContainer Started =>
+        this.container ?? throw new InvalidOperationException("The server is used before RequireAsync has started it.");
 
     /// <summary>
     /// Starts the server if it has not been started, then skips the calling test when it cannot be
@@ -86,6 +89,11 @@ public sealed class PostgresServer : IAsyncDisposable
                 this.attempted = true;
                 try
                 {
+                    // Built here rather than in a field, because Build() resolves the Docker
+                    // endpoint: on a machine without one it throws, and a fixture that throws in
+                    // its constructor takes every test in the assembly with it, including the ones
+                    // that never wanted a server.
+                    this.container = new PostgreSqlBuilder(Image).Build();
                     await this.container.StartAsync(TestContext.Current.CancellationToken);
                     this.started = true;
                 }
@@ -123,7 +131,7 @@ public sealed class PostgresServer : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         this.gate.Dispose();
-        if (this.started)
+        if (this.started && this.container is not null)
         {
             await this.container.DisposeAsync();
         }
@@ -249,7 +257,7 @@ public sealed class PostgresServer : IAsyncDisposable
 
     private async Task<NpgsqlConnection> OpenAsync()
     {
-        var connection = new NpgsqlConnection(this.container.GetConnectionString());
+        var connection = new NpgsqlConnection(this.Started.GetConnectionString());
         await connection.OpenAsync(TestContext.Current.CancellationToken);
 
         return connection;

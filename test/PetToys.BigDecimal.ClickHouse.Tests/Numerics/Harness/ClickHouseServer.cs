@@ -59,11 +59,7 @@ public sealed class ClickHouseServer : IAsyncDisposable
     /// <summary>The port the HTTP interface listens on inside the container.</summary>
     private const ushort HttpPort = 8123;
 
-    private readonly ClickHouseContainer container = new ClickHouseBuilder(Image)
-        .WithUsername(User)
-        .WithPassword(Password)
-        .WithDatabase(Database)
-        .Build();
+    private ClickHouseContainer? container;
 
     private readonly HttpClient client = new();
 
@@ -83,8 +79,11 @@ public sealed class ClickHouseServer : IAsyncDisposable
 
     private static bool DockerIsRequired => Environment.GetEnvironmentVariable("CI") is { Length: > 0 };
 
+    private ClickHouseContainer Started =>
+        this.container ?? throw new InvalidOperationException("The server is used before RequireAsync has started it.");
+
     private Uri Endpoint => new(
-        $"http://{this.container.Hostname}:{this.container.GetMappedPublicPort(HttpPort)}/?user={User}&password={Password}&database={Database}");
+        $"http://{this.Started.Hostname}:{this.Started.GetMappedPublicPort(HttpPort)}/?user={User}&password={Password}&database={Database}");
 
     /// <summary>
     /// Starts the server if it has not been started, then skips the calling test when it cannot be
@@ -103,6 +102,15 @@ public sealed class ClickHouseServer : IAsyncDisposable
                 this.attempted = true;
                 try
                 {
+                    // Built here rather than in a field, because Build() resolves the Docker
+                    // endpoint: on a machine without one it throws, and a fixture that throws in
+                    // its constructor takes every test in the assembly with it, including the ones
+                    // that never wanted a server.
+                    this.container = new ClickHouseBuilder(Image)
+                        .WithUsername(User)
+                        .WithPassword(Password)
+                        .WithDatabase(Database)
+                        .Build();
                     await this.container.StartAsync(TestContext.Current.CancellationToken);
                     this.started = true;
                 }
@@ -141,7 +149,7 @@ public sealed class ClickHouseServer : IAsyncDisposable
     {
         this.client.Dispose();
         this.gate.Dispose();
-        if (this.started)
+        if (this.started && this.container is not null)
         {
             await this.container.DisposeAsync();
         }
