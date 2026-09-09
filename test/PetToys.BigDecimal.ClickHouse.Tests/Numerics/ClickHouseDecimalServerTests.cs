@@ -132,6 +132,10 @@ public sealed class ClickHouseDecimalServerTests(ClickHouseServer server)
             }
         }
 
+        // The filter is what keeps the batch inside what ClickHouse holds, and a batch it emptied
+        // would be a corpus test asserting nothing. Say so rather than pass.
+        drawn.Should().NotBeEmpty("{0} draws left nothing inside Decimal256's own precision", cases);
+
         var expected = drawn.Select(OracleValue.From).ToArray();
         var column = Column(ClickHouseDecimal.Decimal256Size, Scale);
 

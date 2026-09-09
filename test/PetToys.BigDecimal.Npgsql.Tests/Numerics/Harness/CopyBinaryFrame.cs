@@ -87,17 +87,26 @@ public static class CopyBinaryFrame
     /// statement about this file rather than about the codec.</exception>
     public static IReadOnlyList<byte[]> ReadRows(ReadOnlySpan<byte> stream)
     {
-        if (stream.Length < HeaderSize + 2 || !stream[..Signature.Length].SequenceEqual(Signature))
+        if (stream.Length < Signature.Length || !stream[..Signature.Length].SequenceEqual(Signature))
         {
             throw new FormatException("The stream does not open with the binary COPY signature.");
         }
 
+        Needs(stream, HeaderSize, "a header");
+
         var extension = BinaryPrimitives.ReadInt32BigEndian(stream[15..]);
+        Needs(stream, HeaderSize + extension, "the header extension it declares");
+
         var cursor = stream[(HeaderSize + extension)..];
 
         var payloads = new List<byte[]>();
         while (true)
         {
+            // Every read is bounded first. A stream cut short is a statement about the envelope, and
+            // it says so as a FormatException rather than as whatever BinaryPrimitives throws when
+            // it runs off the end of a span.
+            Needs(cursor, 2, "a field count");
+
             var fields = BinaryPrimitives.ReadInt16BigEndian(cursor);
             if (fields == -1)
             {
@@ -109,14 +118,26 @@ public static class CopyBinaryFrame
                 throw new FormatException($"Expected rows of one field, and a row declares {fields}.");
             }
 
+            Needs(cursor, 6, "a field length");
+
             var length = BinaryPrimitives.ReadInt32BigEndian(cursor[2..]);
             if (length < 0)
             {
                 throw new FormatException("The field is null, which no case here writes.");
             }
 
+            Needs(cursor, 6 + length, "a field");
+
             payloads.Add(cursor.Slice(6, length).ToArray());
             cursor = cursor[(6 + length)..];
+        }
+    }
+
+    private static void Needs(ReadOnlySpan<byte> span, int length, string what)
+    {
+        if (span.Length < length)
+        {
+            throw new FormatException($"The stream ends before {what}: {span.Length} bytes are left and {length} are needed.");
         }
     }
 }

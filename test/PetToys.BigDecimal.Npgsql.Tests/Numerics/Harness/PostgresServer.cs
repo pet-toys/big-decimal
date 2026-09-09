@@ -89,6 +89,15 @@ public sealed class PostgresServer : IAsyncDisposable
                     await this.container.StartAsync(TestContext.Current.CancellationToken);
                     this.started = true;
                 }
+                catch (OperationCanceledException)
+                {
+                    // The run is being cancelled, not the container refusing to start. Recording it
+                    // as unavailable would latch: every later test would skip, or fail on a runner,
+                    // naming a cause that is not the cause. Let the next caller try again.
+                    this.attempted = false;
+
+                    throw;
+                }
                 catch (Exception exception)
                 {
                     this.failure = exception;
@@ -132,6 +141,14 @@ public sealed class PostgresServer : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(literals);
 
+        // An empty batch would compose "VALUES )" and come back as a syntax error saying nothing
+        // about the caller. A batch of nothing is a test that asserts nothing, which is the failure
+        // this layer exists to prevent, so it is refused here rather than at the server.
+        if (literals.Count == 0)
+        {
+            throw new ArgumentException("A batch has to carry at least one value.", nameof(literals));
+        }
+
         var rows = string.Join(
             ",",
             literals.Select((literal, index) =>
@@ -145,7 +162,9 @@ public sealed class PostgresServer : IAsyncDisposable
         await using var buffer = new MemoryStream();
         await stream.CopyToAsync(buffer, TestContext.Current.CancellationToken);
 
-        return CopyBinaryFrame.ReadRows(buffer.GetBuffer().AsSpan(0, (int)buffer.Length));
+        var payloads = CopyBinaryFrame.ReadRows(buffer.GetBuffer().AsSpan(0, (int)buffer.Length));
+
+        return Same(payloads, literals.Count);
     }
 
     /// <summary>Sends payloads to the server and asks it to render what it stored.</summary>
@@ -178,11 +197,47 @@ public sealed class PostgresServer : IAsyncDisposable
                 rendered.Add(reader.GetString(0));
             }
 
-            return rendered;
+            return Same(rendered, payloads.Count);
         }
         finally
         {
+            await Drop(connection, table);
+        }
+    }
+
+    /// <summary>
+    /// Checks that the server answered with a row per row it was given, so that a batch which did
+    /// not round-trip says so here rather than as an index out of range in a caller's loop.
+    /// </summary>
+    /// <typeparam name="T">What a row came back as.</typeparam>
+    /// <param name="rows">What the server answered.</param>
+    /// <param name="expected">How many rows it was given.</param>
+    /// <returns>The rows.</returns>
+    private static IReadOnlyList<T> Same<T>(IReadOnlyList<T> rows, int expected) =>
+        rows.Count == expected
+            ? rows
+            : throw new InvalidOperationException(
+                $"The batch carried {expected} values and the server answered with {rows.Count}.");
+
+    /// <summary>
+    /// Drops the table without letting the cleanup speak over the failure that brought us here.
+    /// </summary>
+    /// <remarks>
+    /// A payload the server refuses leaves the connection in a state where this can fail too, and
+    /// that is exactly the case where the original exception is the one naming the defect.
+    /// </remarks>
+    /// <param name="connection">The connection the table was created on.</param>
+    /// <param name="table">The table to drop.</param>
+    /// <returns>Nothing, and nothing thrown.</returns>
+    private static async Task Drop(NpgsqlConnection connection, string table)
+    {
+        try
+        {
             await Execute(connection, $"DROP TABLE IF EXISTS {table}");
+        }
+        catch (NpgsqlException)
+        {
+            // The table is in a container that is thrown away with the assembly.
         }
     }
 

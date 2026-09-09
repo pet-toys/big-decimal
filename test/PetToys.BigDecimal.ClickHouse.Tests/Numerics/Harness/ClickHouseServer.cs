@@ -106,6 +106,15 @@ public sealed class ClickHouseServer : IAsyncDisposable
                     await this.container.StartAsync(TestContext.Current.CancellationToken);
                     this.started = true;
                 }
+                catch (OperationCanceledException)
+                {
+                    // The run is being cancelled, not the container refusing to start. Recording it
+                    // as unavailable would latch: every later test would skip, or fail on a runner,
+                    // naming a cause that is not the cause. Let the next caller try again.
+                    this.attempted = false;
+
+                    throw;
+                }
                 catch (Exception exception)
                 {
                     this.failure = exception;
@@ -151,6 +160,14 @@ public sealed class ClickHouseServer : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(literals);
 
+        // An empty batch would compose "VALUES " and come back as a syntax error saying nothing
+        // about the caller. A batch of nothing is a test that asserts nothing, which is the failure
+        // this layer exists to prevent, so it is refused here rather than at the server.
+        if (literals.Count == 0)
+        {
+            throw new ArgumentException("A batch has to carry at least one value.", nameof(literals));
+        }
+
         var table = await this.CreateTableAsync(columnType);
 
         try
@@ -166,11 +183,11 @@ public sealed class ClickHouseServer : IAsyncDisposable
 
             var payload = await this.ReadBytesAsync($"SELECT v FROM {table} ORDER BY i FORMAT RowBinary");
 
-            return Split(payload, width);
+            return Split(payload, width, literals.Count);
         }
         finally
         {
-            await this.ExecuteAsync($"DROP TABLE IF EXISTS {table}");
+            await this.DropAsync(table);
         }
     }
 
@@ -181,6 +198,11 @@ public sealed class ClickHouseServer : IAsyncDisposable
     public async Task<IReadOnlyList<string>> ImportAndRenderAsync(string columnType, IReadOnlyList<byte[]> payloads)
     {
         ArgumentNullException.ThrowIfNull(payloads);
+
+        if (payloads.Count == 0)
+        {
+            throw new ArgumentException("A batch has to carry at least one value.", nameof(payloads));
+        }
 
         var table = await this.CreateTableAsync(columnType);
 
@@ -203,16 +225,46 @@ public sealed class ClickHouseServer : IAsyncDisposable
         }
         finally
         {
-            await this.ExecuteAsync($"DROP TABLE IF EXISTS {table}");
+            await this.DropAsync(table);
         }
     }
 
-    private static List<byte[]> Split(byte[] payload, int width)
+    /// <summary>
+    /// Checks that the server answered with a row per row it was given, so that a batch which did
+    /// not round-trip says so here rather than as an index out of range in a caller's loop.
+    /// </summary>
+    /// <param name="rows">What the server answered.</param>
+    /// <param name="expected">How many rows it was given.</param>
+    /// <returns>The rows.</returns>
+    private static string[] Same(string[] rows, int expected) =>
+        rows.Length == expected
+            ? rows
+            : throw new InvalidOperationException(
+                $"The batch carried {expected} values and the server answered with {rows.Length}.");
+
+    /// <summary>
+    /// Drops the table without letting the cleanup speak over the failure that brought us here.
+    /// </summary>
+    /// <param name="table">The table to drop.</param>
+    /// <returns>Nothing, and nothing thrown.</returns>
+    private async Task DropAsync(string table)
     {
-        if (payload.Length % width != 0)
+        try
+        {
+            await this.ExecuteAsync($"DROP TABLE IF EXISTS {table}");
+        }
+        catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException)
+        {
+            // The table is in a container that is thrown away with the assembly.
+        }
+    }
+
+    private static List<byte[]> Split(byte[] payload, int width, int expected)
+    {
+        if (payload.Length != expected * width)
         {
             throw new InvalidOperationException(
-                $"The server returned {payload.Length} bytes, which is not a whole number of {width} byte rows.");
+                $"The batch carried {expected} values, so {expected * width} bytes were expected and the server answered with {payload.Length}.");
         }
 
         var rows = new List<byte[]>(payload.Length / width);
