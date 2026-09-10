@@ -1,10 +1,10 @@
 1.0.0-dev.3
 ===========
 
-This release adds the Entity Framework Core package for PostgreSQL and marks
-every published assembly trimmable. One tag versions every package in the
-repository, so the three that existed before are republished with the public
-surface they shipped as 1.0.0-dev.2.
+This release adds two packages for PostgreSQL - the Entity Framework Core
+mapping and the Dapper one - and marks every published assembly trimmable. One
+tag versions every package in the repository, so the three that existed before
+are republished with the public surface they shipped as 1.0.0-dev.2.
 
 PetToys.BigDecimal.Npgsql.EntityFrameworkCore
 
@@ -54,7 +54,51 @@ Notes:
   packages there is no probe behind this marking, because a probe would be
   measuring Entity Framework rather than this repository's code.
 
-All four packages
+PetToys.BigDecimal.Npgsql.Dapper
+
+The Dapper mapping ships.
+
+Added:
+- UseBigDecimal, a static call that registers the BigDecimal type handler with
+  Dapper. It carries the write side - a parameter takes the value alone, at any
+  width the type holds - and the read shapes bounded by System.Decimal.
+- QueryBigDecimal and QueryBigDecimalAsync, in which every numeric column of
+  the query reads as BigDecimal: a bare column, numeric(p,s), an aggregate over
+  one, a column of a domain over one, and numeric[] into BigDecimal[]. This is
+  the exact read, and it is a separate call because Dapper's own handler is
+  handed whatever the driver already produced, which over numeric is a
+  System.Decimal.
+- AsBigDecimalReader, the reader that widening is built from, for the shapes
+  QueryBigDecimal does not cover - an unbuffered read, QueryMultiple,
+  multi-mapping - handed to Dapper's own Parse<T>.
+
+Notes:
+- Registering the package does not change what a numeric column produces for
+  code that never asks for BigDecimal. Query<decimal>, a dynamic query and a
+  reader's field type all still answer System.Decimal. Dapper's registry is
+  static and process-wide, so the registration is a start-up call, it is
+  idempotent, and it silently replaces any handler already registered for the
+  type.
+- Inside a wide read, a member still typed System.Decimal keeps working: it
+  converts where the value fits and raises OverflowException where it does not,
+  and a result type mixing both member types works. Nothing narrows silently.
+- An ordinary Query<T> after the registration is exact within System.Decimal's
+  domain and fails beyond it, with the driver's OverflowException for a wide
+  value and InvalidCastException for a non-finite one. A column the caller
+  casts to text is exact at any width.
+- A value is written at its own scale and PostgreSQL applies the column's,
+  rounding half away from zero where this type rounds half to even. A value
+  beyond the column's precision is the server's refusal, 22003, relayed rather
+  than replaced: the handler is handed a parameter and never learns which
+  column it is bound for.
+- Dapper works under neither PublishTrimmed nor PublishAot, measured by
+  publishing and running. Trimmed, materialising an object throws about a
+  missing constructor and an anonymous-object parameter stops binding; under
+  Native AOT the AddTypeHandler call itself throws NotSupportedException over
+  Dapper's own TypeHandlerCache. The package's assembly is marked all the same,
+  which says what this assembly's code is and nothing about Dapper's
+  reflection. Both are in that package's README.
+All five packages
 
 Added:
 - The assemblies are marked IsAotCompatible, which implies IsTrimmable. A
@@ -69,6 +113,8 @@ Notes:
   PetToys.BigDecimal.Core and PetToys.BigDecimal.Npgsql work in both forms; the
   Npgsql one uses NpgsqlSlimDataSourceBuilder under Native AOT, which
   UseBigDecimal already overloads.
+- PetToys.BigDecimal.Npgsql.Dapper is marked and has no probe either, and there
+  the dependency does not warn but fails: see that package's own section above.
 - PetToys.BigDecimal.Npgsql.EntityFrameworkCore is marked and has no probe. Of
   the four assemblies in its graph only Npgsql carries IsTrimmable, and a probe
   over it would be measuring Entity Framework's query pipeline rather than this

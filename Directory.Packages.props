@@ -27,6 +27,14 @@
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[9.0.4,11.0.0)" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Every member the Dapper package uses is public and documented, so neither the driver
+         argument above nor EF Core's applies. What closes this range is that the exact read also
+         depends on ExecuteReader returning something implementing IWrappedDataReader over the
+         driver's reader, which Dapper publishes as a shape rather than states as a contract. The
+         floor is the version every measurement was taken on, on 2026-09-10. -->
+    <PackageVersion Include="Dapper" Version="[2.1.79,3.0.0)" />
+  </ItemGroup>
+  <ItemGroup>
     <!-- Source Link is bundled in the .NET 8+ SDK; referencing the package
          explicitly suppresses the SDK's Source Link / deterministic source
          path target chain (no Source Link, non-deterministic PDB paths). -->
