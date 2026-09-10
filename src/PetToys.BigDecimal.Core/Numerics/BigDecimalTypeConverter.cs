@@ -35,7 +35,7 @@ public sealed class BigDecimalTypeConverter : TypeConverter
     /// rebuild a value from a constructor call. That is declined - it needs reflection over a
     /// constructor, and text already carries every value of this type exactly.
     /// </remarks>
-    public override bool CanConvertFrom(ITypeDescriptorContext? context, Type? sourceType) =>
+    public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType) =>
         sourceType == typeof(string);
 
     /// <summary>Whether a <see cref="BigDecimal"/> can be converted to some type.</summary>
@@ -43,7 +43,10 @@ public sealed class BigDecimalTypeConverter : TypeConverter
     /// <param name="destinationType">The type converted to.</param>
     /// <returns><see langword="true"/> for <see cref="string"/> and nothing else.</returns>
     /// <remarks>
-    /// This restates what the base class already answers, measured, and is here so that the pair
+    /// The parameter is nullable here and not on <see cref="CanConvertFrom"/> because that is how
+    /// the base declares each of them: measured, <c>destinationType</c> carries
+    /// <c>NotNullWhen(true)</c> and <c>sourceType</c> carries no nullable annotation at all.
+    /// Otherwise this restates what the base already answers, and is here so that the pair
     /// reads as one statement about what the converter carries. What it does not do is what
     /// <c>DecimalConverter</c> does, which is to add the designer's <c>InstanceDescriptor</c> on
     /// this side; that is declined for the reason on <see cref="CanConvertFrom"/>.
