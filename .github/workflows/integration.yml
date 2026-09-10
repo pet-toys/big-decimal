@@ -3,10 +3,10 @@ name: integration
 # The server-backed tests live here rather than in test.yml on purpose, and moving them would cost
 # more than it looks. build-deploy.yml calls test.yml through `uses:` and its build job needs it, so
 # a job added there becomes a gate on publishing a package: a container that fails to pull would
-# block a release. This leg is also not a required status check - the branch ruleset pins the three
-# contexts in test.yml by name, and container startup is the flakiest thing in any of this. What it
-# is for is that the wire formats are checked against the servers that define them before a pull
-# request merges, which no other leg does.
+# block a release. `test-integration` became a required status check on 2026-09-10, which gates
+# merging and not publishing - the two stay separate because nothing calls this workflow. The name
+# is pinned in the branch ruleset. What it is for is that the wire formats are checked against the
+# servers that define them before a pull request merges, which no other leg does.
 
 on:
   workflow_dispatch:

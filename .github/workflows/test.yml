@@ -1,5 +1,8 @@
 name: test
 
+# Every job here is a required status check on `dev`, pinned by name in the branch ruleset:
+# renaming one blocks every pull request on a check that never reports.
+
 on:
   workflow_dispatch:
   workflow_call:
@@ -18,9 +21,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The three legs below are the required status checks on `dev`; their names
-  # are pinned in the repository ruleset, so renaming one blocks every pull
-  # request on a check that never reports.
   test:
     name: test-${{ matrix.os }}
     runs-on: ${{ matrix.os }}
