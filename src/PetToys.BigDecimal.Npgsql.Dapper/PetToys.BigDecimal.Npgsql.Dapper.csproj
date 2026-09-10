@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <PropertyGroup Label="NuGet package">
-    <Description>Dapper mapping that reads and writes PostgreSQL numeric columns as PetToys.BigDecimal.Core, over the handler PetToys.BigDecimal.Npgsql installs on the data source.</Description>
+    <Description>Dapper mapping that reads and writes PostgreSQL numeric columns as PetToys.BigDecimal.Core values, over the handler PetToys.BigDecimal.Npgsql installs on the data source.</Description>
     <PackageTags>bigdecimal;decimal;numeric;postgresql;postgres;npgsql;dapper</PackageTags>
     <!-- Implies IsTrimmable and turns the trim, single-file and AOT analyzers into a build gate.
          It marks this assembly's own code and nothing else. Dapper generates its materialisers
