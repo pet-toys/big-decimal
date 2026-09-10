@@ -14,9 +14,10 @@ namespace ClickHouse.Driver;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The driver's own insert path has no hook of either scope: a <see cref="BigDecimal"/> handed
-/// straight to it falls through to <see cref="IConvertible"/> and <see cref="decimal"/>, silently
-/// where the value fits and with an overflow that names nothing where it does not. That is why this
+/// The driver's own insert path has no hook of either scope, and a <see cref="BigDecimal"/> handed
+/// straight to it never reaches a column: the serialiser reaches for <see cref="IConvertible"/>,
+/// which this type does not implement, and fails as a bulk-copy serialisation error wrapping an
+/// <see cref="InvalidCastException"/> that names neither the column nor the value. That is why this
 /// entry point exists.
 /// </para>
 /// <para>
@@ -107,10 +108,10 @@ public static class ClickHouseClientBigDecimalExtensions
             {
                 if (mappings[i].Type is not { } type)
                 {
-                    // A value of ours in a column this package does not recognise. Passing it on is
-                    // the one outcome that must not happen quietly - the driver would hand it to
-                    // IConvertible and store whatever System.Decimal made of it - and it is
-                    // reachable without a mistake, through type constructors this parser skips.
+                    // A value of ours in a column this package does not recognise, which is
+                    // reachable without a mistake through type constructors this parser skips.
+                    // The driver would fail on it - it reaches for IConvertible, which this type
+                    // does not implement - but name neither the column nor the value.
                     if (row[i] is BigDecimal or BigDecimal[])
                     {
                         throw Unrecognised(columns[i], mappings[i].Declared);

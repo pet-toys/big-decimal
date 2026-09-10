@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>$(TargetFrameworkVersions)</TargetFrameworks>
+    <!-- Pinned so the Numerics/ folder lands in PetToys.BigDecimal.Numerics, where the type
+         is. From any other namespace under PetToys.BigDecimal the identifier BigDecimal binds
+         to the namespace instead - CS0118 at every mention, and a using alias does not fix it. -->
+    <RootNamespace>PetToys.BigDecimal</RootNamespace>
+  </PropertyGroup>
+
+  <PropertyGroup Label="NuGet package">
+    <Description>Dapper mapping that reads and writes ClickHouse Decimal32, Decimal64, Decimal128, and Decimal256 columns as PetToys.BigDecimal.Core values, over the formatter PetToys.BigDecimal.ClickHouse installs on the connection.</Description>
+    <PackageTags>bigdecimal;decimal;clickhouse;dapper;numerics</PackageTags>
+    <!-- Implies IsTrimmable and turns the trim, single-file and AOT analyzers into a build gate.
+         It marks this assembly's own code and nothing else. Both dependencies fail rather than
+         warn: Dapper generates its materialisers reflectively, and ClickHouse.Driver 1.4.0 throws
+         on its first query after a Native AOT publish. The README names both. -->
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PetToys.BigDecimal.ClickHouse.Dapper.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Dapper" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The adapter carries the parameter formatter this package writes through. -->
+    <ProjectReference Include="..\PetToys.BigDecimal.ClickHouse\PetToys.BigDecimal.ClickHouse.csproj" />
+  </ItemGroup>
+
+</Project>
