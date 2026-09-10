@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -47,6 +48,7 @@ namespace PetToys.BigDecimal.Numerics;
 /// </para>
 /// </remarks>
 [JsonConverter(typeof(BigDecimalJsonConverter))]
+[TypeConverter(typeof(BigDecimalTypeConverter))]
 public readonly partial struct BigDecimal
 {
     internal const int WordCount = 4;
