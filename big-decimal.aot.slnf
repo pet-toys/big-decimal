@@ -1,0 +1,10 @@
+{
+  "solution": {
+    "path": "big-decimal.slnx",
+    "projects": [
+      "probe/PetToys.BigDecimal.ClickHouse.Probe/PetToys.BigDecimal.ClickHouse.Probe.csproj",
+      "probe/PetToys.BigDecimal.Core.Probe/PetToys.BigDecimal.Core.Probe.csproj",
+      "probe/PetToys.BigDecimal.Npgsql.Probe/PetToys.BigDecimal.Npgsql.Probe.csproj"
+    ]
+  }
+}

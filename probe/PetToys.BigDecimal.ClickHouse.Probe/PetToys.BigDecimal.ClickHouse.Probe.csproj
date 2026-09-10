@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>$(TargetFrameworkVersions)</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <!-- Outside PetToys on purpose; the reason is in PetToys.BigDecimal.Core.Probe.csproj. -->
+    <RootNamespace>BigDecimalProbes</RootNamespace>
+    <AssemblyName>PetToys.BigDecimal.ClickHouse.Probe</AssemblyName>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <TrimMode>full</TrimMode>
+    <!-- IL2104 and IL3053 are the per-assembly aggregates: "this dependency produced trim (or AOT)
+         warnings". ClickHouse.Driver 1.4.0 and its Microsoft.IO.RecyclableMemoryStream dependency
+         both do, which is the finding this probe carries into the README rather than a defect to
+         fix here. Warnings are errors in this repository, so without these two the publish stops
+         before the binary exists and the question the probe asks - does it run - goes unanswered.
+         A consumer sees the same two as warnings and publishes. Nothing about our own assemblies
+         is silenced: an IL2xxx in this project or in the package still fails the build, and
+         -p:TrimmerSingleWarn=false lists what the driver was warned about. -->
+    <NoWarn>$(NoWarn);IL2104;IL3053</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PetToys.BigDecimal.ClickHouse\PetToys.BigDecimal.ClickHouse.csproj" />
+  </ItemGroup>
+
+</Project>

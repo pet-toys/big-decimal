@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>$(TargetFrameworkVersions)</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <!-- Outside PetToys on purpose; the reason is in PetToys.BigDecimal.Core.Probe.csproj. -->
+    <RootNamespace>BigDecimalProbes</RootNamespace>
+    <AssemblyName>PetToys.BigDecimal.Npgsql.Probe</AssemblyName>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <TrimMode>full</TrimMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PetToys.BigDecimal.Npgsql\PetToys.BigDecimal.Npgsql.csproj" />
+  </ItemGroup>
+
+</Project>

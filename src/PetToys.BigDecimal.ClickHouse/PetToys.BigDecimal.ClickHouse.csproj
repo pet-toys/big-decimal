@@ -10,7 +10,14 @@
 
   <PropertyGroup Label="NuGet package">
     <Description>ClickHouse helpers that map Decimal32, Decimal64, Decimal128, and Decimal256 columns to PetToys.BigDecimal.Core when reading and writing through ClickHouse.Driver.</Description>
-    <PackageTags>bigdecimal;decimal;clickhouse;numerics</PackageTags>
+    <PackageTags>bigdecimal;decimal;clickhouse;numerics;trimmable</PackageTags>
+    <!-- Implies IsTrimmable and turns the trim, single-file and AOT analyzers into a build gate,
+         since warnings are errors outside Debug. It marks this assembly and nothing else:
+         ClickHouse.Driver 1.4.0 carries no IsTrimmable in either ClickHouse.Driver.dll or
+         ClickHouse.Driver.Common.dll, so a consumer publishing trimmed or Native AOT is warned
+         IL2104 over the driver whatever this package does. Leaving the property off would not
+         spare them that warning, only cost this code its own gate; the README states the limit. -->
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 
   <ItemGroup>

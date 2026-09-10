@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>$(TargetFrameworkVersions)</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <!-- Deliberately NOT PetToys.BigDecimal, which is what bench/ pins. From any namespace under
+         PetToys the identifier BigDecimal binds to the namespace rather than to the type, and the
+         benchmarks work around that by living in Numerics/. A probe has no reason to mirror the
+         measured namespace, so it steps outside PetToys entirely and the trap does not arise. -->
+    <RootNamespace>BigDecimalProbes</RootNamespace>
+    <AssemblyName>PetToys.BigDecimal.Core.Probe</AssemblyName>
+    <!-- The analyzers this repository turns on for the packages, turned on for the probe's own
+         code as well. IsAotCompatible is not used here: it also sets IsTrimmable, which is a
+         statement about an assembly somebody else trims, and nobody references a probe. -->
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+    <!-- Explicit because it is the point of the probe rather than a default worth inheriting: a
+         type whose formatting is culture-aware is exactly what an invariant build would stop
+         testing, and the smaller binary is not what is being measured here. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- Stated rather than inherited: what a consumer publishing trimmed gets is the aggressive
+         mode, and a probe run under a milder one would answer an easier question. -->
+    <TrimMode>full</TrimMode>
+    <!-- PublishTrimmed and PublishAot are passed on the command line, not set here. The same
+         project is published in both forms and on different frameworks, and a property set here
+         would decide that for every publish. probe/README.md carries the commands. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PetToys.BigDecimal.Core\PetToys.BigDecimal.Core.csproj" />
+  </ItemGroup>
+
+</Project>
