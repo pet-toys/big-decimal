@@ -45,7 +45,7 @@ jobs:
     - name: Restore
       run: dotnet restore big-decimal.integration.slnf
 
-    # No category filter. The solution filter already selects the two projects that hold these
+    # No category filter. The solution filter already selects the projects that hold these
     # tests, and a filter that matches nothing is a failed run under the Microsoft Testing Platform
     # rather than an empty one, so filtering again only adds a way to be wrong. One framework: the
     # bytes are the same on all three, and the codecs are covered on all three by the byte-level
