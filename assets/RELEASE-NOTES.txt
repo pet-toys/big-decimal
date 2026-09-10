@@ -1,11 +1,13 @@
 1.0.0-dev.3
 ===========
 
-This release adds the three stage-three packages - the Entity Framework Core
-mapping and the Dapper mapping for PostgreSQL, and the Dapper mapping for
-ClickHouse - and marks every published assembly trimmable. One tag versions
-every package in the repository, so the three that existed before are
-republished with the public surface they shipped as 1.0.0-dev.2.
+This release completes the package family. The three stage-three packages ship:
+the Entity Framework Core mapping and the Dapper mapping for PostgreSQL, and the
+Dapper mapping for ClickHouse. Every published assembly is marked trimmable, and
+the three packages that existed before carry additions of their own - a
+TypeConverter in the core, and a parameter the statement did not annotate
+refused by name on ClickHouse. Neither changes what already worked. One tag
+versions every package in the repository, so all six are published together.
 
 PetToys.BigDecimal.Npgsql.EntityFrameworkCore
 
