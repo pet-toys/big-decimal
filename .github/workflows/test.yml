@@ -95,7 +95,12 @@ jobs:
     - name: Pack
       run: dotnet pack big-decimal.build.slnf --configuration Release --no-restore --include-symbols --output "${{ runner.temp }}/nuget" -p:Version=0.0.0-ci -p:PackageVersion=0.0.0-ci
 
-    - name: Check the release notes the packages would carry
+    # The packed <releaseNotes> and the GitHub release body both come from
+    # assets/RELEASE-NOTES.txt, and neither can be corrected after a publish, so
+    # both are checked on the pull request that changes the text.
+    - name: Check the release notes and the body they render into
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
         notes="${{ runner.temp }}/release-notes.txt"
         dotnet msbuild src/PetToys.BigDecimal.Core/PetToys.BigDecimal.Core.csproj \
@@ -106,3 +111,12 @@ jobs:
         fi
         echo "Release notes that would ship ($(wc -c < "$notes") bytes):"
         cat "$notes"
+
+        # The body build-deploy.yml would publish, put through the renderer the
+        # release page itself uses - GitHub Flavored Markdown in this
+        # repository's context, which is what turns a bare @word into a link to
+        # whoever owns that account - and compared with the notes line for line.
+        body="${{ runner.temp }}/release-body.md"
+        bash .github/scripts/compose-release-body.sh "$notes" "$body"
+        gh api --method POST markdown -f mode=gfm -f context="$GITHUB_REPOSITORY"           -F text=@"$body" > "${{ runner.temp }}/release-body.html"
+        python3 .github/scripts/verify-release-body.py "$notes" "${{ runner.temp }}/release-body.html"
