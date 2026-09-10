@@ -10,23 +10,14 @@ namespace PetToys.BigDecimal.Numerics;
 /// to and takes from a hook.
 /// </summary>
 /// <remarks>
+/// The driver exposes no payload-level extension point, so a hook only ever sees a value already
+/// decoded into a <see cref="BigInteger"/> mantissa and a scale. The two directions therefore use
+/// different machinery: reading is <see cref="BigDecimal.FromScaled"/>, since routing it through
+/// the byte codec would decompose and recompose the same number, while writing has a rescale, a
+/// range check and a refusal, all of them already specified in <see cref="ClickHouseDecimal"/>.
 /// <para>
-/// This is where the whole contract of the package lives, and it is deliberately small: the driver
-/// exposes no payload-level extension point, so the only shape a hook ever sees is a value that has
-/// already been decoded into a <see cref="BigInteger"/> mantissa and a scale.
-/// </para>
-/// <para>
-/// The two directions are not symmetric and use different machinery on purpose. Reading is a
-/// mantissa and a scale becoming a value, which <see cref="BigDecimal.FromScaled"/> already is;
-/// routing it through the byte codec would decompose and recompose the same number for no gain.
-/// Writing has real work in it - a rescale, a range check and a refusal - and every part of that is
-/// already written and specified in <see cref="ClickHouseDecimal"/>, so this goes through the codec
-/// rather than beside it.
-/// </para>
-/// <para>
-/// The driver's decimal and the core's codec are both called <c>ClickHouseDecimal</c>. In this
-/// namespace the unqualified name is the codec, and the driver's is aliased to
-/// <c>DriverDecimal</c>.
+/// The driver's decimal and the core's codec are both called <c>ClickHouseDecimal</c>; here the
+/// unqualified name is the codec, and the driver's is aliased to <c>DriverDecimal</c>.
 /// </para>
 /// </remarks>
 internal static class BigDecimalColumnCodec
@@ -41,11 +32,9 @@ internal static class BigDecimalColumnCodec
     /// The mantissa is wider than 256 bits, which no ClickHouse column can produce.
     /// </exception>
     /// <remarks>
-    /// Reading is total for anything a server can send: ClickHouse allows at most 76 digits of
-    /// precision and a scale of at most 76, inside this type's 77 significant digits and its scale
-    /// of 255. The overflow above is reachable only from a value composed by hand, and it is left
-    /// reachable rather than asserted away, because the alternative to raising there is silently
-    /// truncating a number.
+    /// Total for anything a server can send: 76 digits of precision and a scale of 76 both sit
+    /// inside this type. The overflow is reachable only from a hand-composed value, and is left
+    /// reachable rather than asserted away because the alternative is truncating a number.
     /// </remarks>
     internal static BigDecimal FromColumn(DriverDecimal value) =>
         BigDecimal.FromScaled(value.Mantissa, value.Scale);
@@ -68,19 +57,11 @@ internal static class BigDecimalColumnCodec
     /// <paramref name="value"/> is NaN or an infinity, which no ClickHouse decimal represents.
     /// </exception>
     /// <remarks>
-    /// <para>
-    /// The rescale is the codec's, which rounds half to even. That matters because the two parties
-    /// this package sits between do not: the driver truncates toward zero when it lowers a scale,
-    /// and so does the server when it parses decimal text into a narrower column. Handing either of
-    /// them a value already at the column's scale is what keeps one rounding rule across the
-    /// package.
-    /// </para>
-    /// <para>
-    /// The codec checks the width and says so in the type's own terms, which are the wrong terms
-    /// here: the boundary crossed is the column's, not the type's. Both failures are re-raised with
-    /// the same type, naming the column and its declared form, and carrying the original as the
-    /// inner exception.
-    /// </para>
+    /// The rescale is the codec's, which rounds half to even, and both parties this sits between
+    /// truncate toward zero instead - the driver when it lowers a scale, the server when it parses
+    /// decimal text. Handing either one a value already at the column's scale is what keeps a
+    /// single rounding rule. The codec's failures are re-raised with the same exception type,
+    /// naming the column rather than the value type whose boundary the codec reports.
     /// </remarks>
     internal static DriverDecimal ToColumn(BigDecimal value, ClickHouseColumnType type, string target)
     {
@@ -109,9 +90,8 @@ internal static class BigDecimalColumnCodec
 
         var mantissa = new BigInteger(payload, isUnsigned: false, isBigEndian: false);
 
-        // The precision is the caller's to enforce, which the codec says in as many words: it is a
-        // property of the declared type rather than of the payload, and the two bounds do not
-        // subsume each other. A mantissa of 9e18 fits the eight bytes of a Decimal64 and exceeds
+        // Precision is a property of the declared type, width one of the payload, and neither
+        // bound subsumes the other: a mantissa of 9e18 fits a Decimal64's eight bytes and exceeds
         // the eighteen digits of Decimal64(2), where the server answers "Too many digits".
         if (BigInteger.Abs(mantissa) >= PowersOfTen[type.Precision])
         {

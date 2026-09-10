@@ -12,19 +12,14 @@ namespace PetToys.BigDecimal.Numerics;
 /// through no other type.
 /// </summary>
 /// <remarks>
+/// Buffered rather than streaming: a value spans at most 50 bytes, and the reader and writer take
+/// the spans <see cref="PostgresNumeric"/> already works in, so the payload crosses without a copy.
 /// <para>
-/// Buffered rather than streaming. A value of this type spans at most 21 base-10000 groups, which
-/// is 50 bytes with the header, so there is nothing to stream; and <c>PgReader.ReadBytes</c>
-/// and <c>PgWriter.WriteBytes</c> take the spans <see cref="PostgresNumeric"/> already
-/// works in, so the payload crosses without a copy in the ordinary case.
-/// </para>
-/// <para>
-/// The base classes live in <c>Npgsql.Internal</c> and are published as
-/// <c>[Experimental("NPG9001")]</c>. That is suppressed here, in the one file that reaches into the
-/// driver's internals, rather than for the project: a later file that wants the same access should
-/// have to say so. There is no alternative extension point. The <c>INpgsqlTypeHandler</c> family
-/// this package was originally scoped against was removed in Npgsql 8 and nothing outside that
-/// namespace replaced it, so the package's floor on the driver is a floor on a shape that may move.
+/// The base classes are <c>Npgsql.Internal</c>'s and are published as
+/// <c>[Experimental("NPG9001")]</c>, suppressed per file rather than per project so a later file
+/// wanting the same access has to say so. There is no alternative: the <c>INpgsqlTypeHandler</c>
+/// family this package was first scoped against went away in Npgsql 8 and nothing public replaced
+/// it, which is why the package's version range on the driver is closed at the major.
 /// </para>
 /// </remarks>
 internal sealed class BigDecimalConverter : PgBufferedConverter<BigDecimal>
@@ -119,9 +114,8 @@ internal sealed class BigDecimalConverter : PgBufferedConverter<BigDecimal>
         }
 
         // The driver has already written the field length from what GetSize answered, so a
-        // disagreement between the two would desynchronise the protocol and be reported by the
-        // server as something else entirely, several messages later. The size it is about to use is
-        // on the writer, so checking costs nothing.
+        // disagreement desynchronises the protocol and surfaces as something else several messages
+        // later. The size is on the writer, so checking costs nothing.
         var declared = writer.Current.Size;
         if (declared.Kind is SizeKind.Exact && declared.Value != written)
         {

@@ -9,15 +9,10 @@ namespace PetToys.BigDecimal.Numerics;
 /// Maps what the driver read from a decimal column onto <see cref="BigDecimal"/>.
 /// </summary>
 /// <remarks>
-/// <para>
-/// The hook is consulted once per value rather than once per column, for every column of every row,
-/// including the ones this package has nothing to do with. So it recognises the two shapes a
-/// decimal column arrives in and returns everything else exactly as it came, <see cref="DBNull"/>
-/// included.
-/// </para>
-/// <para>
-/// It is stateless, so one instance serves every query and every connection.
-/// </para>
+/// Consulted once per value, for every column of every row, including the ones this package has
+/// nothing to do with: it recognises the two shapes a decimal column arrives in and returns
+/// everything else exactly as it came, <see cref="DBNull"/> included. Stateless, so one instance
+/// serves every query.
 /// </remarks>
 internal sealed class BigDecimalReadValueConverter : IReadValueConverter
 {

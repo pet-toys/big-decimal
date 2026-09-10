@@ -101,10 +101,9 @@ public sealed class PowerTests
     [Fact]
     public void APowerReducedByItsScaleAlone_LandsInTheDigitBand()
     {
-        // The exact square is 10^110 at scale 288. The scale cap asks for 33 digits, which would
-        // leave 78 of them and still fit four words, so nothing downstream would narrow it: the
-        // shape is a result that was reduced and came back one digit wider than the band, which is
-        // the width the rule reserves for a value that was never reduced at all.
+        // The exact square is 10^110 at scale 288. The cap asks for 33 digits, leaving 78 that
+        // still fit four words, so nothing downstream narrows it: a reduced result one digit wider
+        // than the band, which is the width reserved for a value that was never reduced.
         var value = BigDecimal.FromScaled(BigInteger.Pow(10, 55), 144);
 
         var result = BigDecimal.Pow(value, 2);
@@ -173,11 +172,9 @@ public sealed class PowerTests
     [Fact]
     public void APowerThatRunsOutOfFractionalDigits_KeepsWhatFits()
     {
-        // The exact square has 154 digits at scale 76, so the band asks for 77 digits and only 76
-        // exist to give. The reduction stops at the decimal point and what is left fits the
-        // mantissa, so the result is 78 digits wide: the one case where the width says nothing
-        // about whether the value was reduced, and the reason the band cannot be enforced by
-        // testing the width at the point a value is packed.
+        // The exact square has 154 digits at scale 76, so the band asks for 77 and only 76 exist to
+        // give. The reduction stops at the point and what is left still fits, so the result is 78
+        // digits wide - the one case where the width says nothing about whether it was reduced.
         var value = BigDecimal.FromScaled(
             BigInteger.Parse(
                 "-33097929454724321734568101113074430888076216457856852223986730306351718400624",

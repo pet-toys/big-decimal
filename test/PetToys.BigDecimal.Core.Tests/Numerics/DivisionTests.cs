@@ -136,9 +136,8 @@ public sealed class DivisionTests
     public void Divide_AgreesWithDecimalOnAnExactQuotient(string dividend, string divisor)
     {
         // decimal reduces an exact quotient to its shortest scale and never below the operands'
-        // scale difference, which is the rule this type follows, so it pins the scale as well as
-        // the value. The paths that look for an exact quotient early have to land on exactly what
-        // the full-precision path would have produced.
+        // difference, which is this type's rule too, so it pins the scale as well as the value:
+        // the early exact-quotient paths must land where the full-precision one would have.
         var quotient = Parse(dividend) / Parse(divisor);
         var reference = decimal.Parse(dividend, CultureInfo.InvariantCulture)
             / decimal.Parse(divisor, CultureInfo.InvariantCulture);

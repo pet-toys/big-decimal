@@ -8,19 +8,12 @@ namespace PetToys.BigDecimal.Numerics;
 /// imply.
 /// </summary>
 /// <remarks>
-/// <para>
-/// Two spellings reach this package and both have to parse, because the two paths are handed
-/// different ones. A read hook is given the normalised form, <c>Decimal(38, 10)</c>, while a query
-/// annotates a parameter with the width-named form, <c>Decimal128(10)</c>. They describe the same
-/// column.
-/// </para>
-/// <para>
-/// The width follows from the precision rather than being stated: 9, 18, 38 and 76 digits are held
-/// by 4, 8, 16 and 32 bytes. Both bounds matter and neither subsumes the other, which is why this
-/// type carries both. A <c>Decimal64(2)</c> has eight bytes, holding a magnitude up to about
-/// 9.22e18, and eighteen digits of precision, holding one up to 1e18: a mantissa between the two
-/// fits the payload and is refused by the server.
-/// </para>
+/// Both spellings have to parse: a read hook is given the normalised <c>Decimal(38, 10)</c> and a
+/// query annotates a parameter with the width-named <c>Decimal128(10)</c>, for the same column.
+/// The width follows from the precision - 9, 18, 38 and 76 digits in 4, 8, 16 and 32 bytes - and
+/// both bounds are carried because neither subsumes the other: a mantissa between
+/// <c>Decimal64(2)</c>'s 1e18 of precision and its 9.22e18 of payload fits the bytes and is
+/// refused by the server.
 /// </remarks>
 internal readonly struct ClickHouseColumnType
 {
@@ -63,9 +56,8 @@ internal readonly struct ClickHouseColumnType
     /// <see langword="true"/> when <paramref name="declared"/> is a decimal column type.
     /// </returns>
     /// <remarks>
-    /// A type this cannot read is not an error here. It is the answer "not a decimal column", which
-    /// every caller of this method has to handle anyway, since the read hook sees every column of
-    /// every row and a parameter can carry anything.
+    /// A type this cannot read is not an error but the answer "not a decimal column", which every
+    /// caller has to handle anyway: the read hook sees every column of every row.
     /// </remarks>
     internal static bool TryParse(string? declared, out ClickHouseColumnType type)
     {

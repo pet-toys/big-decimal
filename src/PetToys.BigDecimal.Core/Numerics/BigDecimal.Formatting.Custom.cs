@@ -37,14 +37,10 @@ public readonly partial struct BigDecimal
         Span<char> buffer = stackalloc char[DigitBufferLength];
         var digits = Prepare(buffer, spec, out var exponent);
 
-        // A value that is not zero but rounds to zero is rendered as a zero, so the section can
-        // only be settled after the rounding that the section itself decides. Three sections send
-        // it to the third, and fewer send it back to the first: a negative that rounds away is no
-        // longer negative, so "0.00;(0.00)" renders a ten-thousandth as 0.00 rather than (0.00).
-        //
-        // The digits are not prepared again. The framework rounds once, by the section it first
-        // chose, and renders that zero through the section it lands on, which is why
-        // "0.0000;(0.00)" renders a ten-thousandth as 0.0000 rather than 0.0001.
+        // A non-zero value that rounds to zero is rendered as a zero, so the section is only
+        // settled after the rounding the section itself decides: "0.00;(0.00)" renders a
+        // ten-thousandth as 0.00, not (0.00). The digits are not prepared again - the framework
+        // rounds once, by the first section - so "0.0000;(0.00)" renders it as 0.0000, not 0.0001.
         if (digits.IsZero && !IsZero)
         {
             section = ZeroFallbackSection(format);
@@ -301,11 +297,9 @@ public readonly partial struct BigDecimal
                 case 'E' or 'e':
                     if (TryReadExponent(section, i, out var end, out var minDigits, out var alwaysSign))
                     {
-                        // A second exponent section is literal text: "0.0E+0E+0" renders as
-                        // 1.2E+3E+0, the trailing zeros written rather than filled. A first one is
-                        // scientific even with no digit placeholder before it, which looks like
-                        // literal text and is not: "E+0" renders -0.5 as -E+1, the mantissa having
-                        // rounded to nothing and carried into the exponent.
+                        // A second exponent section is literal text - "0.0E+0E+0" renders 1.2E+3E+0
+                        // - while a first one is scientific even with no placeholder before it:
+                        // "E+0" renders -0.5 as -E+1.
                         if (spec.Scientific)
                         {
                             i = end - 1;
@@ -353,8 +347,7 @@ public readonly partial struct BigDecimal
         }
 
         // Zeros only. A '#' after the exponent is a mantissa placeholder, not part of the token:
-        // "0.0E+0#" renders 1.594e19 as 1.5E+199, the trailing 9 being the mantissa's second
-        // fractional digit written after the exponent.
+        // "0.0E+0#" renders 1.594e19 as 1.5E+199, the 9 being a mantissa digit.
         while (end < section.Length && section[end] is '0')
         {
             minDigits++;
@@ -477,9 +470,8 @@ public readonly partial struct BigDecimal
                         continue;
                     }
 
-                    // Any other exponent token is literal text, and it is written whole so that the
-                    // digit placeholders inside it are not filled from the value. The parser skips
-                    // exactly the same range, so the two passes agree.
+                    // Any other exponent token is literal text, written whole so the placeholders
+                    // inside it are not filled. The parser skips the same range, so the two agree.
                     if (c is 'E' or 'e' && TryReadExponent(section, i, out var literalEnd, out _, out _))
                     {
                         foreach (var token in section[i..literalEnd])

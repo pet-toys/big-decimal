@@ -19,10 +19,9 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
     // characters there, F1000000000 throws.
     private const int MaxStandardPrecision = 999_999_999;
 
-    // The intermediate buffer the UTF-8 overload and ToString format through. It covers every
-    // standard specifier at any precision a culture can carry (NumberFormatInfo allows 99 decimal
-    // digits, and the widest rendering is 334 characters plus a pattern), so only an explicit
-    // precision or a long custom format goes past it and rents.
+    // The intermediate the UTF-8 overload and ToString format through. It covers every standard
+    // specifier at any precision a culture can carry - 99 decimal digits over a widest rendering
+    // of 334 characters - so only an explicit precision or a long custom format rents.
     private const int StackFormatChars = 512;
 
     /// <summary>Formats the value for the current culture, trailing zeros included.</summary>
@@ -111,9 +110,9 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
             return Encoding.UTF8.TryGetBytes(chars[..charsWritten], utf8Destination, out bytesWritten);
         }
 
-        // Longer than the stack bound, so the intermediate is rented rather than fixed. What the
-        // caller passed is still the only thing that decides whether this call succeeds: the
-        // internal buffer is sized from the text, which is what D4 was about.
+        // Longer than the stack bound, so the intermediate is rented rather than fixed. The
+        // caller's destination stays the only thing deciding success: this buffer is sized from
+        // the text, never from a constant the caller cannot see.
         var rented = ArrayPool<char>.Shared.Rent(required);
         try
         {
@@ -127,10 +126,8 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
     }
 
     // The format string is never looked at, not even to reject it: double renders NaN for an
-    // invalid specifier where a finite value throws FormatException, and the same holds for
-    // every standard and custom specifier. Measured, not assumed. The symbol's length is
-    // culture data with no cap, so it is reported through required like every other length
-    // here rather than compared against a constant.
+    // invalid specifier where a finite value throws FormatException. Measured, not assumed. The
+    // symbol's length is culture data with no cap, so it is reported through `required`.
     private bool TryFormatNonFinite(
         Span<char> destination,
         out int charsWritten,

@@ -192,10 +192,8 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
         var info = NumberFormatInfo.GetInstance(provider);
 
         // The three non-finite symbols are answered on the whole input, before the styles are
-        // consulted at all. Measured against double rather than assumed: it admits them under
-        // NumberStyles.None and trims around them with both white-space styles cleared. The
-        // style-gated trimming below still governs the number path, which is a different rule
-        // about a different thing.
+        // consulted. Measured against double: it admits them under NumberStyles.None and trims
+        // around them with both white-space styles cleared. The number path keeps its own rule.
         if (TryParseNonFinite(input, info, out result))
         {
             return ParseStatus.Ok;
@@ -420,18 +418,12 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
     /// <param name="value">The character to test.</param>
     /// <returns><see langword="true"/> when the parser may consume it as white space.</returns>
     /// <remarks>
-    /// <see cref="char.IsWhiteSpace(char)"/> accepts twenty-five codepoints in the BMP against
-    /// these six, so trimming with it consumed nineteen characters <see cref="decimal"/>
-    /// refuses. Where such a character is also the culture's group separator, U+00A0 in sv-SE
-    /// and ru-RU and U+202F in fr-FR, it was consumed here before the parse loop could refuse a
-    /// separator standing before the first digit.
-    /// <para>
-    /// Written as a predicate rather than as a set passed to the trimming overloads that take
-    /// one. Measured against both alternatives on this parser's own operands: the six-element
-    /// set costs about three nanoseconds more per parse than the predicate does, five percent
-    /// of a one-word parse, because a linear scan of the set runs per character where two
-    /// comparisons do not.
-    /// </para>
+    /// <see cref="char.IsWhiteSpace(char)"/> accepts twenty-five BMP codepoints against these six,
+    /// nineteen of which <see cref="decimal"/> refuses - including U+00A0, the group separator in
+    /// sv-SE and ru-RU, and U+202F, the one in fr-FR, both consumed here before the parse loop
+    /// could refuse a separator standing before the first digit. A predicate rather than a set
+    /// passed to the trimming overloads: the set's linear scan costs about three nanoseconds a
+    /// parse.
     /// </remarks>
     private static bool IsWhiteSpace(char value) => value == ' ' || value is >= '\t' and <= '\r';
 
@@ -466,10 +458,8 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
     private static bool StartsWith(ReadOnlySpan<char> input, string value) =>
         value.Length > 0 && input.StartsWith(value, StringComparison.Ordinal);
 
-    // Cold, and kept out of TryParseCore rather than folded into it. TryParseCore is far too
-    // large to inline into its callers either way, so this costs nothing; it is written this way
-    // because the prologue runs on every parse and a reader should see at a glance how much of
-    // it does.
+    // Cold, and kept out of TryParseCore so the prologue that runs on every parse reads as short
+    // as it is. TryParseCore is too large to inline either way, so this costs nothing.
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static bool TryParseNonFinite(ReadOnlySpan<char> input, NumberFormatInfo info, out BigDecimal result)
     {
@@ -498,10 +488,9 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
             return true;
         }
 
-        // One sign, leading only: "--Infinity" is not a number. A sign before the NaN symbol is
-        // accepted and then ignored, because NaN carries none - which is what double does for
-        // "-NaN". A sign before the positive infinity symbol is how "+∞" parses under a culture
-        // whose symbols are "∞" and "-∞".
+        // One sign, leading only: "--Infinity" is not a number. A sign before NaN is accepted and
+        // ignored, as double does for "-NaN", and one before the positive infinity symbol is how
+        // "+∞" parses under a culture whose symbols are "∞" and "-∞".
         var negative = TryConsume(ref input, info.NegativeSign);
         if (!negative && !TryConsume(ref input, info.PositiveSign))
         {

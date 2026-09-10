@@ -5,19 +5,14 @@
 /// selects between by pattern index.
 /// </summary>
 /// <remarks>
+/// Every layout was read back from <see cref="decimal"/> under a culture whose sign, symbol and
+/// separators were distinct markers, not transcribed from the documentation. The five number
+/// layouts are why this class exists: <c>N</c> prefixed the negative sign under all five, so a
+/// culture on pattern 0 was told <c>-1,234.5</c> where <see cref="decimal"/> says <c>(1,234.5)</c>.
 /// <para>
-/// Each layout is written in the notation the framework's own documentation uses, and every one of
-/// them was read back from <see cref="decimal"/> under a culture whose sign, symbol and separators
-/// were set to distinct markers, rather than transcribed from that documentation. The five number
-/// layouts are the reason this class exists: <c>N</c> prefixed the negative sign under all five
-/// until this was written, so a culture using pattern 0 was told <c>-1,234.5</c> where
-/// <see cref="decimal"/> says <c>(1,234.5)</c>.
-/// </para>
-/// <para>
-/// Tokens: <c>n</c> is the formatted digits, <c>-</c> is the culture's negative sign, <c>$</c> and
-/// <c>%</c> are the currency and percent symbols, a space is a space, and parentheses are
-/// themselves. A renderer treats every character that is not <c>n</c>, <c>-</c>, a space or a
-/// parenthesis as the symbol, so the two symbol tokens do not have to be told apart.
+/// Tokens: <c>n</c> is the digits, <c>-</c> the negative sign, <c>$</c> and <c>%</c> the currency
+/// and percent symbols; anything else that is not a space or a parenthesis is treated as the
+/// symbol, so the two symbol tokens need not be told apart.
 /// </para>
 /// </remarks>
 internal static class NumberPatterns

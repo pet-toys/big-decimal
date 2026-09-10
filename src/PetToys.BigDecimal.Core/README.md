@@ -66,6 +66,28 @@ price.WithScale(18);                 // 1.500000000000000000, for numeric(38,18)
 BigDecimal.Round(price, 18);         // 1.5 - Round never pads
 ```
 
+## What it costs
+
+Allocation-free is not the same as cheap. A value is **40 bytes** against
+`decimal`'s 16 - four 64-bit magnitude words and a packed 32-bit field - and
+every binary operator takes both operands by value, so an operation copies 80
+bytes before it does any work. `INumber<T>` declares its operators by value, so
+an `in` overload cannot be added without leaving the interface.
+
+Against `System.Decimal`, on the operand shapes and the machine recorded in
+[`BASELINE.md`][baseline-url] and with zero allocations on every row: `Add` and
+`Subtract` at 2.4x and 2.6x, `Multiply` 3.2x, `Divide` 5.3x, `Remainder` 2.8x,
+`Parse` 1.1x, `TryFormat` 2.8x, the UTF-8 overloads within 0.2x of the `char`
+ones either way. One machine, one shape per row, taken to grade
+a budget rather than to publish a benchmark - an order of magnitude, not a
+specification. Division is the worst case and the one to measure yourself.
+
+The working buffers are on the stack: counted across the whole call rather than
+one frame, a division, a parse and a `ToString` each take between one and one
+and a half kilobytes. Ordinary for a call from application code, worth knowing
+before a deeply recursive path or an `async` state machine whose stack is
+already hot.
+
 ## Installation
 
 ```sh
@@ -93,6 +115,7 @@ packages put their helpers in.
 Provided under the [Apache License, Version 2.0][license-url].
 
 [repo-url]: https://github.com/pet-toys/big-decimal
+[baseline-url]: https://github.com/pet-toys/big-decimal/blob/dev/bench/PetToys.BigDecimal.Core.Benchmarks/BASELINE.md
 [gh-packages-url]: https://github.com/orgs/pet-toys/packages?repo_name=big-decimal
 [issues-url]: https://github.com/pet-toys/big-decimal/issues
 [nuget-url]: https://www.nuget.org/packages/PetToys.BigDecimal.Core/

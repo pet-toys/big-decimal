@@ -10,42 +10,12 @@ namespace PetToys.BigDecimal.Numerics;
 /// the column type rather than to the payload.
 /// </summary>
 /// <remarks>
-/// <para>
-/// Internal on purpose, and settled: the two adapter packages reach it through
-/// <c>InternalsVisibleTo</c>, and the surface this repository supports is the mapping each
-/// adapter exposes rather than the bytes underneath it. Publishing stays additive, so a caller
-/// who works the wire without either driver can still ask for it; the shape would be theirs and
-/// would live in the adapter package rather than here.
-/// </para>
-/// <para>
-/// The edges of the contract are not symmetric, and the asymmetry is the point:
-/// </para>
-/// <list type="bullet">
-/// <item>
-/// Reading never overflows and never rounds. The payload is a two's complement integer of at most
-/// 256 bits, so its magnitude is at most 2^255, inside this type's 2^256-1 and inside four words,
-/// and the column's scale is at most 76, inside <see cref="BigDecimal.MaxScale"/>. The reader is
-/// total by construction and carries neither branch.
-/// </item>
-/// <item>
-/// Writing can round, when the column's scale is lower than the value's, and can overflow, because
-/// every width is narrower than the magnitude.
-/// </item>
-/// <item>
-/// A non-finite value is refused by name. No <c>Decimal</c> width has a counterpart, and the
-/// alternative to refusing is writing a finite number the caller never asked for.
-/// </item>
-/// </list>
-/// <para>
-/// The width comes from the length of the span rather than from an argument beside it: the driver
-/// already holds a buffer of the column's width, and a separate argument is one more thing that can
-/// disagree with the bytes.
-/// </para>
-/// <para>
-/// The precision of the column - 9, 18, 38 or 76 digits - is the caller's to enforce. It is a
-/// property of the declared column rather than of the payload, and the codec enforces the width,
-/// which is what the bytes themselves cannot hold.
-/// </para>
+/// The two directions are deliberately asymmetric. Reading is total by construction: 256 bits of
+/// two's complement is at most 2^255 and a column scale is at most 76, so it never overflows and
+/// never rounds. Writing can do both, and refuses a non-finite value by name because no width has
+/// a counterpart for one. The width comes from the span's length rather than a separate argument
+/// that could disagree with the bytes; the column's precision is the caller's to enforce, being a
+/// property of the declared type rather than of the payload.
 /// </remarks>
 internal static class ClickHouseDecimal
 {
@@ -64,10 +34,8 @@ internal static class ClickHouseDecimal
     /// <summary>The widest payload, which is also the width every read is sign-extended into.</summary>
     private const int MaxSize = Decimal256Size;
 
-    // The magnitude at four words, multiplied by up to 10^255 when the column's scale is higher
-    // than the value's. Only the first few words of that can ever fit a width, so the buffer is
-    // sized to hold the check rather than the product: a magnitude that has outgrown five words has
-    // outgrown Decimal256 as well, and scaling stops there.
+    // Sized to hold the check rather than the product: a magnitude that has outgrown five words
+    // has outgrown Decimal256 as well, and scaling stops there.
     private const int WorkWords = BigDecimal.WordCount + 2;
 
     /// <summary>Reads a ClickHouse decimal payload.</summary>
@@ -179,11 +147,8 @@ internal static class ClickHouseDecimal
     /// Multiplies by a power of ten, stopping as soon as the result has outgrown every width.
     /// </summary>
     /// <remarks>
-    /// A column scale of 76 against a value at scale 0 asks for a product of 2^256 by 10^76, which
-    /// is 509 bits and would need eight words to hold. Holding it would be work spent on a value
-    /// that is about to be refused: once the magnitude passes five words it is past
-    /// <c>Decimal256</c> and no further digit changes that. The loop stops there and reports a
-    /// length the range check reads as too wide.
+    /// Past five words the value is already past <c>Decimal256</c> and no further digit changes
+    /// that, so the loop stops and reports a length the range check reads as too wide.
     /// </remarks>
     private static int ScaleUpUntilItCannotFit(Span<ulong> magnitude, int length, int power)
     {
@@ -197,11 +162,10 @@ internal static class ClickHouseDecimal
         return length;
     }
 
-    /// <summary>Replaces a four-word value by its two's complement, in place.</summary>
-    /// <remarks>
-    /// Its own inverse, which is why one method serves both directions: the reader turns a negative
-    /// payload into a magnitude and the writer turns a magnitude into a negative payload.
-    /// </remarks>
+    /// <summary>
+    /// Replaces a four-word value by its two's complement, in place. Its own inverse, which is why
+    /// one method serves the reader and the writer alike.
+    /// </summary>
     private static void Negate(Span<ulong> words)
     {
         unchecked
@@ -218,9 +182,9 @@ internal static class ClickHouseDecimal
 
     /// <summary>Answers whether a magnitude fits the two's complement range of a width.</summary>
     /// <remarks>
-    /// The range is asymmetric by one: a width of <c>b</c> bits holds every magnitude below
-    /// 2^(b-1), and 2^(b-1) itself only when the value is negative. Written over the sign bit's own
-    /// word rather than once per width, so the four widths cannot come to disagree.
+    /// The range is asymmetric by one: <c>b</c> bits hold every magnitude below 2^(b-1), and
+    /// 2^(b-1) itself only when negative. Written over the sign bit's word rather than once per
+    /// width, so the four cannot come to disagree.
     /// </remarks>
     private static bool FitsTheWidth(ReadOnlySpan<ulong> magnitude, int length, bool isNegative, int size)
     {

@@ -272,20 +272,17 @@ public sealed class ConversionTests
         uint.CreateSaturating(BigDecimal.NegativeInfinity).Should().Be(0u);
         long.CreateSaturating(BigDecimal.PositiveInfinity).Should().Be(long.MaxValue);
 
-        // Not cross-checked against double here, deliberately: int.CreateSaturating(double.NaN)
-        // is int.MinValue on net8.0 and 0 from net9.0 on, so "what double does" has two answers
-        // and cannot be the oracle. Found by running this suite on all three frameworks, not by
-        // reading release notes. The modern answer is the one pinned above, on every framework
-        // this package targets, so the constants are the contract rather than the platform.
+        // Deliberately not cross-checked against double: int.CreateSaturating(double.NaN) is
+        // int.MinValue on net8.0 and 0 from net9.0 on, so the oracle has two answers. The modern
+        // one is pinned above on every target, so these constants are the contract.
     }
 
     [Fact]
     public void TheSaturatingRouteOut_AnswersNaNWithZeroForEveryDestination()
     {
-        // decimal and BigInteger each reach the destination by a path of their own, and each of
-        // them fell through to a cast that throws: decimal because both range comparisons are
-        // false against NaN, BigInteger because its cast could never overflow before and so
-        // ignored the saturate flag.
+        // decimal and BigInteger each reach the destination by their own path, and each fell
+        // through to a throwing cast: decimal because both range comparisons are false against
+        // NaN, BigInteger because its cast could never overflow and so ignored the saturate flag.
         decimal.CreateSaturating(BigDecimal.NaN).Should().Be(0m);
         decimal.CreateTruncating(BigDecimal.NaN).Should().Be(0m);
         BigInteger.CreateSaturating(BigDecimal.NaN).Should().Be(BigInteger.Zero);

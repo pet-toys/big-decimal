@@ -37,6 +37,14 @@ namespace PetToys.BigDecimal.Numerics;
 /// magnitude with zero and <see cref="IsZero"/> consults the encoding rather than the words
 /// alone.
 /// </para>
+/// <para>
+/// That makes a value 40 bytes wide against <see cref="decimal"/>'s 16, and every operator
+/// takes both operands by value. Nothing reaches the heap, but the working buffers are on the
+/// stack: counted across the whole call rather than one frame, a division, a parse and a
+/// <see cref="ToString()"/> each take between one and one and a half kilobytes. Ordinary for a
+/// call from application code, worth knowing on a deeply recursive path or in an <c>async</c>
+/// state machine whose stack is already hot.
+/// </para>
 /// </remarks>
 [JsonConverter(typeof(BigDecimalJsonConverter))]
 public readonly partial struct BigDecimal
@@ -325,10 +333,9 @@ public readonly partial struct BigDecimal
         destination[2] = _l2;
         destination[3] = _l3;
 
-        // A work buffer is wider than the magnitude it holds, and nothing reads the words above
-        // it: every helper here is bounded by the length it is given. Zeroing them cost a
-        // twenty-word fill on every operation that copies a magnitude, and the runtime had
-        // already zeroed the buffer on entry. See Words.Poison for what keeps that true.
+        // A work buffer is wider than the magnitude it holds and nothing reads the words above it:
+        // every helper is bounded by the length it is given. Zeroing them cost a twenty-word fill
+        // per copy that the runtime had already done. Words.Poison is what keeps that true.
         Words.Poison(destination[WordCount..]);
 
         return Words.Normalize(destination[..WordCount]);
@@ -346,14 +353,10 @@ public readonly partial struct BigDecimal
 
     /// <summary>Packs a magnitude and a scale into a value, reporting overflow rather than throwing.</summary>
     /// <remarks>
-    /// The reporting form exists because <c>TryParse</c> used to call the throwing one inside a
-    /// <c>try</c>/<c>catch</c>, so an input the type cannot hold cost 464 bytes of exception on a
-    /// path whose contract is to return <see langword="false"/> and allocate nothing.
-    /// <para>
-    /// The magnitude is consumed either way: scaling and rounding write over it, so a caller that
-    /// gets <see langword="false"/> cannot reuse the buffer's contents. That was already true of
-    /// the throwing form.
-    /// </para>
+    /// The reporting form exists for <c>TryParse</c>, whose contract is to return
+    /// <see langword="false"/> and allocate nothing; a <c>try</c>/<c>catch</c> around the throwing
+    /// form cost 464 bytes of exception there. The magnitude is consumed either way, so a caller
+    /// that gets <see langword="false"/> cannot reuse the buffer.
     /// </remarks>
     internal static bool TryPack(Span<ulong> magnitude, int length, bool isNegative, int scale, out BigDecimal result)
     {
@@ -399,37 +402,19 @@ public readonly partial struct BigDecimal
 
     /// <summary>Gives up fractional digits until a magnitude and its scale fit a stated width.</summary>
     /// <remarks>
-    /// The reduction rule of the type, in one place: excess digits are fractional digits, they are
-    /// rounded half to even, and an operation that has none left to give reports failure rather
-    /// than truncating an integer part. <see cref="TryPack"/> calls it at the mantissa's own width
-    /// and <see cref="Pow"/> at the wider one its accumulator runs in, so the accumulator cannot
-    /// drift from the packing rule it has to agree with.
+    /// The reduction rule of the type, in one place: excess digits are fractional, they round half
+    /// to even, and having none left to give is a failure rather than a truncated integer part.
+    /// <see cref="TryPack"/> calls it at the mantissa's width and <see cref="Pow"/> at its
+    /// accumulator's, so the two cannot drift apart.
     /// <para>
-    /// <paramref name="maxDigits"/> is not derived from <paramref name="maxWords"/> because it is
-    /// not the same question: every 77-digit value fits four words and only some 78-digit ones do,
-    /// so a result that has to be reduced is reduced into the band where every value of that width
-    /// fits. The caller states both. It states them as a pair, though, and the pair has to be the
-    /// one the width actually gives: a magnitude no wider than <paramref name="maxWords"/> carries
-    /// at most <paramref name="maxDigits"/> + 1 digits. That is what makes it safe to widen the
-    /// excess to the digit band only when the magnitude is too wide - entering the loop for the
-    /// scale alone gives up at least one digit, which lands inside the band on its own - and it is
-    /// what a third caller would have to preserve.
-    /// </para>
-    /// <para>
-    /// <paramref name="maxScale"/> is the third number of that width and not a property of the
-    /// type: a working value is capped where the cap cannot decide anything, and only a result is
-    /// capped at <see cref="MaxScale"/>. Rounding an intermediate to the result's scale would
-    /// round twice, and would hand back a value already reduced at a width where 78 digits are
-    /// inside the band, which the caller that packs it cannot tell from one that never was.
-    /// </para>
-    /// <para>
-    /// <paramref name="allowNegativeScale"/> is what separates a result from a working value. A
-    /// result with no fractional digits left to give up has overflowed and says so; a working value
-    /// the caller is going to divide into gives up digits anyway and records how many by going
-    /// below scale 0, because what it owes its caller is a fixed number of significant digits and
-    /// not an exact integer. Only <see cref="Pow"/> passes <see langword="true"/>, and what it
-    /// hands back is packed by a call that passes <see langword="false"/>, so nothing reaches a
-    /// caller at a negative scale.
+    /// The three width arguments are a set a third caller has to keep consistent:
+    /// <paramref name="maxDigits"/> is the band every value of that width fits, so the pair must
+    /// satisfy "no wider than <paramref name="maxWords"/> means at most
+    /// <paramref name="maxDigits"/> + 1 digits", and <paramref name="maxScale"/> belongs to the
+    /// width rather than the type, since capping a working value at <see cref="MaxScale"/> would
+    /// round it twice. <paramref name="allowNegativeScale"/> separates a result, which has
+    /// overflowed once it is out of fractional digits, from a working value, which gives them up
+    /// anyway and records how many by going below zero; only <see cref="Pow"/> passes it.
     /// </para>
     /// </remarks>
     private static bool TryReduce(
@@ -478,9 +463,8 @@ public readonly partial struct BigDecimal
     internal static void ThrowMantissaOverflow() =>
         throw new OverflowException("Value was either too large or too small for a BigDecimal.");
 
-    // The base class library says "floating point Not-a-Number" in this message, but this type
-    // is a fixed-width decimal and repeating that would tell the caller something untrue about
-    // what they are holding.
+    // The base class library says "floating point Not-a-Number" here; this type is a fixed-width
+    // decimal, so repeating that would tell the caller something untrue about what they hold.
     [DoesNotReturn]
     internal static void ThrowNaNHasNoSign() =>
         throw new ArithmeticException("Function does not accept Not-a-Number values.");

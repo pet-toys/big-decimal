@@ -9,20 +9,17 @@ namespace PetToys.BigDecimal.Numerics;
 /// </summary>
 /// <remarks>
 /// <see cref="NumberFormatInfo.NumberGroupSizes"/> clones its array on every read, measured on
-/// .NET 10 at 32 bytes and 48.7 ns against 0.22 ns for the field it clones. Grouped formatting
-/// needs the list on every call, so that copy was both the only allocation left in the type and
-/// most of what the <c>N</c> specifier cost over <c>F</c>. <see cref="NumberFormatInfo.CurrencyGroupSizes"/>
-/// and <see cref="NumberFormatInfo.PercentGroupSizes"/> clone in exactly the same way, so <c>C</c>
-/// and <c>P</c> would have reopened that allocation the day they were accepted. Caching the arrays
-/// instead is not an option: a <see cref="NumberFormatInfo"/> that is not read-only can change
-/// between two calls, and a cache would go on serving the old list.
+/// .NET 10 at 32 bytes and 48.7 ns against 0.22 ns for the field behind it; the currency and
+/// percent properties clone by the same mechanism. Grouped formatting needs the list on every
+/// call, so that copy was the last allocation in the type and most of what <c>N</c> cost over
+/// <c>F</c>. Caching the arrays is not an option: a <see cref="NumberFormatInfo"/> that is not
+/// read-only can change between calls, and a cache would go on serving the old list.
 /// </remarks>
 internal static class CultureData
 {
-    // Probed once per property, not once for the class. A runtime that renames one field must not
-    // be hidden by the two that still resolve, and the worst case per property is the cost above
-    // rather than a MissingFieldException at the first format call. Field initialisers rather than
-    // a static constructor, so the type keeps beforefieldinit and the branches stay inlineable.
+    // Probed once per property, not once for the class: a runtime that renames one field must not
+    // be hidden by the two that still resolve. Field initialisers rather than a static
+    // constructor, so the type keeps beforefieldinit and the branches stay inlineable.
     private static readonly bool NumberFieldIsReachable = ProbeNumberGroupSizes();
 
     private static readonly bool CurrencyFieldIsReachable = ProbeCurrencyGroupSizes();

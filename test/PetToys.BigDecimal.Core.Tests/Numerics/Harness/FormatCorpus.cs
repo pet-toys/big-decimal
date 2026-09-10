@@ -41,11 +41,10 @@ public static class FormatCorpus
         "‰0.0", "0.0;-0.0;+0.0", "ZZ", "abc", "0#0", "#0#0.0#0", "0,.#", ",0", "0.0,,%",
         "#,##0.## 'items'", "'''0", "0;;",
 
-        // Every one of these was a mismatch found in review, after the corpus above was already
-        // green: a section with no integer placeholder renders the integer part in full, a comma
-        // scales only where a placeholder precedes it, a mantissa can be narrower than one digit,
-        // a second exponent token is literal text, and a value that rounds away to zero falls back
-        // to the first section when there is no third one.
+        // Each was a mismatch found in review with the corpus above already green: an integer part
+        // rendered in full with no placeholder, a comma that scales only after one, a sub-digit
+        // mantissa, a second exponent token as literal text, and a zero falling back to section
+        // one.
         ".##", ".00", "'x'.00", ".0E+0", ",.00", "0.0E+0E+0", "E+0", "0.0E+0#",
         "0.00;(0.00)", "0.0000;(0.00)", "0.00;(0.0000)", "0.00;(0.00);0.0000", "0.0;-0.0",
     ];

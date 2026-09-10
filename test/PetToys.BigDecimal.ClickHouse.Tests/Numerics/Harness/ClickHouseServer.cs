@@ -138,10 +138,9 @@ public sealed class ClickHouseServer : IAsyncDisposable
                 this.attempted = true;
                 try
                 {
-                    // Built here rather than in a field, because Build() resolves the Docker
-                    // endpoint: on a machine without one it throws, and a fixture that throws in
-                    // its constructor takes every test in the assembly with it, including the ones
-                    // that never wanted a server.
+                    // Built here rather than in a field: Build() resolves the Docker endpoint and
+                    // throws without one, and a fixture that throws in its constructor takes every
+                    // test in the assembly with it.
                     this.container ??= new ClickHouseBuilder(Image)
                         .WithUsername(User)
                         .WithPassword(Password)
@@ -152,11 +151,9 @@ public sealed class ClickHouseServer : IAsyncDisposable
                 catch (OperationCanceledException)
                 {
                     // The run is being cancelled, not the container refusing to start. Recording it
-                    // as unavailable would latch: every later test would skip, or fail on a runner,
-                    // naming a cause that is not the cause. Let the next caller try again - against
-                    // this same instance, which is why the build above is conditional: a second one
-                    // would overwrite whatever the cancelled attempt had already created, and
-                    // nothing would be left holding it.
+                    // as unavailable would latch and make every later test skip naming the wrong
+                    // cause. The next caller retries against this same instance, which is why the
+                    // build above is conditional: a second one would orphan the first.
                     this.attempted = false;
 
                     throw;

@@ -37,7 +37,9 @@ rounding rules, `double` is not exact, and a `string` is not arithmetic.
   quantities stay exact for as long as the magnitude holds them, and round
   half to even when it does not, rather than accumulating binary error.
 - **Hot paths.** No allocation on any operation, verified by a test rather than
-  claimed, so the type is usable inside a per-row loop.
+  claimed, so the type is usable inside a per-row loop. It is 40 bytes wide
+  against `decimal`'s 16, though, and copies both operands by value; see
+  [what it costs](#what-it-costs) before putting it in the innermost one.
 
 ## Features
 
@@ -62,7 +64,9 @@ rounding rules, `double` is not exact, and a `string` is not arithmetic.
   every step.
 - **Scale control in both directions.** `WithScale` pads as well as rounds, so
   a value can be presented at a column's declared scale; `Round` only narrows.
-- **Zero allocations, on every operation, without exception.**
+- **Zero allocations, on every operation, without exception.** The working
+  buffers are on the stack instead; [what it costs](#what-it-costs) has the
+  width and the depth.
 - **Packaged properly.** `net8.0`, `net9.0` and `net10.0`, strong-named and
   public-signed, with Source Link and a symbol package.
 
@@ -285,6 +289,43 @@ value fits only up to 2^256-1, and the scale decides where those digits sit.
 | PostgreSQL `numeric` unconstrained, integer part beyond the magnitude | `OverflowException`. PostgreSQL allows 131072 integer digits. |
 | PostgreSQL `NaN`, `Infinity`, `-Infinity` | Lossless. No ClickHouse decimal has a counterpart, so writing one to a ClickHouse column is refused rather than approximated. |
 
+## What it costs
+
+Allocation-free is not the same as cheap, and the two numbers that decide
+whether this type belongs in a given loop are its width and its stack.
+
+**A value is 40 bytes, against `decimal`'s 16.** Four 64-bit magnitude words
+and a packed 32-bit field, padded to the alignment. Every binary operator takes
+both operands by value, so an operation copies 80 bytes before it does any work,
+and `INumber<T>` declares its operators by value: an `in` overload cannot be
+added without leaving the interface. That is the price of a fixed-width type
+that never touches the heap, and it is why the ratios below are what they are.
+
+**Measured against `System.Decimal`**, on the operand shapes and the machine
+recorded in [`BASELINE.md`][baseline-url], zero allocations on every row:
+
+| Operation | Ratio to `decimal` |
+| --------- | -----------------: |
+| `Add`, `Subtract` | 2.4x, 2.6x |
+| `Multiply` | 3.2x |
+| `Divide` | 5.3x |
+| `Remainder` | 2.8x |
+| `Parse`, `TryParse` | 1.1x for `char`, 1.3x for UTF-8 |
+| `TryFormat` | 2.8x for `char`, 2.7x for UTF-8 |
+
+Those are one machine's readings on one operand shape each, taken to grade a
+budget rather than to publish a benchmark; read them as an order of magnitude,
+not a specification. Division is the worst case, and it is the one to measure
+yourself if it sits in a hot loop.
+
+**The stack is where the working buffers live.** Counted across the whole call
+rather than one frame, a division, a parse and a `ToString` each take between
+one and one and a half kilobytes: the entry method's buffers plus the ones the
+division primitive and the digit renderer declare under it. That is ordinary for
+a call from application code, and it is worth knowing before putting the type on
+a deeply recursive path or in an `async` state machine whose stack is already
+hot.
+
 ## Good to know
 
 - **The 256-bit magnitude is the only hard limit.** When a result's significant
@@ -371,6 +412,7 @@ Provided under the [Apache License, Version 2.0][license-url].
 [gh-packages-url]: https://github.com/orgs/pet-toys/packages?repo_name=big-decimal
 [npgsql-home]: https://www.npgsql.org/
 [ch-driver]: https://www.nuget.org/packages/ClickHouse.Driver/
+[baseline-url]: https://github.com/pet-toys/big-decimal/blob/dev/bench/PetToys.BigDecimal.Core.Benchmarks/BASELINE.md
 [decimal-url]: https://learn.microsoft.com/dotnet/api/system.decimal
 [inumber-url]: https://learn.microsoft.com/dotnet/api/system.numerics.inumber-1
 [contributing-url]: https://github.com/pet-toys/big-decimal/blob/dev/docs/CONTRIBUTING.md

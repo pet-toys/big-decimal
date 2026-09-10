@@ -258,11 +258,9 @@ public static class NpgsqlBigDecimalReaderExtensions
     /// column name belongs on.
     /// </summary>
     /// <remarks>
-    /// The <see cref="FormatException"/> half has no test against a live server, and cannot have
-    /// one: a well-formed server never emits a payload this codec calls malformed, which is why
-    /// naming the column matters there. The case it is for is a future PostgreSQL that adds a sign
-    /// code, the way 14 added the two infinities, and a caller who would otherwise be told only
-    /// that some column somewhere was not the layout we expect.
+    /// The <see cref="FormatException"/> half cannot have a test against a live server, since a
+    /// well-formed one never emits a payload this codec calls malformed. It is for a future
+    /// PostgreSQL that adds a sign code, as 14 added the infinities.
     /// </remarks>
     /// <param name="exception">What the read threw.</param>
     /// <returns><see langword="true"/> for a failure this class annotates.</returns>

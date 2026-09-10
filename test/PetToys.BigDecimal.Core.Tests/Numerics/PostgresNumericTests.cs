@@ -145,10 +145,9 @@ public sealed class PostgresNumericTests
     [Fact]
     public void PostgreSqlsOwnLimitOfIntegerDigits_IsRefusedWithoutBeingSizedFrom()
     {
-        // 32767 groups is 131068 integer digits: the widest payload the format can express at all,
-        // since ndigits is a signed 16-bit field and PostgreSQL's own limit of 131072 digits is
-        // four digits past what it can count. A 64 KB payload, for a value the type has no
-        // representation of at any scale.
+        // 32767 groups is 131068 integer digits, the widest the format can express: ndigits is a
+        // signed 16-bit field, four digits short of PostgreSQL's own 131072 limit. A 64 KB
+        // payload, for a value this type has no representation of at any scale.
         var payload = Groups(count: 32767, weight: 32766, dscale: 0, group: 1);
 
         var refused = () => PostgresNumeric.Read(payload);
@@ -231,9 +230,8 @@ public sealed class PostgresNumericTests
     public void ANonFiniteSignWithDigitGroups_IsRefusedRatherThanIgnored()
     {
         // The groups are well formed and the length agrees with ndigits, so nothing but the sign
-        // makes this payload wrong. Ignoring them would also skip the range check every other
-        // group passes: the second payload here carries a group of 10000 that no other path
-        // would accept.
+        // makes this payload wrong. Ignoring them would skip the range check too - the second
+        // payload carries a group of 10000 that no other path would accept.
         var withGroups = Convert.FromHexString("0001" + "0000" + "D000" + "0000" + "0001");
         var withBadGroup = Convert.FromHexString("0001" + "0000" + "C000" + "0000" + "2710");
 

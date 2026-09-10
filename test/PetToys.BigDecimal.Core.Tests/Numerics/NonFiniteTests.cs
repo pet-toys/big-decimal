@@ -556,11 +556,9 @@ public sealed class NonFiniteTests
         BigDecimal.IsNaN(BigDecimal.Clamp(five, BigDecimal.Zero, BigDecimal.NaN)).Should().BeTrue();
         BigDecimal.IsNaN(BigDecimal.Clamp(five, BigDecimal.NaN, BigDecimal.NaN)).Should().BeTrue();
 
-        // Not cross-checked against double: double.Clamp(5, double.NaN, 10) is NaN on net10.0
-        // and 5 on net8.0 and net9.0, so the oracle has two answers and cannot settle this one.
-        // Found by running the suite on all three frameworks, which is the second time in this
-        // change that a cross-check against double turned out to be a cross-check against a
-        // framework version. The constant above is the contract, on every framework.
+        // Not cross-checked against double: double.Clamp(5, double.NaN, 10) is NaN on net10.0 and
+        // 5 on net8.0 and net9.0, so the oracle has two answers. The constant above is the
+        // contract, on every framework - a cross-check against double can be one against a version.
     }
 
     [Fact]

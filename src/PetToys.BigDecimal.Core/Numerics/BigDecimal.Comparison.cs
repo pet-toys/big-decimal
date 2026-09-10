@@ -71,9 +71,8 @@ public readonly partial struct BigDecimal : IEquatable<BigDecimal>, IComparable<
     {
         if (IsNonFinite)
         {
-            // Three values, three flag words, and every one of them far from the zero a
-            // magnitude of zero would otherwise hash to. Equal values hash alike because there
-            // is exactly one bit pattern per non-finite value. Unchecked because negative
+            // Three values, three flag words, each far from the zero a zero magnitude hashes to,
+            // and one bit pattern per value so equal values hash alike. Unchecked because negative
             // infinity's flags word has bit 31 set and Debug builds check their conversions.
             return unchecked((int)_flags);
         }
@@ -95,10 +94,9 @@ public readonly partial struct BigDecimal : IEquatable<BigDecimal>, IComparable<
             hash.Add(magnitude[i]);
         }
 
-        // The sign rides in the low bit of the scale rather than in a round of its own. The scale
-        // is at most MaxScale after the strip, so the two cannot collide, and a value of zero has
-        // already returned above, which is what keeps a negative zero from hashing apart from a
-        // positive one.
+        // The sign rides in the low bit of the scale rather than in a round of its own; the scale
+        // is at most MaxScale after the strip, so they cannot collide. Zero returned above, which
+        // is what keeps a negative zero from hashing apart from a positive one.
         hash.Add((scale << 1) | (IsNegative ? 1 : 0));
         return hash.ToHashCode();
     }

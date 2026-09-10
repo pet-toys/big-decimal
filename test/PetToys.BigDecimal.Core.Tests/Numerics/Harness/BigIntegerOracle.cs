@@ -314,12 +314,9 @@ public static class BigIntegerOracle
             scale -= Math.Clamp(wanted, 1, scale);
 
             // Rounded from the exact input again, never from what the previous attempt produced.
-            // No input reaches this a second time with anything left to round: a reduction driven
-            // by the digit count leaves at most 10^77, which is inside the mantissa even when the
-            // rounding carries, and one driven by the scale is clamped to the scale, so the only
-            // way back here is with nothing left to give and an overflow to report. The recheck is
-            // therefore a guard rather than a path - and a guard that rounded a rounded value would
-            // be the very defect this reference exists to catch, written into the reference.
+            // Nothing reaches this twice with anything left to round, so it is a guard rather than
+            // a path - and a guard that rounded a rounded value would write the defect this
+            // reference exists to catch into the reference.
             magnitude = DivideRound(exact, Pow10(exactScale - scale), sign, MidpointRounding.ToEven);
         }
     }

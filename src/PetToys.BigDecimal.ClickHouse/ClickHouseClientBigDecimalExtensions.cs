@@ -107,12 +107,10 @@ public static class ClickHouseClientBigDecimalExtensions
             {
                 if (mappings[i].Type is not { } type)
                 {
-                    // The column is not one this package recognises as carrying decimals, and the
-                    // caller put a value of ours in it anyway. Passing it on is the one outcome
-                    // that must not happen quietly: the driver would hand it to IConvertible and
-                    // store whatever System.Decimal made of it. ClickHouse has type constructors
-                    // this parser does not read, SimpleAggregateFunction among them, so this is
-                    // reachable without anybody making a mistake.
+                    // A value of ours in a column this package does not recognise. Passing it on is
+                    // the one outcome that must not happen quietly - the driver would hand it to
+                    // IConvertible and store whatever System.Decimal made of it - and it is
+                    // reachable without a mistake, through type constructors this parser skips.
                     if (row[i] is BigDecimal or BigDecimal[])
                     {
                         throw Unrecognised(columns[i], mappings[i].Declared);
@@ -216,19 +214,11 @@ public static class ClickHouseClientBigDecimalExtensions
     /// <param name="cancellationToken">Cancels the query.</param>
     /// <returns>Column name to declared type.</returns>
     /// <remarks>
-    /// <para>
-    /// The lookup runs under the options the insert itself will run under, which is why
     /// <see cref="InsertOptions"/> is passed through rather than a fresh
-    /// <see cref="QueryOptions"/>: it derives from one and carries the database, the roles, the
-    /// session and the custom settings. Describing a table in a different database than the insert
-    /// writes to does not fail, it answers about a different table of the same name, and the widths
-    /// it reports would then store different numbers.
-    /// </para>
-    /// <para>
-    /// The table name is spliced into the statement, as it is by the driver's own insert path,
-    /// because a table name is not a parameter in ClickHouse. It is the caller's identifier and it
-    /// reaches the server as given.
-    /// </para>
+    /// <see cref="QueryOptions"/> so the lookup runs under the insert's own database, roles and
+    /// session: describing a table in a different database does not fail, it answers about a
+    /// different table of the same name. The table name is spliced into the statement, as the
+    /// driver's own insert path does, because a table name is not a parameter in ClickHouse.
     /// </remarks>
     private static async Task<IReadOnlyDictionary<string, string>> DescribeAsync(
         IClickHouseClient client,
@@ -258,12 +248,9 @@ public static class ClickHouseClientBigDecimalExtensions
     /// <param name="type">The decimal type, when this returns <see langword="true"/>.</param>
     /// <returns><see langword="true"/> when the column carries decimals.</returns>
     /// <remarks>
-    /// No trimming here, and that is measured rather than assumed. A type read from the server
-    /// never carries surrounding space, and one declared through
-    /// <see cref="InsertOptions.ColumnTypes"/> with space around it is refused by the driver's own
-    /// schema resolver before a row is serialised, so it cannot reach this and fall through
-    /// quietly. What can fall through is a shape this does not recognise, and that is answered
-    /// where the value is, not here.
+    /// No trimming, and that is measured: a type read from the server never carries surrounding
+    /// space, and one declared through <see cref="InsertOptions.ColumnTypes"/> with space around
+    /// it is refused by the driver's schema resolver before a row is serialised.
     /// </remarks>
     private static bool TryParseElement(string? declared, out ClickHouseColumnType type)
     {

@@ -42,15 +42,11 @@ public class ComparisonBenchmarks
         _referenceLeft = decimal.Parse(left, CultureInfo.InvariantCulture);
         _referenceRight = decimal.Parse(right, CultureInfo.InvariantCulture);
 
-        // The same value carrying trailing zeros. This is not a contrived input: it is what
-        // WithScale produces when a caller widens a value to a column's scale, so it is the shape
-        // the adapter packages will hash. Hashing has to normalise the scale away, and the operands
-        // above end in a 9 -- they cost no division at all, which is the floor rather than the cost.
-        //
-        // Four widths, because the requirement is on the shape of the curve rather than on one
-        // ratio: one, eleven and nineteen zeros all come off in a single division and have to cost
-        // the same, and twenty-five needs a second one and may cost a step more. The operands carry
-        // scale 9, so the widened scales are 9 more than the zeros they add.
+        // The same value carrying trailing zeros: what WithScale produces when a caller widens to a
+        // column's scale, and the shape the adapters will hash. The operands above end in a 9 and
+        // cost no division, so they are the floor rather than the cost. Four widths because the
+        // requirement is the shape of the curve: one, eleven and nineteen zeros come off in a
+        // single division and must cost the same, twenty-five needs a second.
         _widenedOne = _left.WithScale(10);
         _widened = _left.WithScale(20);
         _widenedNineteen = _left.WithScale(28);

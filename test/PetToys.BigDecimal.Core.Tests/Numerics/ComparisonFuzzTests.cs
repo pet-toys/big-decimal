@@ -54,11 +54,9 @@ public sealed class ComparisonFuzzTests
     [FuzzData]
     public void Sorting_StaysTotalWithTheNonFiniteValuesMixedIn(int seed, int cases)
     {
-        // The three non-finite values are singletons, so drawing them from the generator would add
-        // no coverage of the values themselves: a non-finite operand is answered before any scale
-        // work, so the other operand's shape cannot change the result. What is worth randomising is
-        // the company they keep, because a total order that is only wrong in a long array is a
-        // total order that only Array.Sort finds.
+        // The three non-finite values are singletons and are answered before any scale work, so
+        // the other operand's shape cannot change the result. What is worth randomising is the
+        // company they keep: a total order only wrong in a long array is one only Array.Sort finds.
         var random = new Random(seed);
         var generator = new ValueGenerator(random);
         var rounds = Math.Max(cases / 32, 1);
