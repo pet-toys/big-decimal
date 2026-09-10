@@ -98,11 +98,11 @@ container that fails to pull would block publishing a package.
 Trimming and Native AOT are covered the same way, by `aot.yml` over
 `big-decimal.aot.slnf`. Every package is marked `IsAotCompatible`, and a clean
 analyzer pass is not evidence that a marked package still works, so the workflow
-publishes a probe application per package that has one - trimmed on every target
-framework, and Native AOT on the newest where the driver allows it - and runs
-it, the two adapter probes against a real server. It is out of `test.yml` for the same reason as the
-integration leg, and out of the required checks on top of it: it needs a C++
-toolchain and two containers.
+publishes the probe applications under `probe/` and runs them: trimmed on every
+target framework, and Native AOT on the newest where the driver allows it. The
+two that cover an adapter run against a real server. It is out of `test.yml` for
+the same reason as the integration leg, and out of the required checks on top of
+it: it needs a C++ toolchain and two containers.
 
 Arithmetic, formatting and parsing are also covered by a randomised suite that
 checks every result against a `BigInteger` or `System.Decimal` oracle. It is
