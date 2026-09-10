@@ -359,7 +359,7 @@ hot.
 | [`PetToys.BigDecimal.Npgsql.Dapper`][dapper-url] | Prerelease | PostgreSQL `numeric` columns read and written as `BigDecimal` through Dapper, over the Npgsql adapter. |
 | [`PetToys.BigDecimal.ClickHouse.Dapper`][ch-dapper-url] | Prerelease | The ClickHouse decimal family read and written as `BigDecimal` through Dapper, over the ClickHouse adapter. |
 
-All six version in lockstep, and a package brings the ones beneath it along as
+All six versions move in lockstep, and a package brings the ones beneath it along as
 dependencies. The binary wire codecs the adapters run on, which are the hard
 part, live inside the core and are exercised by its test suite, and they stay
 internal on purpose: the supported surface is the mapping each adapter exposes,

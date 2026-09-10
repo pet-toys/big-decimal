@@ -38,11 +38,11 @@ public static class ClickHouseClientSettingsBigDecimalDapperExtensions
     /// </para>
     /// <para>
     /// The formatter is what makes a write exact and it is not optional. Without one the driver
-    /// converts a <see cref="BigDecimal"/> parameter itself, through
-    /// <see cref="IConvertible.ToDecimal"/>, and a value wider than <see cref="decimal"/> is
-    /// stored with digits missing and no error - the one silent failure this package has. With it,
-    /// the value is rescaled at the column's declared scale, half to even, and a value beyond the
-    /// column's width or precision is refused by name before the statement is sent.
+    /// converts the parameter itself, by reaching for <see cref="IConvertible"/>, which
+    /// <see cref="BigDecimal"/> does not implement: the write fails with an
+    /// <see cref="InvalidCastException"/> before the statement is sent, naming neither the column
+    /// nor the value. With it, the value is rescaled at the column's declared scale, half to even,
+    /// and a value beyond the column's width or precision is refused by name.
     /// </para>
     /// <para>
     /// A read hook or a parameter formatter already on the settings is replaced rather than
