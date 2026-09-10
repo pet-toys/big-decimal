@@ -216,6 +216,37 @@ public sealed class BigDecimalMappingTests
     }
 
     [Fact]
+    public void ANullCollection_NeverReachesTheComparersDelegates()
+    {
+        using var context = NumericModel.Offline();
+        var comparer = Comparer(context, nameof(NumericItem.Amounts));
+
+        // The delegates are written for a value and would throw on a null. They are never handed
+        // one: EF Core null-guards its own entry points, and this pins that rather than trusting
+        // it, since the alternative is a NullReferenceException inside a change tracker.
+        comparer.Equals(null, null).Should().BeTrue();
+        comparer.Equals(null, new[] { BigDecimal.One }).Should().BeFalse();
+        comparer.GetHashCode(null!).Should().Be(0);
+        comparer.Snapshot(null!).Should().BeNull();
+    }
+
+    [Fact]
+    public void ATrackedEntityWithANullCollection_IsNotAnError()
+    {
+        using var context = NumericModel.Offline();
+        var item = new NumericItem { Id = 1, Amounts = null! };
+
+        // The other half of the same question, through the tracker rather than the comparer:
+        // attaching and detecting changes takes an original-values snapshot of every property.
+        context.Attach(item).State.Should().Be(EntityState.Unchanged);
+
+        var detect = () => context.ChangeTracker.DetectChanges();
+
+        detect.Should().NotThrow();
+        context.Entry(item).State.Should().Be(EntityState.Unchanged);
+    }
+
+    [Fact]
     public void AContextWithoutTheRegistration_FailsAtModelBuildingRatherThanSilently()
     {
         using var context = NumericModel.Unregistered();
