@@ -95,8 +95,14 @@ BigDecimal can represent: ...
 ```
 
 That naming is what the accessors are for. Reading the same column through
-`GetFieldValue<BigDecimal>`, through Dapper, or through Entity Framework Core
-gets the same mapping and the same `OverflowException`, without the column name.
+`GetFieldValue<BigDecimal>` or through Dapper gets the same mapping and the same
+`OverflowException`, without the column name.
+
+Through Entity Framework Core, add
+[`PetToys.BigDecimal.Npgsql.EntityFrameworkCore`][efcore-package-url]: it maps a
+`numeric` column to a `BigDecimal` property over this package's registration,
+and the value the caller can name there is the property, read off the
+`DbUpdateException` Entity Framework raises.
 
 ## Requirements
 
@@ -143,4 +149,5 @@ Provided under the [Apache License, Version 2.0][license-url].
 [license-badge]: https://img.shields.io/github/license/pet-toys/big-decimal?style=flat-square&color=blue
 [license-url]: https://www.apache.org/licenses/LICENSE-2.0
 [core-url]: https://www.nuget.org/packages/PetToys.BigDecimal.Core/
+[efcore-package-url]: https://www.nuget.org/packages/PetToys.BigDecimal.Npgsql.EntityFrameworkCore/
 [npgsql-home]: https://www.npgsql.org/

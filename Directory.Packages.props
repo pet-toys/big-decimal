@@ -19,6 +19,14 @@
     <PackageVersion Include="Npgsql" Version="[10.0.3,11.0.0)" />
   </ItemGroup>
   <ItemGroup>
+    <!-- EF Core's mapping extension point is public and unattributed, so the driver argument does
+         not close this range; a measurement does. On 2026-09-10 the 8.0.x provider restored and
+         compiled against Npgsql 10.0.3 and then threw TypeLoadException at first use, so an EF
+         Core major has already been observed to break this package's dependency outright. Floor
+         and ceiling bracket the two majors measured working, 9.0.4 and 10.x. -->
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[9.0.4,11.0.0)" />
+  </ItemGroup>
+  <ItemGroup>
     <!-- Source Link is bundled in the .NET 8+ SDK; referencing the package
          explicitly suppresses the SDK's Source Link / deterministic source
          path target chain (no Source Link, non-deterministic PDB paths). -->

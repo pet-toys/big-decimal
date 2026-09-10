@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>$(TargetFrameworkVersions)</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- The same pin the other suites carry: from any namespace under PetToys.BigDecimal that
+         does not hold the type itself, the identifier BigDecimal binds to the namespace. -->
+    <RootNamespace>PetToys.BigDecimal</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AwesomeAssertions" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="xunit.v3" />
+    <!-- VersionOverride, because the root Directory.Packages.props already declares this
+         package's range for the library and declaring it twice is a duplicate. -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" VersionOverride="$(EfCoreProviderVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The range this restore was asked for, so EfCoreMajorTests can compare it against what
+         actually loaded. -->
+    <AssemblyMetadata Include="EfCoreProviderVersion" Value="$(EfCoreProviderVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PetToys.BigDecimal.Npgsql.EntityFrameworkCore\PetToys.BigDecimal.Npgsql.EntityFrameworkCore.csproj" />
+    <!-- For the PostgresServer fixture, as a library. A second fixture would be a second pinned
+         image digest to keep in step. xunit discovers tests in the assembly it runs, not in the
+         ones it references, so the adapter suite does not run twice from here. -->
+    <ProjectReference Include="..\PetToys.BigDecimal.Npgsql.Tests\PetToys.BigDecimal.Npgsql.Tests.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -56,3 +56,12 @@ jobs:
     # that ran nothing.
     - name: Test
       run: dotnet test big-decimal.integration.slnf --no-restore --configuration Release --framework net10.0
+
+    # The same suite under the other supported major. The EF Core package is compiled once against
+    # EF Core 9 and supported on 9 and 10, and NuGet resolves a range to its floor, so the run above
+    # tests 9 and never 10. Forward compatibility across an EF major is not something Microsoft
+    # promises, so it is checked rather than assumed, and a test in that suite asserts that what
+    # loaded is what was asked for - a restore that unified upward would otherwise look like a pass.
+    # This step restores on its own, because it resolves a different graph than the step above.
+    - name: Test against EF Core 10
+      run: dotnet test big-decimal.integration.slnf --configuration Release --framework net10.0 -p:EfCoreProviderVersionRequested="[10.0.3,11.0.0)"

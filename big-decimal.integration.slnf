@@ -3,6 +3,7 @@
     "path": "big-decimal.slnx",
     "projects": [
       "test/PetToys.BigDecimal.ClickHouse.Tests/PetToys.BigDecimal.ClickHouse.Tests.csproj",
+      "test/PetToys.BigDecimal.Npgsql.EntityFrameworkCore.Tests/PetToys.BigDecimal.Npgsql.EntityFrameworkCore.Tests.csproj",
       "test/PetToys.BigDecimal.Npgsql.Tests/PetToys.BigDecimal.Npgsql.Tests.csproj"
     ]
   }

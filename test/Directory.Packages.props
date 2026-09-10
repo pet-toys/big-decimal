@@ -1,6 +1,16 @@
 <Project>
   <!--<Version>1.0</Version>-->
   <Import Project="$([MSBuild]::GetPathOfFileAbove(Directory.Packages.props, $(MSBuildThisFileDirectory)..))" />
+  <PropertyGroup Label="The EF Core major the suite runs against">
+    <!-- NuGet resolves a range to its floor, so integration.yml runs the suite a second time with
+         EfCoreProviderVersionRequested set to the 10.x range. Two names, because -p: sets a global
+         property and a project file cannot reassign one: a clamp written over the requested name
+         would do nothing on exactly the run it exists for. The clamp is needed because the 10.x
+         provider publishes net10.0 assets only (NU1202 elsewhere). -->
+    <EfCoreProviderVersionRequested Condition="'$(EfCoreProviderVersionRequested)' == ''">[9.0.4,11.0.0)</EfCoreProviderVersionRequested>
+    <EfCoreProviderVersion>$(EfCoreProviderVersionRequested)</EfCoreProviderVersion>
+    <EfCoreProviderVersion Condition="'$(TargetFramework)' != 'net10.0'">[9.0.4,10.0.0)</EfCoreProviderVersion>
+  </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="AwesomeAssertions" Version="[9.6.0,)" />
     <PackageVersion Include="Bogus" Version="[35.6.3,)" />

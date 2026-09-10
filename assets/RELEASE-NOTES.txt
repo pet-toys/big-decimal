@@ -1,3 +1,62 @@
+1.0.0-dev.4
+===========
+
+This release adds the Entity Framework Core package for PostgreSQL. One tag
+versions every package in the repository, so PetToys.BigDecimal.Core,
+PetToys.BigDecimal.Npgsql and PetToys.BigDecimal.ClickHouse are republished as
+1.0.0-dev.4 with exactly the public surface they shipped as 1.0.0-dev.3. Only
+the new package changed.
+
+PetToys.BigDecimal.Npgsql.EntityFrameworkCore
+
+The Entity Framework Core mapping ships.
+
+Added:
+- UseBigDecimal, an extension on NpgsqlDbContextOptionsBuilder, so the
+  registration reads UseNpgsql(dataSource, o => o.UseBigDecimal()). A numeric
+  column becomes a BigDecimal property, read and written through the handler
+  PetToys.BigDecimal.Npgsql installs on the data source. There is no
+  ValueConverter anywhere in the path and no value passes through
+  System.Decimal.
+- The collection forms: BigDecimal[], List<BigDecimal> and their nullable
+  element forms map to numeric[]. BigDecimal? needs nothing beyond the
+  registration.
+- A scale-aware change comparer, without which a property moved from 1.5 to 1.50
+  would leave the entity Unchanged and SaveChanges would write nothing.
+- HasPrecision reaches both the mapping and the generated schema, and a value
+  the declared column cannot hold is refused before it is sent, as an
+  OverflowException naming the value and the store type. The property's name is
+  read off the DbUpdateException Entity Framework wraps it in; the README shows
+  that code.
+
+Notes:
+- Registering the mapping does not change what Entity Framework answers by
+  default. The store type numeric still maps to System.Decimal, and only a
+  property whose CLR type is BigDecimal reaches the new mapping, so scaffolding
+  an existing database still produces decimal properties.
+- Entity Framework Core 9 and 10 are supported, through
+  Npgsql.EntityFrameworkCore.PostgreSQL 9.0.4 up to but not including 11. The
+  package ships one assembly compiled against EF Core 9 for every target
+  framework, which runs under both majors; an asset compiled against EF Core 10
+  cannot be consumed by an application on EF Core 9 at all. Entity Framework
+  Core 8 is not supported: its PostgreSQL provider is bound to an internal type
+  Npgsql 10 no longer has and throws TypeLoadException at first use.
+- A round trip through a faceted column returns the column's scale rather than
+  the value's: 1.5 written into a numeric(12,4) reads back as 1.5000. The
+  package does not rescale; PostgreSQL applies the column's display scale.
+- Queries translate, so comparison, arithmetic and aggregation run on the
+  server under the server's rules. PostgreSQL rounds a half away from zero
+  where this type rounds half to even, and its division picks its own scale.
+  Nothing here reconciles the two.
+- The assembly is marked IsAotCompatible, and that is the whole of what it
+  claims. Of the four assemblies in this package's graph only Npgsql 10.0.3
+  carries IsTrimmable; Entity Framework's own assemblies do not, and an
+  assembly attribute cannot vouch for its query pipeline. Unlike the other three
+  packages there is no probe behind this marking, because a probe would be
+  measuring Entity Framework rather than this repository's code.
+
+----------------------------------------------------------------------------
+
 1.0.0-dev.3
 ===========
 
