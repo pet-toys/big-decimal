@@ -369,16 +369,16 @@ driver, is the case that would change that, and it is a
 
 ## Roadmap
 
-The core type is complete and its public surface is frozen, and so is the
-surface of each adapter. Versions are released in lockstep across every package
-in the repository.
+All six packages exist and each public surface is settled. `1.0.0` adds no
+scope of its own; what it waits for is a prerelease meeting real code. Versions
+are released in lockstep across every package in the repository.
 
 | Milestone | Version | Contents |
 | --------- | ------- | -------- |
 | Core type | `1.0.0-dev.1` | The `BigDecimal` type: representation, arithmetic, conversions, formatting, parsing, non-finite values, integer powers, JSON. Complete. |
 | Database integration | `1.0.0-dev.2` | `PetToys.BigDecimal.Npgsql` and `PetToys.BigDecimal.ClickHouse`: reading and writing `numeric` and `Decimal*` columns through the two drivers. |
-| EF Core and Dapper for PostgreSQL | `1.0.0-dev.3` | `PetToys.BigDecimal.Npgsql.EntityFrameworkCore`: a `numeric` column as a `BigDecimal` property, with no value converter in the path. `PetToys.BigDecimal.Npgsql.Dapper`: the same column read and written exactly through Dapper. |
-| Dapper for ClickHouse | `1.0.0` | `PetToys.BigDecimal.ClickHouse.Dapper`: a `Decimal32/64/128/256` column read and written exactly through Dapper. The two Dapper packages are split so that an Npgsql caller never pulls the ClickHouse driver, and both are split from the EF Core one so that a Dapper caller never pulls EF Core. |
+| EF Core and Dapper | `1.0.0-dev.3` | `PetToys.BigDecimal.Npgsql.EntityFrameworkCore`: a `numeric` column as a `BigDecimal` property, with no value converter in the path. `PetToys.BigDecimal.Npgsql.Dapper` and `PetToys.BigDecimal.ClickHouse.Dapper`: the same columns read and written exactly through Dapper. The two Dapper packages are split so that an Npgsql caller never pulls the ClickHouse driver, and both are split from the EF Core one so that a Dapper caller never pulls EF Core. Every published assembly is marked trimmable, the core gains a `TypeConverter`, and a ClickHouse parameter the statement did not annotate is refused by name. |
+| First stable release | `1.0.0` | The same six packages, unchanged in scope, on nuget.org. |
 
 `1.0.0` arrives with all six packages at once and is the first release to reach
 nuget.org. Everything before it is a `1.0.0-dev.N` prerelease on

@@ -16,7 +16,7 @@ be discussed before you invest time in a pull request.
 
 ## Repository layout
 
-The solution ([`big-decimal.slnx`](../big-decimal.slnx)) holds three projects
+The solution ([`big-decimal.slnx`](../big-decimal.slnx)) holds six projects
 under `src/` and one test project each:
 
 | Project | Contents |
@@ -24,15 +24,20 @@ under `src/` and one test project each:
 | `src/PetToys.BigDecimal.Core` | The `BigDecimal` type. No runtime dependencies. |
 | `src/PetToys.BigDecimal.Npgsql` | PostgreSQL `numeric` helpers, on top of Npgsql. |
 | `src/PetToys.BigDecimal.ClickHouse` | ClickHouse `Decimal*` helpers, on top of ClickHouse.Driver. |
+| `src/PetToys.BigDecimal.Npgsql.EntityFrameworkCore` | `numeric` columns as `BigDecimal` properties, on top of the Npgsql helpers. |
+| `src/PetToys.BigDecimal.Npgsql.Dapper` | The same columns through Dapper, on top of the Npgsql helpers. |
+| `src/PetToys.BigDecimal.ClickHouse.Dapper` | The ClickHouse decimal family through Dapper, on top of the ClickHouse helpers. |
 
-All three are published, in lockstep: one release tag versions every package, so
-a change to one of them ships a new version of the other two as well. Each
+All six are published, in lockstep: one release tag versions every package, so
+a change to one of them ships a new version of the other five as well. Each
 adapter owns only value mapping - the caller supplies an already configured
 connection or data source - and reaches the core's internal wire codecs through
 `InternalsVisibleTo` rather than through public API. Those codecs are internal
-on purpose; the supported surface is the mapping each adapter exposes.
+on purpose; the supported surface is the mapping each adapter exposes. The three
+projects above the adapters map no value of their own: each carries a
+framework's registration over the handler the adapter beneath it installs.
 
-None of the three project folders is its namespace root: all of them, and their
+None of the six project folders is its namespace root: all of them, and their
 test projects, pin `RootNamespace` to `PetToys.BigDecimal`. In the core that is
 because the `.Core` suffix distinguishes the package and would be noise in the
 API. In the adapters it is load bearing for a different reason: from any
@@ -43,9 +48,11 @@ namespace its folder implies below that root - `Numerics/Foo.cs` in
 `PetToys.BigDecimal.Numerics` - and a `Release` build fails on IDE0130 if it is
 not.
 
-Two solution filters narrow the build: `big-decimal.build.slnf` (the packages
-only, which is what the release pipeline packs) and `big-decimal.tests.slnf`
-(the test projects, which is what CI runs).
+Four solution filters narrow the build: `big-decimal.build.slnf` (the packages
+only, which is what the release pipeline packs), `big-decimal.tests.slnf` (the
+test projects, which is what CI runs), `big-decimal.integration.slnf` (the tests
+that need a database server) and `big-decimal.aot.slnf` (the probe applications
+under `probe/`).
 
 Each package has its own `README.md` next to the project file - that file is the
 one shipped inside the `.nupkg`. The repository-root `README.md` is the landing
@@ -81,12 +88,21 @@ leg that skipped every server test would otherwise report success over a suite
 that ran nothing - and the switch is the `CI` environment variable, which GitHub
 Actions always sets.
 
-They are tagged `Category=Integration`, which the three legs of `test.yml`
+They are tagged `Category=Integration`, which the test legs of `test.yml`
 exclude with `--filter Category!=Integration`; you can do the same for a run
 without Docker, though skipping does it for you. They have a leg of their own,
 `integration.yml`, over `big-decimal.integration.slnf`. It is deliberately not a
 job in `test.yml`: that workflow is called by the release pipeline, so a
 container that fails to pull would block publishing a package.
+
+Trimming and Native AOT are covered the same way, by `aot.yml` over
+`big-decimal.aot.slnf`. Every package is marked `IsAotCompatible`, and a clean
+analyzer pass is not evidence that a marked package still works, so the workflow
+publishes a probe application per package that has one - trimmed on every target
+framework, and Native AOT on the newest where the driver allows it - and runs
+it, the two adapter probes against a real server. It is out of `test.yml` for the same reason as the
+integration leg, and out of the required checks on top of it: it needs a C++
+toolchain and two containers.
 
 Arithmetic, formatting and parsing are also covered by a randomised suite that
 checks every result against a `BigInteger` or `System.Decimal` oracle. It is
