@@ -17,6 +17,12 @@ namespace PetToys.BigDecimal.Numerics;
 /// every leg of the continuous integration matrix. They are the tests whose answers differ by
 /// platform and by runtime, which is exactly why they must not be run only on one machine.
 /// </remarks>
+/// <remarks>
+/// Unparallelised, for the reason <see cref="SerialMeasurement"/> records: another thread cannot be
+/// counted into a per-thread measurement, but it can trigger the collection that trims the shared
+/// array pool inside one.
+/// </remarks>
+[Collection(SerialMeasurement.Name)]
 public sealed class AllocationTests
 {
     [Theory]

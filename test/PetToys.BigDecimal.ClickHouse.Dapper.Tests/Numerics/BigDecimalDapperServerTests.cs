@@ -549,6 +549,39 @@ public sealed class BigDecimalDapperServerTests(ClickHouseServer server) : IClas
         return text.Length == 0 ? "0" : sign + text;
     }
 
+    [Fact]
+    public async Task AnUnannotatedParameter_IsRefusedByThisRepositoryRatherThanTheDriver()
+    {
+        await server.RequireAsync();
+
+        var table = await this.CreateAsync("Decimal64(4)");
+
+        try
+        {
+            await using var connection = this.Open();
+            var parameters = new DynamicParameters();
+            parameters.Add("v", BigDecimal.Parse("1.00015", CultureInfo.InvariantCulture));
+
+            var writing = () => connection.Execute(
+                $"INSERT INTO {table} (i, v) VALUES (1, @v)",
+                parameters);
+
+            // The parameter survives Dapper - it is named in Dapper's own syntax - and reaches the
+            // driver with no ClickHouse type on it. That is the case the driver answers with a bare
+            // Unknown type, and the case this repository's resolver answers by name.
+            writing.Should().Throw<InvalidOperationException>()
+                .WithMessage("*'v'*")
+                .WithMessage("*{v:Decimal256(6)}*")
+                .WithMessage("*DynamicParameters.Add*");
+
+            (await this.StoredAsync(table)).Should().BeEmpty("nothing was sent");
+        }
+        finally
+        {
+            await this.DropAsync(table);
+        }
+    }
+
     /// <summary>Opens a connection configured the way this package's documentation says.</summary>
     /// <returns>The connection.</returns>
     private ClickHouseConnection Open() =>

@@ -137,11 +137,63 @@ Notes:
 - The two ways to configure the connection compose: a caller who used the wide
   UseBigDecimal from PetToys.BigDecimal.ClickHouse already has the formatter
   this package writes through.
+- A parameter written as @total, with no ClickHouse type named in the statement,
+  is now refused by this repository rather than by the driver. The message names
+  the parameter, the annotation that fixes it and the DynamicParameters.Add
+  shape; the driver's own answer was Unknown type followed by a CLR type name.
+  Nothing that already wrote a row changes: an annotated parameter never reaches
+  this guard.
 - The package works under neither PublishTrimmed nor PublishAot, and both
   dependencies are the reason - Dapper's reflection and ClickHouse.Driver's own
   Native AOT failure. Its assembly is marked all the same, which says what this
   assembly's code is and nothing about either dependency. Both are in that
   package's README.
+
+PetToys.BigDecimal.ClickHouse
+
+Added:
+- ClickHouseBigDecimal.CreateParameterTypeResolver, and UseBigDecimal installs
+  it. It refuses a BigDecimal parameter the statement did not annotate with its
+  ClickHouse type, naming the parameter and the annotation, where the driver
+  answered Unknown type and a CLR type name. It never names a type of its own:
+  the only type it could derive is one taken from the value rather than the
+  column, after which the server truncates at the column's scale where this
+  package rounds half to even.
+
+Notes:
+- An annotated parameter is unaffected. The driver consults a resolver only for
+  a parameter whose type the statement does not carry, so nothing that wrote a
+  row before writes anything different now.
+- This is the one hook UseBigDecimal composes with rather than replaces. A
+  parameter type resolver already on the settings is kept and asked about every
+  type this package does not map. The read hook and the parameter formatter are
+  still replaced, because neither interface lets an implementation decline.
+- CreateQueryOptions does not carry the resolver. The per-query form is the read
+  path's, and the guard belongs to the connection the write goes out on.
+
+PetToys.BigDecimal.Core
+
+Added:
+- A TypeConverter, found through the attribute on the type, so
+  TypeDescriptor.GetConverter answers it and configuration binding, model
+  binding and every other reflection-driven consumer reads a BigDecimal from
+  text with no registration. It converts string in both directions and nothing
+  else, and it carries no parsing or formatting rules of its own - it calls the
+  type's, so the two cannot drift. A culture passed to it is honoured, and no
+  culture means the invariant one.
+
+Notes:
+- The type implements no IConvertible, and that is now a recorded decision
+  rather than an omission. The interface would have to answer for a value of up
+  to 77 significant digits, and both honest answers cost more than they buy:
+  narrowing loses the value on exactly the paths where a library reaches for the
+  interface as a last resort, and throwing turns two packages' loud refusals
+  into failures that appear only for values too large to fit. A test asserts the
+  absence, because PetToys.BigDecimal.ClickHouse and
+  PetToys.BigDecimal.ClickHouse.Dapper both rely on it.
+- The converter does not offer the designer's InstanceDescriptor in either
+  direction, which DecimalConverter does on the writing side. Text carries every
+  value of this type exactly and the designer case is not one it is in.
 
 All six packages
 

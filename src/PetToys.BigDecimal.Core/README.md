@@ -117,6 +117,41 @@ needs `InvariantGlobalization`, and a value formatted under a culture whose
 separators differ from the invariant one produces that culture's separators, as
 it does when jitted.
 
+## Reading a value from text that is not code
+
+`TypeDescriptor.GetConverter(typeof(BigDecimal))` answers a converter, so
+configuration binding, model binding and anything else that reaches a type
+through reflection reads a `BigDecimal` from a string with no registration of
+yours:
+
+```csharp
+// appsettings.json: { "Limits": { "Ceiling": "123456789012345678901234.5678" } }
+builder.Services.Configure<Limits>(builder.Configuration.GetSection("Limits"));
+```
+
+It converts text and nothing else, in both directions, and it carries no rules
+of its own - it calls this type's parse and format, so the two cannot disagree.
+A culture you pass is honoured; no culture means the invariant one, which is
+what a value out of a configuration file needs.
+
+Numbers still convert to numbers through the cast operators and generic math.
+The converter deliberately refuses them, so there is one route with compiler
+checking rather than two with different rules.
+
+## This type implements no `IConvertible`, on purpose
+
+`Convert.ToDecimal(value)` does not compile against it, and a library that does
+not recognise the type cannot fall back to converting it either. That is the
+point. The interface would have to answer for a value of up to 77 significant
+digits, and the two honest answers are to narrow it - losing the number exactly
+where nobody is looking - or to throw, which turns a loud failure into one that
+only appears for values too large to fit, which test data rarely is.
+
+Two packages in this repository depend on the absence: a `BigDecimal` reaching
+`ClickHouse.Driver` without the parameter formatter installed fails before
+anything is sent, and one reaching Dapper without a handler registered is
+refused by name. If a library refuses your value, that is this decision working.
+
 ## Installation
 
 ```sh

@@ -103,8 +103,22 @@ Code: 456. DB::Exception: Substitution `total` is not set.
 that `new DynamicParameters(new { total = value })` - the template form - is
 filtered like the anonymous object it wraps.
 
-A parameter written as `@total` with no type named anywhere is refused by the
-driver as an unknown type. Nothing is narrowed on any of these routes.
+A parameter written as `@total` with no type named anywhere survives Dapper -
+that syntax is Dapper's own - and is refused by this repository when it reaches
+the driver:
+
+```text
+The parameter 'total' carries a BigDecimal and the statement does not name its
+ClickHouse type, so the column's scale is unknown. Annotate it in the statement,
+as in {total:Decimal256(6)}. Through Dapper, pass it with DynamicParameters.Add
+as well - an anonymous object is stripped before the parameter reaches this
+package.
+```
+
+`UseBigDecimalForDapper` installs that guard along with the formatter. A
+parameter type resolver you had already put on the settings is kept and asked
+about every type this repository does not map. Nothing is narrowed on any of
+these routes.
 
 ## Registering it does not change anything else
 

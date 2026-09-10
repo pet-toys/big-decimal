@@ -45,8 +45,16 @@ public static class ClickHouseClientSettingsBigDecimalDapperExtensions
     /// and a value beyond the column's width or precision is refused by name.
     /// </para>
     /// <para>
+    /// The parameter type resolver this installs refuses a <see cref="BigDecimal"/> parameter the
+    /// statement did not annotate, naming the parameter and the shape that works, where the driver
+    /// would answer <c>Unknown type</c>. A parameter Dapper removes before any of this reaches it -
+    /// an anonymous object, or <c>DynamicParameters</c> built from a template - is still the
+    /// server's to refuse, and it still answers that the substitution is not set.
+    /// </para>
+    /// <para>
     /// A read hook or a parameter formatter already on the settings is replaced rather than
-    /// composed with; the driver holds one of each.
+    /// composed with; the driver holds one of each. A parameter type resolver is kept instead, and
+    /// asked about every type this package does not map.
     /// </para>
     /// </remarks>
     public static ClickHouseClientSettings UseBigDecimalForDapper(this ClickHouseClientSettings settings)
@@ -57,6 +65,7 @@ public static class ClickHouseClientSettingsBigDecimalDapperExtensions
         {
             UseCustomDecimals = true,
             ParameterFormatter = ClickHouseBigDecimal.ParameterFormatter,
+            ParameterTypeResolver = ClickHouseBigDecimal.CreateParameterTypeResolver(settings.ParameterTypeResolver),
         };
     }
 }

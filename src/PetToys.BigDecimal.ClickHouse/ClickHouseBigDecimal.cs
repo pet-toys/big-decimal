@@ -60,6 +60,27 @@ public static class ClickHouseBigDecimal
     /// </remarks>
     public static IParameterFormatter ParameterFormatter => BigDecimalParameterFormatter.Instance;
 
+    /// <summary>
+    /// Builds the write-side guard: it refuses a <see cref="BigDecimal"/> parameter the statement
+    /// did not annotate with its ClickHouse type, and leaves every other type alone.
+    /// </summary>
+    /// <param name="inner">
+    /// A resolver already on the settings, consulted for every type this package does not map, or
+    /// <see langword="null"/> to leave those types to the driver.
+    /// </param>
+    /// <returns>A resolver to assign to the settings.</returns>
+    /// <remarks>
+    /// A factory rather than a shared instance, because an instance holds the resolver it composes
+    /// with. Without one of these the driver answers such a parameter with its own
+    /// <c>Unknown type</c>, which names neither the parameter nor the annotation that fixes it.
+    /// Handed a guard this package already built, it returns that one rather than wrapping it:
+    /// <c>UseBigDecimal</c> followed by <c>UseBigDecimalForDapper</c> is a composition the
+    /// documentation invites, and each call would otherwise add a layer that every parameter of
+    /// every other type then walks through.
+    /// </remarks>
+    public static IParameterTypeResolver CreateParameterTypeResolver(IParameterTypeResolver? inner = null) =>
+        inner as BigDecimalParameterTypeResolver ?? new BigDecimalParameterTypeResolver(inner);
+
     /// <summary>Builds query options carrying the mapping, for one query.</summary>
     /// <returns>Fresh options with both hooks installed.</returns>
     /// <remarks>
@@ -68,6 +89,8 @@ public static class ClickHouseBigDecimal
     /// imposes. To set other options beside it, construct <see cref="QueryOptions"/> yourself and
     /// assign <see cref="ReadValueConverter"/> and <see cref="ParameterFormatter"/> in the
     /// initialiser; the driver's options are init-only, so they cannot be added afterwards.
+    /// These options carry no parameter type resolver: they are the read path's narrow form, and
+    /// <c>UseBigDecimal</c> is where the write-side refusal is installed.
     /// </remarks>
     public static QueryOptions CreateQueryOptions() => new()
     {

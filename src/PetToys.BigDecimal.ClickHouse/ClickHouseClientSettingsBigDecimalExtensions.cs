@@ -44,7 +44,15 @@ public static class ClickHouseClientSettingsBigDecimalExtensions
     /// <para>
     /// <c>UseCustomDecimals</c> is switched on because this call is constructing the settings and
     /// the mapping cannot work without it. A read hook or a parameter formatter already on the
-    /// settings is replaced rather than composed with; the driver holds one of each.
+    /// settings is replaced rather than composed with; the driver holds one of each, and neither
+    /// interface has a way for an implementation to say a value is not its own.
+    /// </para>
+    /// <para>
+    /// The parameter type resolver is the exception: one already on the settings is kept and asked
+    /// about every type this package does not map, because that interface reads a missing answer as
+    /// deferral. What this package's resolver adds is a refusal, by name, for a
+    /// <see cref="BigDecimal"/> parameter the statement did not annotate - which the driver would
+    /// otherwise answer with a bare <c>Unknown type</c>.
     /// </para>
     /// </remarks>
     public static ClickHouseClientSettings UseBigDecimal(this ClickHouseClientSettings settings)
@@ -56,6 +64,7 @@ public static class ClickHouseClientSettingsBigDecimalExtensions
             UseCustomDecimals = true,
             ReadValueConverter = ClickHouseBigDecimal.ReadValueConverter,
             ParameterFormatter = ClickHouseBigDecimal.ParameterFormatter,
+            ParameterTypeResolver = ClickHouseBigDecimal.CreateParameterTypeResolver(settings.ParameterTypeResolver),
         };
     }
 }

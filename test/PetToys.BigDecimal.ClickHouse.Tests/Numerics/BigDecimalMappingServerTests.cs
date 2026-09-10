@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using AwesomeAssertions;
 using ClickHouse.Driver;
 using ClickHouse.Driver.ADO;
+using ClickHouse.Driver.ADO.Parameters;
 using ClickHouse.Driver.Utility;
 using PetToys.BigDecimal.Numerics.Harness;
 using Xunit;
@@ -732,6 +733,160 @@ public sealed class BigDecimalMappingServerTests(ClickHouseServer server) : ICla
         finally
         {
             await this.DropAsync(table);
+        }
+    }
+
+    [Fact]
+    public async Task AnUnannotatedParameter_IsRefusedByThisPackageAndNothingIsSent()
+    {
+        await server.RequireAsync();
+
+        var table = await this.CreateAsync("Decimal64(4)");
+
+        try
+        {
+            await using var connection = new ClickHouseConnection(this.Wide());
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+            await using var command = connection.CreateCommand(
+                $"INSERT INTO {table} (i, v) VALUES (1, @v)");
+            command.AddParameter("v", BigDecimal.Parse("1.00015", CultureInfo.InvariantCulture));
+
+            var writing = async () => await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+
+            var thrown = await writing.Should().ThrowAsync<Exception>();
+
+            // Without this package's resolver the driver answers its own ArgumentOutOfRangeException,
+            // which names the CLR type and nothing else. Any exception satisfies the assertion above,
+            // so the refusal has to be identified by what only ours says.
+            thrown.Which.Should().Match<Exception>(
+                exception => Names(exception, "'v'") && Names(exception, "{v:Decimal256(6)}"),
+                "the refusal is this package's, and it names the parameter and the annotation");
+
+            var stored = await server.RenderAsync($"SELECT count() FROM {table}");
+
+            stored.Should().Equal(["0"], "the refusal comes before anything is sent");
+        }
+        finally
+        {
+            await this.DropAsync(table);
+        }
+    }
+
+    [Fact]
+    public async Task AnUnannotatedParameterOfAnotherType_IsUntouchedByTheGuard()
+    {
+        await server.RequireAsync();
+
+        var table = await this.CreateAsync("String");
+
+        try
+        {
+            await using var connection = new ClickHouseConnection(this.Wide());
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+            await using var command = connection.CreateCommand(
+                $"INSERT INTO {table} (i, v) VALUES (1, @v)");
+            command.AddParameter("v", "text");
+            await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+
+            var stored = await server.RenderAsync($"SELECT v FROM {table}");
+
+            // The guard is consulted for every parameter on the connection, not only for ours. This
+            // is the case that says deferring leaves the driver exactly where it was: an unannotated
+            // string still resolves, and it resolves without this package having an opinion.
+            stored.Should().Equal(["text"], "a type this package does not map is left to the driver");
+        }
+        finally
+        {
+            await this.DropAsync(table);
+        }
+    }
+
+    [Fact]
+    public async Task AResolverTheCallerInstalled_SurvivesTheRegistration()
+    {
+        await server.RequireAsync();
+
+        var table = await this.CreateAsync("String");
+        var caller = new CountingResolver();
+
+        try
+        {
+            var settings = new ClickHouseClientSettings(server.ConnectionString())
+            {
+                ParameterTypeResolver = caller,
+            }.UseBigDecimal();
+
+            await using var connection = new ClickHouseConnection(settings);
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+            await using var command = connection.CreateCommand(
+                $"INSERT INTO {table} (i, v) VALUES (1, @v)");
+            command.AddParameter("v", "text");
+            await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+
+            // The driver holds one resolver, so installing the mapping would ordinarily take the
+            // slot. It is composed with instead, and this is the half of that which a caller loses
+            // if the composition is dropped.
+            caller.Asked.Should().Contain("v", "the caller's resolver still decides its own types");
+
+            var stored = await server.RenderAsync($"SELECT v FROM {table}");
+
+            stored.Should().Equal(["text"]);
+        }
+        finally
+        {
+            await this.DropAsync(table);
+        }
+    }
+
+    [Fact]
+    public async Task AnUnannotatedParameter_IsRefusedWithoutReachingTheCallersResolver()
+    {
+        await server.RequireAsync();
+
+        var table = await this.CreateAsync("Decimal64(4)");
+        var caller = new CountingResolver();
+
+        try
+        {
+            var settings = new ClickHouseClientSettings(server.ConnectionString())
+            {
+                ParameterTypeResolver = caller,
+            }.UseBigDecimal();
+
+            await using var connection = new ClickHouseConnection(settings);
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+            await using var command = connection.CreateCommand(
+                $"INSERT INTO {table} (i, v) VALUES (1, @v)");
+            command.AddParameter("v", BigDecimal.One);
+
+            var writing = async () => await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+
+            await writing.Should().ThrowAsync<Exception>();
+
+            caller.Asked.Should().NotContain("v", "composition is not a way around this package's own refusal");
+        }
+        finally
+        {
+            await this.DropAsync(table);
+        }
+    }
+
+    /// <summary>A resolver of the kind a caller installs for their own types.</summary>
+    private sealed class CountingResolver : IParameterTypeResolver
+    {
+        /// <summary>The parameter names it was asked about.</summary>
+        public List<string> Asked { get; } = [];
+
+        /// <summary>Records the question and defers.</summary>
+        /// <param name="type">The parameter value's type.</param>
+        /// <param name="value">The parameter's value.</param>
+        /// <param name="name">The parameter's name.</param>
+        /// <returns>Nothing: this one only watches.</returns>
+        public string ResolveType(Type type, object value, string name)
+        {
+            this.Asked.Add(name);
+
+            return null!;
         }
     }
 

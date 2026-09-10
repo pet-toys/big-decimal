@@ -180,6 +180,33 @@ rounds half to even, giving 0.14, and every write path here rescales the value
 itself so that neither of the other two is ever asked to. One rule, whichever
 path a value takes.
 
+## A parameter has to name its type, and forgetting it is refused by name
+
+ClickHouse takes a parameter's type from the statement, `{total:Decimal256(6)}`,
+and that annotation is the only place a column's type reaches this package. Write
+`@total` instead and there is no scale to rescale against, so the write is
+refused before anything is sent:
+
+```text
+The parameter 'total' carries a BigDecimal and the statement does not name its
+ClickHouse type, so the column's scale is unknown. Annotate it in the statement,
+as in {total:Decimal256(6)}. Through Dapper, pass it with DynamicParameters.Add
+as well - an anonymous object is stripped before the parameter reaches this
+package.
+```
+
+The refusal is this package's, and it arrives instead of the driver's own
+`Unknown type`, which names the CLR type and nothing else. Nothing is guessed:
+a type derived from the value rather than from the column would let the server
+truncate at the column's scale, which is the one thing this package exists to
+prevent.
+
+`UseBigDecimal` installs that guard, and it is the only hook here that **composes
+rather than replaces**. A parameter type resolver already on the settings is kept
+and asked about every type this package does not map; the read hook and the
+parameter formatter are replaced, because neither of those interfaces lets an
+implementation say a value is not its own.
+
 ## Links
 
 - [Source and documentation][repo-url]
