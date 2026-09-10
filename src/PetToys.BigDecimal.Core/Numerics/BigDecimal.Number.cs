@@ -53,10 +53,9 @@ public readonly partial struct BigDecimal : INumber<BigDecimal>, ISignedNumber<B
     static bool INumberBase<BigDecimal>.IsOddInteger(BigDecimal value) =>
         IsIntegerValue(value) && !(Truncate(value) % Two).IsZero;
 
-    // NaN carries no sign here, so the plain negation would call it positive. double answers
-    // false to both IsPositive and IsNegative for its own NaN by a different route: its NaN has
-    // the hardware sign bit set, so IsNegative is true there. Ours is false, which is the one
-    // entry in the predicate table that diverges.
+    // NaN carries no sign here, so a plain negation would call it positive. double reaches false
+    // for both predicates by a different route - its NaN has the sign bit set, so IsNegative is
+    // true there and false here, the one divergence in the predicate table.
     static bool INumberBase<BigDecimal>.IsPositive(BigDecimal value) => !value.IsNegative && !IsNaN(value);
 
     static bool INumberBase<BigDecimal>.IsPositiveInfinity(BigDecimal value) => IsPositiveInfinity(value);
@@ -81,11 +80,9 @@ public readonly partial struct BigDecimal : INumber<BigDecimal>, ISignedNumber<B
 
     static BigDecimal INumber<BigDecimal>.MinNumber(BigDecimal x, BigDecimal y) => MinNumber(x, y);
 
-    // MaxNative, MinNative and ClampNative arrived with .NET 10 as default interface methods
-    // that route to Max, Min and Clamp, and they are left as those defaults. double overrides
-    // them with the hardware's asymmetric behaviour, where MaxNative(NaN, 1) is 1 but
-    // MaxNative(1, NaN) is NaN. Not reproducing that is a decision: an operand order that
-    // changes the answer is a property of an instruction, not of this type.
+    // MaxNative, MinNative and ClampNative are left as the .NET 10 default interface methods.
+    // double overrides them with the hardware's asymmetry - MaxNative(NaN, 1) is 1, MaxNative(1,
+    // NaN) is NaN - and not reproducing that is deliberate: that is a property of an instruction.
 
     static BigDecimal INumber<BigDecimal>.Clamp(BigDecimal value, BigDecimal min, BigDecimal max) =>
         Clamp(value, min, max);
@@ -178,9 +175,8 @@ public readonly partial struct BigDecimal : INumber<BigDecimal>, ISignedNumber<B
     private static NotSupportedException NotConvertible<TOther>() =>
         new($"Cannot convert {typeof(TOther)} to BigDecimal.");
 
-    // An infinity is an integer to nothing: double answers false to IsInteger, IsEvenInteger
-    // and IsOddInteger for both of them, and the finiteness test here is what makes all three
-    // agree. Without it Truncate(Infinity) == Infinity would report an integer.
+    // double answers false to IsInteger, IsEvenInteger and IsOddInteger for both infinities.
+    // Without the finiteness test, Truncate(Infinity) == Infinity would report an integer.
     private static bool IsIntegerValue(BigDecimal value) => IsFinite(value) && Truncate(value) == value;
 
     // The four selectors come in two families that this type used to implement once. The plain
@@ -232,9 +228,8 @@ public readonly partial struct BigDecimal : INumber<BigDecimal>, ISignedNumber<B
         return IsNaN(y) ? x : Min(x, y);
     }
 
-    // Neither operand is NaN here, so an infinity simply outweighs every finite magnitude and
-    // CompareMagnitude - which reads the words, and a non-finite value's words are zero - is
-    // never asked about one.
+    // Neither operand is NaN here, so an infinity outweighs every finite magnitude and
+    // CompareMagnitude - which reads the words, and a non-finite value's are zero - never sees one.
     private static BigDecimal MaxMagnitudeCore(BigDecimal x, BigDecimal y)
     {
         if (x.IsNonFinite || y.IsNonFinite)
@@ -318,19 +313,13 @@ public readonly partial struct BigDecimal : INumber<BigDecimal>, ISignedNumber<B
 
     /// <summary>Converts out of a <see cref="BigDecimal"/> into one of the recognised types.</summary>
     /// <remarks>
-    /// <para>
-    /// Written as a chain of <c>typeof(TOther) == typeof(X)</c> tests rather than as a switch
-    /// producing an <see cref="object"/>, because each comparison is a compile-time constant for a
-    /// value-type instantiation and the box that survives it folds away with the branch. The switch
-    /// this replaced allocated 24 bytes converting to a <see cref="long"/> and 32 to a
-    /// <see cref="decimal"/>.
-    /// </para>
-    /// <para>
-    /// <paramref name="saturate"/> serves the saturating and the truncating conversion both; see
-    /// <see cref="TryFrom{TOther}"/> for why they are one operation. A target that has infinities
-    /// receives one rather than an exception even under the checked conversion, which is what
-    /// <c>float.CreateChecked(double.MaxValue)</c> does.
-    /// </para>
+    /// A chain of <c>typeof(TOther) == typeof(X)</c> tests rather than a switch over an
+    /// <see cref="object"/>: each comparison is a compile-time constant for a value-type
+    /// instantiation, so the box folds away with the branch. The switch this replaced allocated 24
+    /// bytes for a <see cref="long"/> target and 32 for a <see cref="decimal"/> one.
+    /// <paramref name="saturate"/> serves the truncating conversion too, for the reason
+    /// <see cref="TryFrom{TOther}"/> gives; a target that has infinities receives one rather than
+    /// an exception even when checked, as <c>float.CreateChecked(double.MaxValue)</c> does.
     /// </remarks>
     /// <returns><see langword="false"/> when the target type is not one this type recognises.</returns>
     private static bool TryTo<TOther>(BigDecimal value, bool saturate, out TOther result)
@@ -452,11 +441,10 @@ public readonly partial struct BigDecimal : INumber<BigDecimal>, ISignedNumber<B
 
         if (typeof(TOther) == typeof(BigInteger))
         {
-            // BigInteger is unbounded, so the cast could never overflow and the saturate flag
-            // had nothing to change - until a non-finite value became representable here. NaN
-            // saturates to zero as it does for every other destination; an infinity still
-            // throws, because there is no extreme to clamp to, which is what
-            // BigInteger.CreateSaturating(double.PositiveInfinity) does too.
+            // BigInteger is unbounded, so only a non-finite value gives the saturate flag anything
+            // to do. NaN saturates to zero as it does everywhere else; an infinity throws, having
+            // no extreme to clamp to, which is what BigInteger.CreateSaturating does for an
+            // infinite double too.
             result = (TOther)(object)(saturate && IsNaN(value) ? BigInteger.Zero : (BigInteger)value);
             return true;
         }

@@ -104,10 +104,9 @@ public sealed class WireFormatFuzzTests
     [FuzzData]
     public void ClickHouseWriting_RescalesOnceIntoTheColumn(int seed, int cases)
     {
-        // The round-trip above writes at the value's own scale, so neither rescaling path is on
-        // it: rounding down into a narrower column and scaling up into a wider one are the two
-        // places the writer can be wrong about a value it accepts. Here the column's scale is
-        // drawn on its own, and the oracle rounds once from the mantissa the value arrived with.
+        // The round trip above writes at the value's own scale, so neither rescaling path is on
+        // it, and those are the two places the writer can be wrong about a value it accepts. Here
+        // the column's scale is drawn on its own and the oracle rounds once from the mantissa.
         var generator = new ValueGenerator(new Random(seed));
         var random = new Random(seed);
 
@@ -150,11 +149,9 @@ public sealed class WireFormatFuzzTests
     [FuzzData]
     public void PostgresReading_RoundsOnceIntoTheScaleThatFits(int seed, int cases)
     {
-        // Payloads rather than values. A payload this codec wrote is never wider than the type,
-        // so the round trip cannot reach the reader's two hard branches - the overflow it decides
-        // from the header, and the fraction it rounds away - and the stated cases reach them at
-        // two points. These are composed from the layout instead, wide enough that the tail below
-        // the accumulator has to be carried as a sticky bit rather than as digits.
+        // Payloads rather than values: one this codec wrote is never wider than the type, so a
+        // round trip cannot reach the reader's two hard branches. These are composed from the
+        // layout, wide enough that the tail below the accumulator becomes a sticky bit.
         var random = new Random(seed);
 
         for (var index = 0; index < cases; index++)

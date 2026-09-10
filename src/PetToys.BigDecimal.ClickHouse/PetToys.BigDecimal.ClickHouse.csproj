@@ -2,12 +2,9 @@
 
   <PropertyGroup>
     <TargetFrameworks>$(TargetFrameworkVersions)</TargetFrameworks>
-    <!-- The type lives in PetToys.BigDecimal.Numerics, and from any namespace under
-         PetToys.BigDecimal that does not hold it, the identifier BigDecimal binds to
-         the namespace instead: every mention of the type is CS0118 and a using alias
-         does not override it. Pinning the root namespace to PetToys.BigDecimal makes
-         the Numerics/ folder come out as the namespace the type is in, the same way
-         the core project, the Npgsql project and both test projects do it. -->
+    <!-- Pinned so the Numerics/ folder lands in PetToys.BigDecimal.Numerics, where the type
+         is. From any other namespace under PetToys.BigDecimal the identifier BigDecimal binds
+         to the namespace instead - CS0118 at every mention, and a using alias does not fix it. -->
     <RootNamespace>PetToys.BigDecimal</RootNamespace>
   </PropertyGroup>
 

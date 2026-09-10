@@ -84,16 +84,11 @@ internal static class Words
 
     internal static ReadOnlySpan<ulong> Pow10 => Pow10Values;
 
-    // Both tables are prepared once, at type initialisation, because their divisors are fixed and
-    // every division by one of them would otherwise pay for a reciprocal it could have been handed.
-    // They are static readonly arrays behind span-returning properties, never collection
-    // expressions in an expression-bodied property: that form is not cached and allocates on every
-    // access, which is what once made the package's "never allocates" claim false.
-    //
-    // Both are filled end to end rather than only at the indices used today. The fives cost 28
-    // entries because the exactness check divides by an arbitrary power of five, not only by the
-    // largest one, and filling the rest removes the question of which indices are hot; at 24 bytes
-    // an entry the whole of both tables is under 1.2 kB of static data.
+    // Prepared once, at type initialisation, so no division pays for a reciprocal it could be
+    // handed. Static readonly arrays behind span-returning properties, never a collection
+    // expression in an expression-bodied property: that form is not cached and allocates on every
+    // access, which once made the "never allocates" claim false. Both are filled end to end -
+    // under 1.2 kB together - so there is no question of which indices are hot.
     private static readonly Divisor[] Pow10DivisorValues = BuildDivisors(Pow10Values);
 
     private static readonly Divisor[] Pow5DivisorValues = BuildDivisors(Pow5Values);
@@ -103,12 +98,9 @@ internal static class Words
 
     /// <summary>
     /// <see cref="TenPow19"/> prepared for <see cref="DivRem2By1"/>, the largest power of ten a
-    /// word holds.
+    /// word holds. Named rather than indexed, so a caller peeling nineteen digits at a time cannot
+    /// pick up whichever entry another constant happens to point at.
     /// </summary>
-    /// <remarks>
-    /// Named rather than indexed, because the caller that peels nineteen digits at a time needs
-    /// this power of ten and not whichever entry another constant happens to point at.
-    /// </remarks>
     internal static ref readonly Divisor TenPow19Divisor => ref Pow10DivisorValues[MaxZerosPerPass];
 
     /// <summary>The powers of five, each prepared for <see cref="DivRem2By1"/>.</summary>
@@ -119,12 +111,10 @@ internal static class Words
     /// most <see cref="MaxZerosPerPass"/>, without dividing it.
     /// </summary>
     /// <remarks>
-    /// The count is the smaller of the twos and the fives in the factorisation, and neither needs a
-    /// division of the magnitude. The twos are a trailing-zero count on its low non-zero word, so a
-    /// value with none is answered without touching the rest of it. The fives come from a single
-    /// remainder pass by 5^27, the largest power of five a word holds: when that remainder is zero
-    /// the value carries at least 27 fives, which is past the cap, and when it is not, the fives of
-    /// the value are the fives of the remainder, countable on one word.
+    /// The smaller of the twos and the fives, neither of which needs a division: the twos are a
+    /// trailing-zero count on the low non-zero word, and the fives come from one remainder pass by
+    /// 5^27 - zero means at least 27, past the cap, and otherwise the fives of the remainder are
+    /// the fives of the value and fit one word.
     /// </remarks>
     /// <param name="value">The magnitude.</param>
     /// <param name="length">The number of significant words in <paramref name="value"/>.</param>
@@ -144,9 +134,8 @@ internal static class Words
             return 0;
         }
 
-        // The twos and the caller's limit already bound the answer, so the fives are only counted
-        // as far as that bound: a value with one trailing zero pays one test, not the search for
-        // nineteen.
+        // The twos and the caller's limit already bound the answer, so a value with one trailing
+        // zero pays one test rather than the search for nineteen.
         var cap = Math.Min(twos, limit);
         var remainder = RemSmall(value, length, Pow5Divisors[MaxFivesPerWord]);
         return remainder == 0 ? cap : CountFives(remainder, cap);
@@ -157,11 +146,10 @@ internal static class Words
     /// the number of decimal places at which a division by it comes out exactly.
     /// </summary>
     /// <remarks>
-    /// A quotient a / b is exact in decimal at max(x, y) places when b is 2^x times 5^y, because
-    /// a * 10^max(x,y) / b is then a * 2^(max-x) * 5^(max-y). Knowing that up front is what lets a
-    /// division lift its dividend by a few places instead of by everything the mantissa holds. The
-    /// twos come out with a shift and the fives with one remainder pass in the common case, and a
-    /// divisor carrying any other factor is rejected on that same pass.
+    /// a / b is exact at max(x, y) places when b is 2^x times 5^y, since a * 10^max(x,y) / b is
+    /// then a * 2^(max-x) * 5^(max-y). Knowing it up front lets a division lift its dividend by a
+    /// few places instead of by the whole mantissa. One shift and one remainder pass, on which any
+    /// other prime factor is rejected.
     /// </remarks>
     /// <param name="value">The divisor's magnitude. It is consumed, so pass a copy.</param>
     /// <param name="length">The number of significant words in <paramref name="value"/>.</param>
@@ -213,17 +201,10 @@ internal static class Words
     /// normalised divisor, less 2^64.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// The quotient of that division always lies between 2^64 and 2^65, so subtracting 2^64 is the
-    /// same as keeping its low 64 bits, and the whole result fits a single word. That is what makes
-    /// the division below three multiplications instead of a hardware divide.
-    /// </para>
-    /// <para>
-    /// This is the expensive part, and it is deliberately written as the plain division rather than
-    /// as an approximation refined by Newton's method: it runs once per divisor - at type
-    /// initialisation for the divisors held in a table, and once per call where the divisor is the
-    /// caller's - never once per word, which is the loop that had to be made cheap.
-    /// </para>
+    /// The quotient always lies between 2^64 and 2^65, so subtracting 2^64 is keeping the low 64
+    /// bits and the result fits one word. Written as the plain division rather than a Newton
+    /// refinement because it runs once per divisor, never once per word - that is the loop that
+    /// had to be made cheap.
     /// </remarks>
     /// <param name="divisorNormalized">The divisor, whose most significant bit must be set.</param>
     /// <returns>The reciprocal to pass to <see cref="DivRem2By1"/> alongside that divisor.</returns>
@@ -238,18 +219,11 @@ internal static class Words
 
     /// <summary>Divides a 128-bit value by a single normalised word.</summary>
     /// <remarks>
-    /// <para>
-    /// The estimate-and-correct division of Moller and Granlund: one widening multiplication of the
-    /// reciprocal by the high half, an addition, and at most two corrections. It replaces a
-    /// <see cref="UInt128"/> divided by a <see cref="ulong"/>, a shape the runtime lowers to a
-    /// hardware divide only while the high half is zero and otherwise answers with a general
-    /// multi-precision division over 32-bit limbs.
-    /// </para>
-    /// <para>
-    /// Every step is modulo 2^64 by design - the corrections read the wraparound of a subtraction
-    /// that went too far - so the body is <c>unchecked</c> and must stay so. A Debug build compiles
-    /// with CheckForOverflowUnderflow and would throw on the first correction otherwise.
-    /// </para>
+    /// The estimate-and-correct division of Moller and Granlund. It replaces a
+    /// <see cref="UInt128"/> over a <see cref="ulong"/>, which the runtime lowers to a hardware
+    /// divide only while the high half is zero. Every step is modulo 2^64 by design - the
+    /// corrections read the wraparound of a subtraction that went too far - so the body is
+    /// <c>unchecked</c> and must stay so, or a Debug build throws on the first correction.
     /// </remarks>
     /// <param name="high">
     /// The high half of the dividend, which must be below <paramref name="divisorNormalized"/>. The
@@ -276,9 +250,8 @@ internal static class Words
 
         unchecked
         {
-            // The estimate: (reciprocal * high) + the dividend + 2^64, whose high half is the
-            // quotient to within one in either direction. The two corrections below decide which,
-            // and the remainder computed from it is what tells them apart.
+            // (reciprocal * high) + the dividend + 2^64: its high half is the quotient to within
+            // one either way, and the remainder below is what tells the two corrections apart.
             var estimate = Math.BigMul(reciprocal, high, out var estimateLow);
             estimateLow += low;
             if (estimateLow < low)
@@ -298,9 +271,8 @@ internal static class Words
                 rest += divisorNormalized;
             }
 
-            // And this one repairs an estimate that came out one short. It is the rarer of the
-            // two - about one case in a thousand on random operands - and it is the only step
-            // that can move the quotient up, so nothing else covers for it.
+            // Repairs an estimate one short: rarer, about one in a thousand on random operands, and
+            // the only step that moves the quotient up, so nothing else covers for it.
             if (rest >= divisorNormalized)
             {
                 estimate++;
@@ -315,10 +287,9 @@ internal static class Words
 
     /// <summary>Returns the remainder of a magnitude divided by a single word, leaving it unchanged.</summary>
     /// <remarks>
-    /// The loop of <see cref="DivideBySmall"/> without the quotient stores, and the divisor arrives
-    /// prepared for the same reason. It is written out rather than shared because sharing it would
-    /// put a test for whether there is a quotient to write inside the word loop, on the one path
-    /// that exists to answer a divisibility question without producing one.
+    /// The loop of <see cref="DivideBySmall"/> without the quotient stores. Written out rather
+    /// than shared: sharing would put a "is there a quotient to write" test inside the word loop,
+    /// on the one path that exists to answer a divisibility question without producing one.
     /// </remarks>
     /// <param name="value">The magnitude.</param>
     /// <param name="length">The number of significant words in <paramref name="value"/>.</param>
@@ -403,9 +374,8 @@ internal static class Words
     {
         var bound = Math.Min(cap, MaxFivesPerWord);
 
-        // The cap is usually the answer. A value widened to a column's scale carries exactly as
-        // many fives as the zeros it was given, and the twos that set the cap came from the same
-        // widening, so one test settles it and the search below never runs.
+        // The cap is usually the answer: a value widened to a column's scale carries as many fives
+        // as the zeros it was given, so one test settles it and the search below never runs.
         if (bound <= 0 || value % Pow5Values[bound] == 0)
         {
             return bound;
@@ -431,20 +401,13 @@ internal static class Words
 
     /// <summary>Fills words that nothing is allowed to read with a sentinel, so that reading one shows.</summary>
     /// <remarks>
-    /// Every helper here is bounded by the length it is given, so the words a work buffer holds
-    /// beyond that length are not readable state and are not zeroed on any hot path. That property
-    /// is true of the consumers that exist, and the next one written is free to read past its
-    /// length and find a zero the runtime happened to leave there - which passes the whole suite
-    /// and produces a wrong value only for operands wide enough to reach those words. This call
-    /// takes the zero away in Debug, so such a consumer fails instead. It compiles to nothing in
-    /// Release, argument included, which is the point: the zeroing it replaces was the cost.
-    /// <para>
-    /// There is a write-side half to the same property, and it is what makes a buffer safe to
-    /// reuse: <see cref="DivRem"/> fills every quotient word it goes on to report and normalises
-    /// the numerator down to the length it reports, so a second division into the same buffers
-    /// cannot read the first one's words. <c>Divide</c> divides into one pair of buffers up to
-    /// three times without zeroing them in between, and that is the reason it is allowed to.
-    /// </para>
+    /// Words beyond a buffer's length are not readable state and are not zeroed on any hot path.
+    /// A helper that read past its length would find whatever zero the runtime left there, pass
+    /// the whole suite, and be wrong only for operands wide enough to reach those words; this
+    /// takes the zero away in Debug so it fails instead, and compiles to nothing in Release.
+    /// The write-side half is <see cref="DivRem"/>, which fills every quotient word it reports and
+    /// normalises the numerator down to its own, which is what lets <c>Divide</c> reuse one pair
+    /// of buffers three times without clearing them.
     /// </remarks>
     /// <param name="value">The words to poison.</param>
     [Conditional("DEBUG")]
@@ -562,12 +525,9 @@ internal static class Words
 
     /// <summary>Divides a magnitude by a single word in place.</summary>
     /// <remarks>
-    /// The divisor arrives prepared rather than as a bare word, because preparing it costs a
-    /// division of its own and every caller here divides by one of the two tables. A caller holding
-    /// an arbitrary divisor prepares it once with <see cref="Divisor.For"/> and not once per word.
-    /// The words go in shifted by the divisor's own normalising shift and the remainder comes back
-    /// shifted by it, which is undone on the way out; the quotient is unaffected by the shift,
-    /// since both sides of the division are scaled by the same power of two.
+    /// The divisor arrives prepared because preparing costs a division of its own: the callers
+    /// here divide by one of the two tables, and one holding an arbitrary divisor prepares it once
+    /// with <see cref="Divisor.For"/> rather than once per word.
     /// </remarks>
     /// <param name="acc">The magnitude, replaced by the quotient.</param>
     /// <param name="accLen">The number of significant words in <paramref name="acc"/>.</param>
@@ -583,21 +543,11 @@ internal static class Words
 
     /// <summary>Divides a magnitude by a single prepared word, writing the quotient word by word.</summary>
     /// <remarks>
-    /// <para>
-    /// The one place the shifted loop is written. Both callers that keep a quotient go through it,
-    /// so a correction to the shifting cannot reach one of them and miss the other.
-    /// </para>
-    /// <para>
-    /// <paramref name="quotient"/> may be the same span as <paramref name="source"/>. The loop runs
-    /// downwards and reads the word below the one it is about to write before writing it, so
-    /// dividing in place is safe; overlapping the two spans at any other offset is not.
-    /// </para>
-    /// <para>
-    /// The words go in shifted by the divisor's own normalising shift, which is what the primitive
-    /// requires, and the remainder comes back scaled by the same power of two and is shifted back
-    /// on the way out. The quotient needs no such undoing: scaling both sides of a division by the
-    /// same amount leaves it unchanged.
-    /// </para>
+    /// The one place the shifted loop is written, so a correction to the shifting cannot reach one
+    /// caller and miss the other. Words go in shifted by the divisor's normalising shift and the
+    /// remainder is shifted back on the way out; the quotient needs no undoing, both sides having
+    /// been scaled alike. <paramref name="quotient"/> may be <paramref name="source"/> itself -
+    /// the loop reads the word below the one it writes - but no other overlap is safe.
     /// </remarks>
     /// <param name="source">The magnitude.</param>
     /// <param name="length">The number of significant words in <paramref name="source"/>.</param>
@@ -815,11 +765,8 @@ internal static class Words
             if (numLen <= 1)
             {
                 // One word over one word is a hardware divide and nothing else. Preparing the
-                // divisor for the primitive costs a 128-bit division of its own, and at this width
-                // there is nothing to amortise it over: measured against this path, preparing costs
-                // 1.1x on net10.0 and 6.9x on net8.0, where the runtime's software division of a
-                // UInt128 is dearer still. From two words up the preparation pays for itself and
-                // the primitive wins by 2x to 20x, which is why the cut is here.
+                // divisor costs a 128-bit division with nothing to amortise it over: 1.1x on
+                // net10.0 and 6.9x on net8.0. From two words up it wins 2x to 20x, hence the cut.
                 var single = numLen == 0 ? 0UL : numerator[0];
                 rem = single % divisor[0];
                 if (numLen == 1)
@@ -872,18 +819,10 @@ internal static class Words
                 ulong qhat;
                 UInt128 rhat;
 
-                // The estimate saturates exactly when the running remainder's leading word equals
-                // the divisor's - the remainder is never larger than that - and the true quotient
-                // is then 2^64, which no single word holds. So that case is decided here rather
-                // than by the primitive, which returns a word and requires a high half below the
-                // divisor.
-                //
-                // Its partial remainder needs more than 64 bits and stays wide, so that the
-                // correction below reads the remainder it was given: truncated to a ulong it looks
-                // small, the correction fires on an estimate that was already right, and the
-                // algorithm has no repair for one that came out too small. The estimate itself
-                // stays a ulong, so both products below are widening 64-by-64 multiplications
-                // rather than the far dearer 128-bit kind.
+                // The true quotient is 2^64 exactly when the remainder's leading word equals the
+                // divisor's, which no single word holds, so the primitive cannot answer it. The
+                // partial remainder stays a UInt128: truncated to a ulong it looks small and the
+                // correction below fires on an estimate that was already right.
                 if (topHigh >= vHigh)
                 {
                     qhat = ulong.MaxValue;
@@ -1017,9 +956,8 @@ internal static class Words
     /// significant bit is set, with the shift that produced it and the reciprocal of the result.
     /// </summary>
     /// <remarks>
-    /// The shift belongs here rather than at the call site because it is the caller's too: the
-    /// words of the dividend are fed in shifted by the same amount, and the remainder comes back
-    /// shifted and has to be undone.
+    /// The shift is carried here rather than at the call site because the dividend is fed in
+    /// shifted by the same amount and the remainder comes back needing it undone.
     /// </remarks>
     /// <param name="Normalized">The divisor shifted so that its most significant bit is set.</param>
     /// <param name="Reciprocal">The reciprocal of <paramref name="Normalized"/>.</param>

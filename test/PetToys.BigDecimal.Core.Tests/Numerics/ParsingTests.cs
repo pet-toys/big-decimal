@@ -191,10 +191,9 @@ public sealed class ParsingTests
     [Fact]
     public void TheTrim_StopsAtTheFirstCharacterOutsideTheSet()
     {
-        // A trim that consumed the rest of the run once it had seen one accepted character
-        // would pass every single-character case above and still swallow the separator D15
-        // was about. Both orders, because a leading accepted character and a leading refused
-        // one take different branches.
+        // A trim that consumed the rest of the run after one accepted character would pass every
+        // single-character case above and still swallow a non-breaking space. Both orders, because
+        // a leading accepted character and a leading refused one take different branches.
         string[] mixed = ["\t\u00A0123", "\u00A0\t123", "123\t\u00A0", "123\u00A0\t"];
 
         foreach (var text in mixed)

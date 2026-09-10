@@ -80,11 +80,9 @@ public sealed class ScaleAndRoundingTests
     [Fact]
     public void AReductionClampedByTheScale_KeepsWhatFits()
     {
-        // The sum needs 79 digits at scale 1. The band asks for two of them and the scale has one
-        // to give, so the reduction stops at the decimal point without having reached 77. What is
-        // left fits the mantissa and is the exact sum, and refusing it would refuse an answer the
-        // type can hold: 78 digits at scale 0 therefore says the value fits and nothing at all
-        // about whether it was reduced.
+        // The sum needs 79 digits at scale 1. The band asks for two and the scale has one to give,
+        // so the reduction stops at the point without reaching 77. What is left is the exact sum
+        // and fits: 78 digits at scale 0 says the value fits, and nothing about being reduced.
         var left = BigDecimal.FromScaled(5 * BigInteger.Pow(10, 76), 1);
         var right = BigDecimal.FromScaled(BigInteger.Pow(10, 77), 0);
 

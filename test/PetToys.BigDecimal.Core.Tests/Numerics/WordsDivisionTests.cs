@@ -70,10 +70,9 @@ public sealed class WordsDivisionTests
         }
     }
 
-    // A high half of divisor - 1 over a low half of all ones is the exact shape whose quotient word
-    // is 2^64 - 1: the dividend is MaxValue x divisor + divisor - 1. That is the condition the
-    // multi-word trial quotient saturates on, reached here directly rather than through operands
-    // wide enough to produce it.
+    // A high half of divisor - 1 over a low half of all ones gives a quotient word of 2^64 - 1:
+    // the dividend is MaxValue x divisor + divisor - 1, which is what the multi-word trial
+    // quotient saturates on, reached directly rather than through operands wide enough for it.
     [Theory]
     [InlineData(9_223_372_036_854_775_807UL, ulong.MaxValue, 9_223_372_036_854_775_808UL)]
     [InlineData(ulong.MaxValue - 1, ulong.MaxValue, ulong.MaxValue)]
@@ -84,11 +83,9 @@ public sealed class WordsDivisionTests
     [InlineData(1UL, 0UL, 9_223_372_036_854_775_809UL)]
     [InlineData(ulong.MaxValue - 1, 0UL, ulong.MaxValue)]
 
-    // Both of these need the second correction, the one that moves the quotient up because the
-    // estimate came out one short. No boundary case above reaches it: removing that branch leaves
-    // every case here green and fails only the randomised theory, at roughly one case in a
-    // thousand. Found there, kept here, so the shape survives a run with the randomised tests
-    // filtered out.
+    // Both need the second correction, the one that moves the quotient up. No boundary case above
+    // reaches it: removing that branch leaves every case here green and fails only the randomised
+    // theory, at one case in a thousand. Found there, kept here so the shape survives a filter.
     [InlineData(9_240_188_774_902_505_938UL, 16_658_877_116_815_098_501UL, 9_638_917_963_980_254_000UL)]
     [InlineData(9_461_628_071_965_608_955UL, 17_993_631_896_169_171_291UL, 10_695_376_612_292_763_194UL)]
     public void DivRem2By1_MatchesTheOracleAtTheContractBoundary(ulong high, ulong low, ulong divisor)
@@ -263,10 +260,9 @@ public sealed class WordsDivisionTests
         }
     }
 
-    // The high half of every step after the first is the running remainder, so it is always below
-    // the divisor; the interesting case is the step where it is exactly one below, which is where
-    // an estimate-and-correct implementation sits on its own precondition. A leading word of
-    // divisor - 1 produces exactly that on the following word, whatever the low word is.
+    // The high half of every step after the first is the running remainder, always below the
+    // divisor. The case that matters is the step where it is exactly one below, on the
+    // precondition itself, which a leading word of divisor - 1 produces on the following word.
     [Theory]
     [InlineData(9UL, ulong.MaxValue, 10UL)]
     [InlineData(9_999_999_999_999_999_999UL, ulong.MaxValue, 10_000_000_000_000_000_000UL)]

@@ -7,22 +7,13 @@ namespace PetToys.BigDecimal.Numerics;
 /// them, and whether it is negative.
 /// </summary>
 /// <remarks>
-/// <para>
-/// Formatting works on this rather than on the value. Scaling by a hundred or a thousand, which
-/// <c>P</c> and a custom format's <c>%</c>, <c>‰</c> and trailing commas call for, is a move of
-/// <see cref="Point"/> and never an arithmetic operation: <c>MaxValue</c> multiplied by a hundred
-/// does not fit the mantissa, and <see cref="decimal"/> renders its own maximum with <c>P0</c>
-/// without complaint for exactly this reason.
-/// </para>
-/// <para>
-/// Rounding works here too, for a reason that only appears once scaling exists: the digit that
-/// decides the rounding sits at a different position before and after the shift, so a formatter
-/// that rounds the value first and scales afterwards rounds the wrong digit.
-/// </para>
-/// <para>
-/// Zero is the empty digit string with the point at one, so that it renders a single <c>0</c>
-/// before the point and zeros after it without a special case at every use.
-/// </para>
+/// Formatting works on this rather than on the value, so that the scaling <c>P</c> and a custom
+/// format's <c>%</c>, <c>‰</c> and trailing commas call for is a move of <see cref="Point"/>
+/// rather than arithmetic: <c>MaxValue</c> times a hundred does not fit the mantissa, yet
+/// <see cref="decimal"/> renders its own maximum with <c>P0</c>. Rounding is here for the same
+/// reason - the deciding digit sits at a different position before and after the shift, so
+/// rounding the value first rounds the wrong one. Zero is the empty digit string with the point
+/// at one, which renders a leading <c>0</c> with no special case at each use.
 /// </remarks>
 internal ref struct DigitText
 {

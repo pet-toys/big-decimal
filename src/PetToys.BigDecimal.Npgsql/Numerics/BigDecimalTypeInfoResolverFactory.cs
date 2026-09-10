@@ -11,33 +11,12 @@ namespace PetToys.BigDecimal.Numerics;
 /// <c>BigDecimal[]</c> maps to <c>numeric[]</c>.
 /// </summary>
 /// <remarks>
-/// <para>
-/// The mapping matches on the CLR type and the data type name together, and that is the load
-/// bearing decision in this package rather than a detail. Measured against PostgreSQL 18, the three
-/// values of <see cref="MatchRequirement"/> do not differ by degree:
-/// </para>
-/// <list type="bullet">
-/// <item>
-/// <c>Single</c>: <c>GetFieldValue&lt;BigDecimal&gt;</c> works, a parameter carrying only a value
-/// works, and <c>GetValue</c> over a <c>numeric</c> column starts answering <see cref="BigDecimal"/>
-/// instead of <see cref="decimal"/>.
-/// </item>
-/// <item>
-/// <c>DataTypeName</c>: the same hijack of the default, and a parameter carrying only a value fails
-/// with <c>Writing values of 'BigDecimal' is not supported for parameters having no NpgsqlDbType or
-/// DataTypeName</c>.
-/// </item>
-/// <item>
-/// <c>All</c>: reads and writes both work, and <see cref="decimal"/> stays the default the driver
-/// answers for the type.
-/// </item>
-/// </list>
-/// <para>
-/// Only the last is admissible. A type mapping is registered on a data source the whole application
-/// shares, so a default that moved would change what every existing untyped read produces from the
-/// moment this package is installed, and it would surface at a cast far away from the registration.
-/// <see cref="BigDecimal"/> is for the columns that need it, asked for by name.
-/// </para>
+/// <c>MatchRequirement.All</c> is the load-bearing decision here, not a detail. Measured against
+/// PostgreSQL 18: the other two values make <c>GetValue</c> over a <c>numeric</c> column answer
+/// <see cref="BigDecimal"/> instead of <see cref="decimal"/>, and <c>DataTypeName</c> additionally
+/// refuses a parameter carrying only a value. The mapping is registered on a data source the whole
+/// application shares, so a default that moved would change every existing untyped read from the
+/// moment this package is installed, and would surface at a cast far from the registration.
 /// </remarks>
 internal sealed class BigDecimalTypeInfoResolverFactory : PgTypeInfoResolverFactory
 {
@@ -48,9 +27,8 @@ internal sealed class BigDecimalTypeInfoResolverFactory : PgTypeInfoResolverFact
     public override IPgTypeInfoResolver CreateArrayResolver() => new ArrayResolver();
 
     /// <summary>
-    /// The <c>numeric</c> type, fully qualified. Npgsql's own <c>DataTypeNames</c> holds this
-    /// constant but the class is not accessible outside the driver, so the name is spelled out
-    /// rather than referenced.
+    /// The <c>numeric</c> type, fully qualified. Spelled out because Npgsql's own
+    /// <c>DataTypeNames</c> is not accessible outside the driver.
     /// </summary>
     private const string Numeric = "pg_catalog.numeric";
 

@@ -141,9 +141,8 @@ public sealed class BigDecimalMappingServerTests(ClickHouseServer server) : ICla
             reader.GetBigDecimal(0).Should().Be(BigDecimal.FromScaled(mantissa, 6));
 
             // The same column without the mapping, which is where the driver's own accessor was
-            // measured. Asserting it on the mapped reader instead would pin a guess: with a
-            // converter installed the value GetDecimal is handed is a BigDecimal, and whether the
-            // driver narrows it or refuses the cast is the driver's business and was not observed.
+            // measured. Asserting it on the mapped reader would pin a guess: what GetDecimal does
+            // with a BigDecimal handed to it is the driver's business and was not observed.
             await using var unmapped = await client.ExecuteReaderAsync(
                 $"SELECT v FROM {table}",
                 null,
@@ -308,11 +307,10 @@ public sealed class BigDecimalMappingServerTests(ClickHouseServer server) : ICla
     {
         await server.RequireAsync();
 
-        // The formatter is consulted for every parameter on the connection, not only ours, and it
-        // answers null for a value it does not handle. That null has to mean "not mine" rather than
-        // "no text", or the connection-wide registration would break every other parameter type on
-        // the connection. Reasoned from the driver's own DictionaryParameterFormatter, which would
-        // be useless otherwise, and measured here.
+        // The formatter is consulted for every parameter on the connection, not only ours, and its
+        // null has to mean "not mine" rather than "no text" or the registration would break every
+        // other parameter type. Read off the driver's own DictionaryParameterFormatter, and
+        // measured here.
         var table = $"adapter_{Guid.NewGuid():N}";
         await server.RunAsync(
             $"CREATE TABLE {table} (i UInt32, v Decimal128(4), s String) ENGINE = Memory");
@@ -370,10 +368,9 @@ public sealed class BigDecimalMappingServerTests(ClickHouseServer server) : ICla
     {
         await server.RequireAsync();
 
-        // The sharpest case in the change. Written through the package, 0.135 becomes 0.14; the
-        // same literal parsed by the server itself becomes 0.13, and so would the driver's own
-        // rescale. Both halves are asserted here so that an agreement by accident is not mistaken
-        // for an agreement by design.
+        // Written through the package, 0.135 becomes 0.14; parsed by the server itself it becomes
+        // 0.13, and so would the driver's own rescale. Both halves are asserted so an agreement by
+        // accident is not mistaken for one by design.
         var mapped = await this.CreateAsync("Decimal64(2)");
         var direct = await this.CreateAsync("Decimal64(2)");
 
@@ -610,10 +607,9 @@ public sealed class BigDecimalMappingServerTests(ClickHouseServer server) : ICla
     {
         await server.RequireAsync();
 
-        // ClickHouse has type constructors around a decimal that this package does not read, and
-        // this is one the server accepts. Handing the value on would put it through IConvertible
-        // and store whatever System.Decimal made of it, which is the one outcome that must never
-        // happen quietly.
+        // A type constructor around a decimal that this package does not read and the server
+        // accepts. Handing the value on would put it through IConvertible and store whatever
+        // System.Decimal made of it, which is the one outcome that must never happen quietly.
         var table = $"adapter_{Guid.NewGuid():N}";
         await server.RunAsync(
             $"CREATE TABLE {table} (k UInt32, v SimpleAggregateFunction(max, Decimal64(4))) ENGINE = AggregatingMergeTree ORDER BY k");

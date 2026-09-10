@@ -48,10 +48,9 @@ public sealed class BigDecimalMappingServerTests(PostgresServer server) : IClass
         await using var reader = await command.ExecuteReaderAsync(TestContext.Current.CancellationToken);
         await reader.ReadAsync(TestContext.Current.CancellationToken);
 
-        // The whole bargain of this package in three assertions. A type mapping is registered on a
-        // data source the rest of an application shares, so if these move, code written before this
-        // package existed starts reading a different type out of the same column, and it finds out
-        // at a cast far from the registration.
+        // The whole bargain of this package in three assertions: the mapping is registered on a
+        // data source the application shares, so if these move, code written before the package
+        // existed reads a different type out of the same column, at a cast far from here.
         reader.GetFieldType(0).Should().Be<decimal>("registering the mapping must not change what an untyped read produces");
         reader.GetValue(0).Should().BeOfType<decimal>();
         reader.GetValue(1).Should().BeOfType<decimal[]>("the array default moves with the element default");
@@ -247,12 +246,9 @@ public sealed class BigDecimalMappingServerTests(PostgresServer server) : IClass
     {
         await server.RequireAsync();
 
-        // 1500e-258: three fractional digits more than the maximum scale carries, and the digits
-        // given up put the value exactly on a tie in the last place the type keeps. Half to even
-        // takes 1.5 to 2, so the result is 2e-255 and not 1e-255, which is what distinguishes
-        // rounding from truncation. The magnitude is nowhere near binding here, which keeps this
-        // case about the scale: a long fraction of significant digits is a different edge, and it
-        // belongs to the codec's own suite.
+        // 1500e-258: three digits past MaxScale, and what is given up sits exactly on a tie. Half
+        // to even takes 1.5 to 2, so the result is 2e-255 and not 1e-255, which is what separates
+        // rounding from truncation. The magnitude is nowhere near binding here.
         var literal = "0." + new string('0', 254) + "1500";
 
         await using var command = server.DataSource.CreateCommand($"SELECT '{literal}'::numeric");

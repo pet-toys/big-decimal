@@ -188,11 +188,9 @@ public static class AllocationInventory
         Add("Pow at a negative exponent", "Pow", () => Allocations.Sink = BigDecimal.Pow(Left, -7));
         Add("Pow at an exponent of zero", "Pow", () => Allocations.Sink = BigDecimal.Pow(Left, 0));
         Add("Pow of a non-finite value", "Pow", () => Allocations.Sink = BigDecimal.Pow(BigDecimal.NaN, 3));
-        // The wire codecs are internal, so the reflection sweep does not reach them: an entry
-        // missing here is a silence rather than a failure. Each direction of each format is its
-        // own entry, and each ClickHouse width is its own again, because the widths are not
-        // interchangeable - four and eight bytes are one machine word and sixteen and thirty-two
-        // are not.
+        // The wire codecs are internal, so the reflection sweep does not reach them and a missing
+        // entry is a silence rather than a failure. Each direction and each ClickHouse width is
+        // its own entry: four and eight bytes are one machine word, sixteen and thirty-two are not.
         Add("PostgresNumeric.GetByteCount", "PostgresNumeric", () => Allocations.OtherSink = PostgresNumeric.GetByteCount(Left));
         Add("PostgresNumeric.TryWrite", "PostgresNumeric", () => Allocations.OtherSink = PostgresNumeric.TryWrite(Left, PostgresBuffer, out _) ? 1 : 0);
         Add("PostgresNumeric.TryWrite of a non-finite value", "PostgresNumeric", () => Allocations.OtherSink = PostgresNumeric.TryWrite(BigDecimal.NaN, PostgresBuffer, out _) ? 1 : 0);
@@ -270,11 +268,9 @@ public static class AllocationInventory
         Add("conversion from float", "op_Explicit", () => Allocations.Sink = (BigDecimal)0.1f);
         Add("Precision", "Precision", () => Allocations.OtherSink = Left.Precision);
 
-        // One entry per conversion type, in both directions. The member name op_Explicit stands
-        // for sixteen conversions and the generic ones are reached through a type parameter rather
-        // than through a name at all, so the family counted as covered while converting out of the
-        // type boxed 24 bytes for a long target and 32 for a decimal one. The same hole as the
-        // format specifier, with a type argument in place of a value.
+        // One entry per conversion type, in both directions. op_Explicit stands for sixteen
+        // conversions and the generic ones are reached through a type parameter, so the family
+        // counted as covered while converting out boxed 24 bytes for long and 32 for decimal.
         Add("CreateChecked from long", "CreateChecked", () => Allocations.Sink = BigDecimal.CreateChecked(1234567890123456789L));
         Add("CreateChecked from double", "CreateChecked", () => Allocations.Sink = BigDecimal.CreateChecked(0.1));
         Add("CreateSaturating from decimal", "CreateSaturating", () => Allocations.Sink = BigDecimal.CreateSaturating(123456.789m));
@@ -319,10 +315,10 @@ public static class AllocationInventory
         Add("TryParse a value that does not fit", "TryParse", () => Allocations.OtherSink = BigDecimal.TryParse(TooLarge, Invariant, out var value) ? value.Scale : -1);
 
         // One entry per format string the corpus carries, on both overloads. Covering TryFormat
-        // once with whatever format was convenient is what let grouped formatting allocate 64 bytes
-        // per call through two changes and a full benchmark run: every entry used the default
-        // format, so the whole grouped path sat outside the inventory. A custom format string is
-        // not a specifier and no rule about specifiers reaches it, so the corpus covers both.
+        // once with whatever format was convenient let grouped formatting allocate 64 bytes a call
+        // through two changes and a benchmark run: every entry used the default format, so the
+        // grouped path sat outside the inventory. Custom format strings are covered for the same
+        // reason.
         foreach (var format in FormatCorpus.All)
         {
             var current = format;

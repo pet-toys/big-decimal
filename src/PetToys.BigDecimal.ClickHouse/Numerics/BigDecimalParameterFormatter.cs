@@ -8,23 +8,13 @@ namespace PetToys.BigDecimal.Numerics;
 /// Renders a <see cref="BigDecimal"/> parameter as the decimal text a statement carries.
 /// </summary>
 /// <remarks>
-/// <para>
-/// Without a formatter the driver hands a value it does not recognise to
-/// <see cref="IConvertible.ToDecimal"/>, and <see cref="BigDecimal"/> implements
-/// <see cref="IConvertible"/>. An unregistered value therefore does not fail as unmapped: it goes
-/// through <see cref="decimal"/> when it fits and raises this type's own overflow when it does not,
-/// and neither outcome mentions this package. That is the reason this class exists, beyond
-/// rescaling.
-/// </para>
-/// <para>
-/// A value this formatter does not handle is answered with <see langword="null"/>, which is how the
-/// driver's own <see cref="DictionaryParameterFormatter"/> answers for a type its dictionary does
-/// not carry: a formatter is consulted for every parameter, so refusing loudly would break every
-/// other type on the connection.
-/// </para>
-/// <para>
-/// It is stateless, so one instance serves every query and every connection.
-/// </para>
+/// Beyond rescaling, this exists because the driver hands a value it does not recognise to
+/// <see cref="IConvertible.ToDecimal"/>, which <see cref="BigDecimal"/> implements: an
+/// unregistered value would not fail as unmapped but narrow through <see cref="decimal"/>, and
+/// neither outcome mentions this package. A value it does not handle is answered with
+/// <see langword="null"/>, as the driver's own <see cref="DictionaryParameterFormatter"/> does,
+/// because a formatter is consulted for every parameter on the connection. Stateless, so one
+/// instance serves every query.
 /// </remarks>
 internal sealed class BigDecimalParameterFormatter : IParameterFormatter
 {

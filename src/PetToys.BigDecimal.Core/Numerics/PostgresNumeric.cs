@@ -9,53 +9,28 @@ namespace PetToys.BigDecimal.Numerics;
 /// network byte order followed by base-10000 digit groups.
 /// </summary>
 /// <remarks>
-/// <para>
-/// Internal on purpose, and settled: the two adapter packages reach it through
-/// <c>InternalsVisibleTo</c>, and the surface this repository supports is the mapping each
-/// adapter exposes rather than the bytes underneath it. Publishing stays additive, so a caller
-/// who works the wire without either driver can still ask for it; the shape would be theirs and
-/// would live in the adapter package rather than here.
-/// </para>
-/// <para>
 /// The layout is <c>ndigits</c>, <c>weight</c>, <c>sign</c>, <c>dscale</c>, then <c>ndigits</c>
-/// groups, and the value is the sign applied to the sum of
-/// <c>digits[j] * 10000^(weight - j)</c>. <c>dscale</c> is the display scale and is carried beside
-/// the digits rather than implied by them, which is what lets trailing zeros survive a round trip.
-/// </para>
+/// groups, and the value is the sign applied to the sum of <c>digits[j] * 10000^(weight - j)</c>.
+/// <c>dscale</c> is carried beside the digits rather than implied by them, which is what lets
+/// trailing zeros survive a round trip. All three non-finite values cross this wire, as the sign
+/// codes PostgreSQL 14 introduced.
 /// <para>
-/// The edges of the contract are not symmetric, and the asymmetry is the point:
+/// The two directions are deliberately asymmetric. Writing never overflows and never rounds -
+/// PostgreSQL holds far more in both directions than this type does - so its only failure is a
+/// destination the caller made too short, reported as <see langword="false"/>. Reading can do
+/// both, because the payload is not bounded by this type's range.
 /// </para>
-/// <list type="bullet">
-/// <item>
-/// Writing never overflows and never rounds. PostgreSQL <c>numeric</c> holds 131072 integer digits
-/// and 16383 fractional ones against this type's 78 and 255, and <c>weight</c> and <c>dscale</c>
-/// are 16-bit fields a scale of at most 255 cannot reach. The only way a write fails is a
-/// destination the caller made too short, which is reported by returning <see langword="false"/>
-/// rather than by throwing.
-/// </item>
-/// <item>
-/// Reading can overflow, on the integer part, and can round, on the fraction. It applies the
-/// type's own policy for both, because the payload is not bounded by this type's range.
-/// </item>
-/// <item>
-/// All three non-finite values cross this wire, as the sign codes PostgreSQL 14 introduced.
-/// </item>
-/// </list>
 /// </remarks>
 internal static class PostgresNumeric
 {
     /// <summary>The four header fields, each a <see cref="short"/>.</summary>
     internal const int HeaderSize = 4 * sizeof(short);
 
-    /// <summary>
-    /// The largest payload this type can produce, header included.
-    /// </summary>
+    /// <summary>The largest payload this type can produce, header included.</summary>
     /// <remarks>
-    /// Derived rather than quoted. The magnitude is at most 2^256-1, which is 78 decimal digits;
-    /// aligning the point onto the base-10000 grid pads it by at most 3, giving 81; and 81 digits
-    /// span at most 21 groups. PostgreSQL strips leading and trailing zero groups and carries the
-    /// display scale in <c>dscale</c> instead, so no group below the last significant one is ever
-    /// written and the bound does not grow with the scale.
+    /// Derived, not quoted: 78 digits of magnitude, padded onto the base-10000 grid by at most 3,
+    /// is 81 digits and so 21 groups. Zero groups are stripped and the scale rides in
+    /// <c>dscale</c>, so the bound does not grow with the scale.
     /// </remarks>
     internal const int MaxByteCount = HeaderSize + (MaxGroups * sizeof(short));
 
@@ -70,10 +45,8 @@ internal static class PostgresNumeric
 
     /// <summary>The widest display scale the format carries.</summary>
     /// <remarks>
-    /// PostgreSQL masks <c>dscale</c> to fourteen bits on the way in and refuses a payload above
-    /// it, which is the same 16383 fractional digits its documentation states. Values are clamped
-    /// to <see cref="BigDecimal.MaxScale"/> further down, so this is about the payload being well
-    /// formed and not about the scale being representable here.
+    /// PostgreSQL's own fourteen-bit field, so this is about the payload being well formed. Whether
+    /// the scale is representable here is a separate question, answered by clamping further down.
     /// </remarks>
     private const int MaxDisplayScale = 16_383;
 
@@ -203,10 +176,8 @@ internal static class PostgresNumeric
             throw Malformed("A PostgreSQL numeric payload carries exactly ndigits groups.");
         }
 
-        // No more permissive than the server being spoken to: PostgreSQL refuses a dscale outside
-        // its own fourteen-bit field rather than masking it, so a payload carrying one is
-        // malformed here too. A dscale this type cannot represent is a different matter and is
-        // clamped, not refused.
+        // No more permissive than the server: PostgreSQL refuses a dscale outside its fourteen-bit
+        // field rather than masking it. A dscale this type cannot hold is clamped, not refused.
         if (dscale > MaxDisplayScale)
         {
             throw Malformed("A PostgreSQL numeric display scale is at most 16383.");
@@ -217,11 +188,9 @@ internal static class PostgresNumeric
             case SignNaN:
             case SignPositiveInfinity:
             case SignNegativeInfinity:
-                // A non-finite value has no digits and the server writes none, so a group under
-                // one of these codes is a byte the header calls data and no value can use.
-                // Refused rather than skipped: skipping would also skip the range check every
-                // other group passes, so the same bytes would be validated or not depending on
-                // the sign standing beside them.
+                // A non-finite value has no digits, so a group under one of these codes is a byte
+                // no value can use. Refused rather than skipped, which would also skip the range
+                // check every other group passes.
                 if (ndigits != 0)
                 {
                     throw Malformed("A PostgreSQL numeric with a non-finite sign carries no groups.");
@@ -272,10 +241,8 @@ internal static class PostgresNumeric
             BigDecimal.ThrowMantissaOverflow();
         }
 
-        // The scale to aim at, decided before a digit is accumulated so that the value is rounded
-        // once. Anything more than this either passes MaxScale or pushes the significant digits
-        // past the mantissa; either way the digits below it are not kept, and rounding to dscale
-        // first and reducing afterwards would round twice.
+        // Decided before a digit is accumulated, so the value is rounded once. Anything wider
+        // passes MaxScale or the mantissa; rounding to dscale first would round twice.
         var scale = Math.Min(
             Math.Min((int)dscale, BigDecimal.MaxScale),
             Math.Max(BigDecimal.MaxDigits - leading, 0));
@@ -302,11 +269,9 @@ internal static class PostgresNumeric
             }
         }
 
-        // At most two scales are tried, and each one is rounded from the accumulator as it stands
-        // rather than from the result of the previous attempt. `scale` is the widest that can fit
-        // in 78 digits, which the magnitude holds only sometimes; one digit below it always fits.
-        // Rounding to the first and then reducing that would round twice and can land a unit in
-        // the last place away from the value the type is required to carry.
+        // At most two scales are tried, each rounded from the accumulator as it stands rather than
+        // from the previous attempt: `scale` is the widest that fits 78 digits, which the
+        // magnitude holds only sometimes, and rounding one from the other would land an ulp off.
         Span<ulong> attempt = stackalloc ulong[DecodeWords];
         while (true)
         {
@@ -353,10 +318,9 @@ internal static class PostgresNumeric
             return length;
         }
 
-        // A non-zero tail below the accumulator decides a tie, and the rounding helper can only see
-        // what it divides away. Forcing the lowest digit to one when it is zero says "something
-        // below" without moving the value across any boundary above it: one is neither zero nor
-        // five, so no comparison further up changes.
+        // A non-zero tail below the accumulator decides a tie, and the rounding helper only sees
+        // what it divides away. Forcing a zero lowest digit to one says "something below" without
+        // crossing a boundary: one is neither zero nor five.
         if (sticky && Words.RemSmall(value, length, Words.Pow10Divisors[1]) == 0)
         {
             length = Words.AddOne(value, length);

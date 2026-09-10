@@ -340,10 +340,9 @@ public readonly partial struct BigDecimal
             : (TFloat.IsNegative(value) ? MinValue : MaxValue);
     }
 
-    // All three contracts agree for a non-finite source now that the value is representable:
-    // none of them has anything left to refuse. Before this change the checked one threw and
-    // the other two flattened NaN to zero and an infinity to MaxValue, which is what decimal
-    // still does because decimal has no such value to convert to.
+    // All three contracts agree for a non-finite source, because it is representable here and
+    // none of them has anything left to refuse. decimal still flattens NaN to zero and an
+    // infinity to MaxValue, having no such value to convert to.
     private static BigDecimal FromNonFinite<TFloat>(TFloat value)
         where TFloat : IBinaryFloatingPointIeee754<TFloat>
     {
@@ -358,9 +357,8 @@ public readonly partial struct BigDecimal
     private static bool TryFromFloat<TFloat>(TFloat value, out BigDecimal result)
         where TFloat : IBinaryFloatingPointIeee754<TFloat>
     {
-        // 24 characters is the longest shortest-form double: a sign, a digit, a point, sixteen
-        // digits and a five-character exponent. Asserted rather than only handled, because the
-        // saturating caller reads a false as "does not fit" and would clamp to MaxValue for a
+        // 24 characters is the longest shortest-form double. Asserted rather than only handled:
+        // the saturating caller reads a false as "does not fit" and would clamp to MaxValue for a
         // buffer that was merely too small.
         Span<char> buffer = stackalloc char[32];
         if (!value.TryFormat(buffer, out var written, default, CultureInfo.InvariantCulture))
@@ -398,10 +396,8 @@ public readonly partial struct BigDecimal
 
     private static decimal ToDecimalSaturating(BigDecimal value)
     {
-        // NaN first: both comparisons below are false against it, because the relational
-        // operators leave NaN unordered, so without this it falls through to the cast and
-        // throws. A saturating conversion that throws is not a saturating conversion, and
-        // decimal.CreateSaturating(double.NaN) is zero.
+        // NaN first: it is unordered, so both comparisons below are false and it would fall
+        // through to the cast and throw. decimal.CreateSaturating(double.NaN) is zero.
         if (IsNaN(value))
         {
             return decimal.Zero;
