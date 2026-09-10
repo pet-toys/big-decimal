@@ -1,11 +1,10 @@
-1.0.0-dev.4
+1.0.0-dev.3
 ===========
 
-This release adds the Entity Framework Core package for PostgreSQL. One tag
-versions every package in the repository, so PetToys.BigDecimal.Core,
-PetToys.BigDecimal.Npgsql and PetToys.BigDecimal.ClickHouse are republished as
-1.0.0-dev.4 with exactly the public surface they shipped as 1.0.0-dev.3. Only
-the new package changed.
+This release adds the Entity Framework Core package for PostgreSQL and marks
+every published assembly trimmable. One tag versions every package in the
+repository, so the three that existed before are republished with the public
+surface they shipped as 1.0.0-dev.2.
 
 PetToys.BigDecimal.Npgsql.EntityFrameworkCore
 
@@ -55,15 +54,7 @@ Notes:
   packages there is no probe behind this marking, because a probe would be
   measuring Entity Framework rather than this repository's code.
 
-----------------------------------------------------------------------------
-
-1.0.0-dev.3
-===========
-
-This release changes how the packages are published rather than what they do.
-No public API moves, and no behaviour of any existing operation changes.
-
-All three packages
+All four packages
 
 Added:
 - The assemblies are marked IsAotCompatible, which implies IsTrimmable. A
@@ -72,11 +63,17 @@ Added:
   build of these projects.
 
 Notes:
-- Verified by publishing a probe application over each package and running it,
-  trimmed on every supported framework and Native AOT on the newest, rather than
-  by a clean analyzer pass. PetToys.BigDecimal.Core and PetToys.BigDecimal.Npgsql
-  work in both forms; the Npgsql one uses NpgsqlSlimDataSourceBuilder under
-  Native AOT, which UseBigDecimal already overloads.
+- Verified by publishing a probe application over each of the three packages
+  that have one and running it, trimmed on every supported framework and Native
+  AOT on the newest, rather than by a clean analyzer pass.
+  PetToys.BigDecimal.Core and PetToys.BigDecimal.Npgsql work in both forms; the
+  Npgsql one uses NpgsqlSlimDataSourceBuilder under Native AOT, which
+  UseBigDecimal already overloads.
+- PetToys.BigDecimal.Npgsql.EntityFrameworkCore is marked and has no probe. Of
+  the four assemblies in its graph only Npgsql carries IsTrimmable, and a probe
+  over it would be measuring Entity Framework's query pipeline rather than this
+  repository's code. Its README states what a trimmed or Native AOT consumer
+  meets instead.
 - PetToys.BigDecimal.ClickHouse is trimmed-only, and the limit is ClickHouse.Driver
   1.4.0 rather than this package. It publishes Native AOT and then throws
   TypeInitializationException on the first query, from a reflective constructor

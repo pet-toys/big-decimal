@@ -375,7 +375,7 @@ in the repository.
 | --------- | ------- | -------- |
 | Core type | `1.0.0-dev.1` | The `BigDecimal` type: representation, arithmetic, conversions, formatting, parsing, non-finite values, integer powers, JSON. Complete. |
 | Database integration | `1.0.0-dev.2` | `PetToys.BigDecimal.Npgsql` and `PetToys.BigDecimal.ClickHouse`: reading and writing `numeric` and `Decimal*` columns through the two drivers. |
-| EF Core integration | `1.0.0-dev.4` | `PetToys.BigDecimal.Npgsql.EntityFrameworkCore`: a `numeric` column as a `BigDecimal` property, with no value converter in the path. |
+| EF Core integration | `1.0.0-dev.3` | `PetToys.BigDecimal.Npgsql.EntityFrameworkCore`: a `numeric` column as a `BigDecimal` property, with no value converter in the path. |
 | Dapper integration | `1.0.0` | `PetToys.BigDecimal.Npgsql.Dapper` and `PetToys.BigDecimal.ClickHouse.Dapper`, split so that a Dapper caller never pulls EF Core and an Npgsql caller never pulls the ClickHouse driver. |
 
 `1.0.0` arrives with all six packages at once and is the first release to reach
