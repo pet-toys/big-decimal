@@ -9,23 +9,14 @@
     <RoslynatorVersion>[5.0.0,)</RoslynatorVersion>
   </PropertyGroup>
   <ItemGroup>
-    <!-- The ClickHouse floor is a measurement, not a suppression. The adapter maps
-         through IReadValueConverter and IParameterFormatter, which are ordinary
-         public API carrying no diagnostic, so what the floor pins is the shape those
-         hooks were observed to have: 1.4.0, read on 2026-09-09. The driver passes the
-         formatter its arguments in an order the interface does not declare, and the
-         suite pins that; a floor below the version it was seen at would make the pin
-         a guess. ClickHouseBulkCopy is [Obsolete] in this version and the package
-         targets ClickHouseClient instead. -->
-    <PackageVersion Include="ClickHouse.Driver" Version="[1.4.0,)" />
-    <!-- The Npgsql floor is not cosmetic. The adapter registers through
-         Npgsql.Internal, which the driver publishes as [Experimental("NPG9001")]
-         and reserves the right to reshape, so the floor has to be the version the
-         registration API was read from and compiled against: 10.0.3, read on
-         2026-09-09. The range stays open at the top per the fleet convention, and
-         the consequence is accepted rather than hidden - a driver major can move
-         the extension point, and the integration leg is what would find it. -->
-    <PackageVersion Include="Npgsql" Version="[10.0.3,)" />
+    <!-- Both ranges close at the major because both adapters sit on an extension point their
+         driver may reshape: Npgsql publishes the registration API as [Experimental("NPG9001")],
+         and ClickHouse.Driver passes IParameterFormatter its arguments in an order the interface
+         does not declare. A closed range breaks at restore here; an open one breaks at runtime in
+         a consumer's transitive resolution. Each floor is the version the extension point was
+         read from, on 2026-09-09, and the ceiling moves once the next major has been tested. -->
+    <PackageVersion Include="ClickHouse.Driver" Version="[1.4.0,2.0.0)" />
+    <PackageVersion Include="Npgsql" Version="[10.0.3,11.0.0)" />
   </ItemGroup>
   <ItemGroup>
     <!-- Source Link is bundled in the .NET 8+ SDK; referencing the package

@@ -122,8 +122,12 @@ a caller already imports, including the extensions on types that live below it:
   nothing here can rescue. `UseBigDecimal` on the settings switches it on; the
   per-query form cannot, and says so by name if it meets a column the driver
   decoded through `decimal`.
-- **`ClickHouse.Driver` 1.4.0 or later**, the version this package's use of
-  `IReadValueConverter` and `IParameterFormatter` was measured against.
+- **`ClickHouse.Driver` 1.4.0, up to but not including 2.** That is the version
+  this package's use of `IReadValueConverter` and `IParameterFormatter` was
+  measured against, and the range is closed at the major because the driver
+  passes the formatter its arguments in an order the interface does not declare.
+  A driver major that reshapes that therefore fails at restore rather than at
+  the first write; the ceiling moves once the new major has been tested against.
 
 ## What round-trips, and what does not
 

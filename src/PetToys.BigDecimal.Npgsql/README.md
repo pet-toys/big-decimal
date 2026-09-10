@@ -100,9 +100,12 @@ gets the same mapping and the same `OverflowException`, without the column name.
 
 ## Requirements
 
-- **Npgsql 10.0.3 or later.** The mapping registers through `Npgsql.Internal`,
-  which is the driver's only extension point for a new type and is published as
-  experimental, so the floor is the version this package was built against.
+- **Npgsql 10.0.3, up to but not including 11.** The mapping registers through
+  `Npgsql.Internal`, which is the driver's only extension point for a new type
+  and is published as experimental, so the floor is the version this package was
+  built against and the range is closed at the major. A driver major that
+  reshapes the extension point therefore fails at restore rather than at the
+  first read; the ceiling moves once the new major has been tested against.
 - **PostgreSQL 14 or later for the infinities.** That is where `numeric` gained
   the sign codes that carry them. Everything else works on any supported server;
   against an older one, writing an infinity is refused by the server itself and
