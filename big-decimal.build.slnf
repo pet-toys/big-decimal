@@ -4,7 +4,8 @@
     "projects": [
       "src/PetToys.BigDecimal.Core/PetToys.BigDecimal.Core.csproj",
       "src/PetToys.BigDecimal.ClickHouse/PetToys.BigDecimal.ClickHouse.csproj",
-      "src/PetToys.BigDecimal.Npgsql/PetToys.BigDecimal.Npgsql.csproj"
+      "src/PetToys.BigDecimal.Npgsql/PetToys.BigDecimal.Npgsql.csproj",
+      "src/PetToys.BigDecimal.Npgsql.EntityFrameworkCore/PetToys.BigDecimal.Npgsql.EntityFrameworkCore.csproj"
     ]
   }
 }
