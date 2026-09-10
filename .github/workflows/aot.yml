@@ -3,8 +3,9 @@ name: aot
 # The trimming and Native AOT probes live here rather than in test.yml, for the reason
 # integration.yml already records: build-deploy.yml calls test.yml through `uses:` and its build
 # job needs it, so a job added there gates publishing a package. This leg needs a C++ toolchain and
-# two containers, which is more ways to fail than a release should wait on. It is also not a
-# required status check - the branch ruleset pins the three contexts in test.yml by name.
+# two containers, which is more ways to fail than a release should wait on. `aot-linux` and
+# `aot-windows` are also the only legs the branch ruleset leaves out of the required checks, for
+# that same reason.
 #
 # What it is for is that a clean analyzer pass proves nothing on its own: the packages are marked
 # IsAotCompatible, and the only way to know that a marked package still works is to publish a
