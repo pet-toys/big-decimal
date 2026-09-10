@@ -11,7 +11,13 @@
 
   <PropertyGroup Label="NuGet package">
     <Description>PostgreSQL helpers that map numeric columns to PetToys.BigDecimal.Core when reading and writing through Npgsql.</Description>
-    <PackageTags>bigdecimal;decimal;numeric;postgresql;postgres;npgsql</PackageTags>
+    <PackageTags>bigdecimal;decimal;numeric;postgresql;postgres;npgsql;aot;nativeaot;trimmable</PackageTags>
+    <!-- Implies IsTrimmable and turns the trim, single-file and AOT analyzers into a build gate,
+         since warnings are errors outside Debug. The property is per assembly and says nothing
+         about the driver: Npgsql 10.0.3 is itself marked trimmable, measured in all three of its
+         lib folders, so the closure a consumer trims is clean here. The route for such a consumer
+         is NpgsqlSlimDataSourceBuilder, which UseBigDecimal overloads. -->
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 
   <ItemGroup>

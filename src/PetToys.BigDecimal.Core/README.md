@@ -88,6 +88,35 @@ and a half kilobytes. Ordinary for a call from application code, worth knowing
 before a deeply recursive path or an `async` state machine whose stack is
 already hot.
 
+## Trimming and Native AOT
+
+The assembly is marked `IsAotCompatible`, which implies `IsTrimmable`. That is a
+gate rather than a claim: the trim, single-file and AOT analyzers run over this
+project and warnings are errors, so a reflective path could not be added without
+failing the build. It is also verified by publishing a probe application over
+the package and running it - trimmed on every supported framework and Native AOT
+on the newest, on Windows and on Linux - because a clean analyzer pass and a
+binary that throws on first use look identical from inside the build.
+
+One thing changes for you, and it is `System.Text.Json` rather than this type.
+Both `PublishTrimmed` and `PublishAot` turn off reflection-based serialization,
+so `JsonSerializer.Serialize(value)` throws `InvalidOperationException` there for
+any type at all. Reach the converter through a source-generated context instead:
+the `[JsonConverter]` attribute `BigDecimal` carries is honoured on that path,
+and the text is identical to what a jitted build produces.
+
+```csharp
+[JsonSerializable(typeof(Invoice))]
+internal sealed partial class AppJsonContext : JsonSerializerContext;
+
+var json = JsonSerializer.Serialize(invoice, AppJsonContext.Default.Invoice);
+```
+
+Formatting stays culture-aware in a trimmed and Native AOT binary. Nothing here
+needs `InvariantGlobalization`, and a value formatted under a culture whose
+separators differ from the invariant one produces that culture's separators, as
+it does when jitted.
+
 ## Installation
 
 ```sh

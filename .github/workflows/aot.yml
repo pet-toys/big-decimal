@@ -1,0 +1,171 @@
+name: aot
+
+# The trimming and Native AOT probes live here rather than in test.yml, for the reason
+# integration.yml already records: build-deploy.yml calls test.yml through `uses:` and its build
+# job needs it, so a job added there gates publishing a package. This leg needs a C++ toolchain and
+# two containers, which is more ways to fail than a release should wait on. It is also not a
+# required status check - the branch ruleset pins the three contexts in test.yml by name.
+#
+# What it is for is that a clean analyzer pass proves nothing on its own: the packages are marked
+# IsAotCompatible, and the only way to know that a marked package still works is to publish a
+# binary over it and run it.
+#
+# Two jobs rather than one matrix. GitHub's service containers are Linux containers, and the
+# Windows runner cannot start them, so the two adapter probes - which need a real server - run on
+# Linux, and the Windows job carries the core probe and the MSVC half of the toolchain.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+    - dev
+  pull_request:
+    branches:
+    - dev
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: aot-linux
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 30
+
+    # The same images, tags and digests the integration fixtures pin. A rebuilt upstream image
+    # cannot change what this leg means.
+    services:
+      postgres:
+        image: postgres:18-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+        env:
+          POSTGRES_USER: probe
+          POSTGRES_PASSWORD: probe
+          POSTGRES_DB: probe
+        ports:
+        - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U probe"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      clickhouse:
+        image: clickhouse/clickhouse-server:25.8-alpine@sha256:87e0a5b72f5465b18eacca7c76850e7ff551c9795c50e451f5646299e5e24146
+        env:
+          CLICKHOUSE_USER: probe
+          CLICKHOUSE_PASSWORD: probe
+          CLICKHOUSE_DB: probe
+        ports:
+        - 8123:8123
+        options: >-
+          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      BIGDECIMAL_PROBE_POSTGRES: Host=localhost;Port=5432;Username=probe;Password=probe;Database=probe
+      BIGDECIMAL_PROBE_CLICKHOUSE: Host=localhost;Port=8123;Username=probe;Password=probe;Database=probe
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      with:
+        global-json-file: global.json
+
+    - name: Restore
+      run: dotnet restore big-decimal.aot.slnf
+
+    # Trimmed covers every framework the packages ship: the trimmer comes from the pinned SDK, but
+    # the framework assemblies it trims are the consumer's, and that is where a difference between
+    # the three would come from.
+    - name: Publish trimmed and run
+      run: |
+        for probe in Core Npgsql ClickHouse; do
+          for tfm in net8.0 net9.0 net10.0; do
+            out="${{ runner.temp }}/trim-$probe-$tfm"
+            dotnet publish "probe/PetToys.BigDecimal.$probe.Probe" \
+              --configuration Release --framework "$tfm" --runtime linux-x64 \
+              -p:PublishTrimmed=true --output "$out"
+            "$out/PetToys.BigDecimal.$probe.Probe"
+          done
+        done
+
+    # Native AOT covers the newest framework alone: the compile costs minutes rather than seconds
+    # and nothing in these packages is conditional on the framework.
+    #
+    # ClickHouse is absent on purpose. ClickHouse.Driver 1.4.0 publishes and then throws on first
+    # use: the static constructor of its TypeConverter calls TupleType.BuildTupleFactory, which
+    # looks up a constructor of System.Tuple<double, double> by reflection and does not find it
+    # after ILC, so the first query fails with a TypeInitializationException before any of this
+    # package's code runs. That is the driver's limit, it is stated in that package's README, and
+    # a red leg over it would only teach people to ignore this one. Trimmed is unaffected and runs
+    # in the step above.
+    - name: Publish Native AOT and run
+      run: |
+        for probe in Core Npgsql; do
+          out="${{ runner.temp }}/aot-$probe"
+          dotnet publish "probe/PetToys.BigDecimal.$probe.Probe" \
+            --configuration Release --framework net10.0 --runtime linux-x64 \
+            -p:PublishAot=true --output "$out"
+          "$out/PetToys.BigDecimal.$probe.Probe"
+        done
+
+  windows:
+    name: aot-windows
+    runs-on: windows-latest
+
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      with:
+        global-json-file: global.json
+
+    # Native AOT resolves MSVC through vswhere, and vcvarsall.bat calls it by bare name. When the
+    # Installer directory is not on PATH the failure is not "toolchain missing": the error text
+    # goes to stderr, which the `> NUL` inside ILCompiler's findvcvarsall.bat does not redirect,
+    # and its first output line is read as the linker directory - MSB3073, exit code 123, and a
+    # linker command with an error message glued to the front of it. Setting it here costs nothing
+    # if the image already has it.
+    - name: Put the Visual Studio Installer on PATH
+      shell: bash
+      run: echo "C:\Program Files (x86)\Microsoft Visual Studio\Installer" >> "$GITHUB_PATH"
+
+    - name: Restore
+      run: dotnet restore big-decimal.aot.slnf
+
+    # The core probe alone. The two adapter probes need a server, and a Windows runner cannot start
+    # the Linux containers the other job uses; publishing them here without running them would
+    # report that they link, which is not the question this leg exists to ask.
+    - name: Publish trimmed and run
+      shell: bash
+      run: |
+        for tfm in net8.0 net9.0 net10.0; do
+          out="${{ runner.temp }}/trim-core-$tfm"
+          dotnet publish "probe/PetToys.BigDecimal.Core.Probe" \
+            --configuration Release --framework "$tfm" --runtime win-x64 \
+            -p:PublishTrimmed=true --output "$out"
+          "$out/PetToys.BigDecimal.Core.Probe.exe"
+        done
+
+    - name: Publish Native AOT and run
+      shell: bash
+      run: |
+        out="${{ runner.temp }}/aot-core"
+        dotnet publish "probe/PetToys.BigDecimal.Core.Probe" \
+          --configuration Release --framework net10.0 --runtime win-x64 \
+          -p:PublishAot=true --output "$out"
+        "$out/PetToys.BigDecimal.Core.Probe.exe"

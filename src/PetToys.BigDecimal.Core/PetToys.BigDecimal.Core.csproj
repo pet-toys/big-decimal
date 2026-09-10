@@ -10,7 +10,13 @@
 
   <PropertyGroup Label="NuGet package">
     <Description>A 256-bit decimal floating-point value type for .NET that represents the large PostgreSQL numeric and ClickHouse Decimal values .NET decimal cannot - stack-only, allocation-free, and exact to 77 significant digits.</Description>
-    <PackageTags>bigdecimal;decimal;numeric;numerics;arbitrary-precision;postgresql;clickhouse</PackageTags>
+    <PackageTags>bigdecimal;decimal;numeric;numerics;arbitrary-precision;postgresql;clickhouse;aot;nativeaot;trimmable</PackageTags>
+    <!-- Implies IsTrimmable and turns on the trim, single-file and AOT analyzers. Outside Debug
+         warnings are errors, so this is a gate rather than a claim: a reflective path fails the
+         build here instead of a consumer's publish. Only the published projects carry it - a test
+         or benchmark assembly is never trimmed, and marking one would run three analyzers over
+         code that decides nothing. -->
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 
   <ItemGroup>

@@ -3,6 +3,7 @@
     <File Path=".editorconfig" />
     <File Path=".gitattributes" />
     <File Path=".gitignore" />
+    <File Path="big-decimal.aot.slnf" />
     <File Path="big-decimal.build.slnf" />
     <File Path="big-decimal.tests.slnf" />
     <File Path="Directory.Build.props" />
@@ -41,6 +42,13 @@
     <File Path="bench/.editorconfig" />
     <File Path="bench/Directory.Packages.props" />
     <Project Path="bench/PetToys.BigDecimal.Core.Benchmarks/PetToys.BigDecimal.Core.Benchmarks.csproj" Id="ec8721be-b950-4aa2-b193-53e5089e65da" />
+  </Folder>
+  <Folder Name="/probe/">
+    <File Path="probe/.editorconfig" />
+    <File Path="probe/README.md" />
+    <Project Path="probe/PetToys.BigDecimal.ClickHouse.Probe/PetToys.BigDecimal.ClickHouse.Probe.csproj" Id="6e90d8b0-9447-4e91-9504-ecfe28432b08" />
+    <Project Path="probe/PetToys.BigDecimal.Core.Probe/PetToys.BigDecimal.Core.Probe.csproj" Id="dfba82f1-739d-4705-b0ec-382c8c56a00b" />
+    <Project Path="probe/PetToys.BigDecimal.Npgsql.Probe/PetToys.BigDecimal.Npgsql.Probe.csproj" Id="d31ae3b6-a685-4801-a25d-0de2bd43ab84" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/PetToys.BigDecimal.ClickHouse/PetToys.BigDecimal.ClickHouse.csproj" Id="a030b96c-4db6-405b-ba4b-ae245b944939" />

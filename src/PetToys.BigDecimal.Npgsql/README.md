@@ -106,6 +106,17 @@ gets the same mapping and the same `OverflowException`, without the column name.
   built against and the range is closed at the major. A driver major that
   reshapes the extension point therefore fails at restore rather than at the
   first read; the ceiling moves once the new major has been tested against.
+- **Trimmed and Native AOT publishing both work.** This assembly is marked
+  `IsAotCompatible`, and `Npgsql` 10.0.3 is itself marked trimmable, so the
+  closure a publish trims carries no unmarked assembly. Both forms are verified
+  by publishing a probe over this package and running it against a real server,
+  not by a clean analyzer pass. Under Native AOT, build the data source with
+  `NpgsqlSlimDataSourceBuilder`, which is Npgsql's own route for that case and
+  which `UseBigDecimal` overloads; the slim builder starts with nothing enabled,
+  so a `numeric[]` needs `EnableArrays()` on it. A trimmed build can use either
+  builder. Serializing a `BigDecimal` to JSON in such an application needs a
+  source-generated context, which is a `System.Text.Json` rule rather than one of
+  this package's; the core package's README carries the detail.
 - **PostgreSQL 14 or later for the infinities.** That is where `numeric` gained
   the sign codes that carry them. Everything else works on any supported server;
   against an older one, writing an infinity is refused by the server itself and

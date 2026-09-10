@@ -1,3 +1,36 @@
+1.0.0-dev.3
+===========
+
+This release changes how the packages are published rather than what they do.
+No public API moves, and no behaviour of any existing operation changes.
+
+All three packages
+
+Added:
+- The assemblies are marked IsAotCompatible, which implies IsTrimmable. A
+  trimmed or Native AOT publish over them no longer warns that the package has
+  not been marked, and the trim, single-file and AOT analyzers now gate every
+  build of these projects.
+
+Notes:
+- Verified by publishing a probe application over each package and running it,
+  trimmed on every supported framework and Native AOT on the newest, rather than
+  by a clean analyzer pass. PetToys.BigDecimal.Core and PetToys.BigDecimal.Npgsql
+  work in both forms; the Npgsql one uses NpgsqlSlimDataSourceBuilder under
+  Native AOT, which UseBigDecimal already overloads.
+- PetToys.BigDecimal.ClickHouse is trimmed-only, and the limit is ClickHouse.Driver
+  1.4.0 rather than this package. It publishes Native AOT and then throws
+  TypeInitializationException on the first query, from a reflective constructor
+  lookup in its own type registry. A trimmed publish also warns IL2104 over that
+  driver and its Microsoft.IO.RecyclableMemoryStream dependency, neither of which
+  is marked trimmable. Both are stated in that package's README.
+- Serializing a BigDecimal to JSON in a trimmed or Native AOT application needs a
+  source-generated JsonSerializerContext, because both forms turn off the
+  reflection-based serializer for every type. The [JsonConverter] attribute the
+  type carries is honoured on that path.
+
+----------------------------------------------------------------------------
+
 1.0.0-dev.2
 ===========
 

@@ -1,0 +1,28 @@
+# Probe applications. Everything not listed here is inherited from the
+# repository root; this file only relaxes what does not apply to code that
+# ships no public API and exists to be published rather than referenced.
+
+###############################################################################
+# C#
+###############################################################################
+
+[*.cs]
+
+#------------------------------------------------------------------------------
+# Severity: code quality (CA)
+#------------------------------------------------------------------------------
+
+# CA2007: Consider calling ConfigureAwait on the awaited task -- off, for the
+# same reason the test projects turn it off: a console entry point does not run
+# under a synchronization context, so ConfigureAwait(false) adds noise without
+# benefit.
+dotnet_diagnostic.CA2007.severity = none
+
+#------------------------------------------------------------------------------
+# Severity: compiler (CS)
+#------------------------------------------------------------------------------
+
+# CS1591: Missing XML comment for publicly visible type or member -- off.
+# A probe publishes no API. GenerateDocumentationFile itself stays on: IDE0005
+# is only reported on build while a documentation file is being generated.
+dotnet_diagnostic.CS1591.severity = none

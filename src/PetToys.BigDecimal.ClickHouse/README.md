@@ -129,6 +129,29 @@ a caller already imports, including the extensions on types that live below it:
   A driver major that reshapes that therefore fails at restore rather than at
   the first write; the ceiling moves once the new major has been tested against.
 
+## Trimming yes, Native AOT no, and the reason is the driver
+
+This assembly is marked `IsAotCompatible`, and its own code is gated by the trim,
+single-file and AOT analyzers. That marking is per assembly and does not reach
+`ClickHouse.Driver`, which is what decides the answer here.
+
+**Trimmed publishing works.** It is verified by publishing a probe over this
+package and running it against a real server, on every supported framework. The
+publish does warn: `ClickHouse.Driver` 1.4.0 carries no `IsTrimmable` in either
+`ClickHouse.Driver.dll` or `ClickHouse.Driver.Common.dll`, and neither does its
+`Microsoft.IO.RecyclableMemoryStream` dependency, so you get `IL2104` for both -
+"assembly produced trim warnings". That is expected, and it is the reason to
+test your own application rather than to trust this paragraph.
+
+**Native AOT does not work, and it fails at runtime rather than at publish.**
+The driver compiles: the failure arrives on the first query, as a
+`TypeInitializationException` out of `ClickHouse.Driver.Types.TypeConverter`,
+whose static constructor calls `TupleType.BuildTupleFactory` to look up a
+constructor of `System.Tuple<double, double>` by reflection, which ILC has
+removed. Nothing in this package is on that path, and nothing in it can rescue
+the call. If you need Native AOT against ClickHouse today, the way through is
+the driver's own issue tracker, not a workaround here.
+
 ## What round-trips, and what does not
 
 | Column | Coverage |
