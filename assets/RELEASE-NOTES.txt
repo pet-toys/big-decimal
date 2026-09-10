@@ -1,10 +1,11 @@
 1.0.0-dev.3
 ===========
 
-This release adds two packages for PostgreSQL - the Entity Framework Core
-mapping and the Dapper one - and marks every published assembly trimmable. One
-tag versions every package in the repository, so the three that existed before
-are republished with the public surface they shipped as 1.0.0-dev.2.
+This release adds the three stage-three packages - the Entity Framework Core
+mapping and the Dapper mapping for PostgreSQL, and the Dapper mapping for
+ClickHouse - and marks every published assembly trimmable. One tag versions
+every package in the repository, so the three that existed before are
+republished with the public surface they shipped as 1.0.0-dev.2.
 
 PetToys.BigDecimal.Npgsql.EntityFrameworkCore
 
@@ -98,7 +99,51 @@ Notes:
   Dapper's own TypeHandlerCache. The package's assembly is marked all the same,
   which says what this assembly's code is and nothing about Dapper's
   reflection. Both are in that package's README.
-All five packages
+PetToys.BigDecimal.ClickHouse.Dapper
+
+The Dapper mapping for ClickHouse ships, and stage three is complete.
+
+Added:
+- UseBigDecimal, a static call that registers two BigDecimal type handlers with
+  Dapper. Unlike the PostgreSQL Dapper package this is the whole read side:
+  ClickHouse.Driver decodes a decimal column into its own arbitrary-precision
+  type, so Query<T> reads a Decimal32, Decimal64, Decimal128 or Decimal256
+  column exactly, at the column's scale, with no call of ours in the path.
+  Nullable(Decimal...) reads as BigDecimal? and Array(Decimal...) as
+  BigDecimal[].
+- UseBigDecimalForDapper, an extension on ClickHouseClientSettings, which
+  switches on the driver's arbitrary-precision decimals and installs the
+  parameter formatter a write needs. It is the narrow counterpart to
+  UseBigDecimal on the same type in PetToys.BigDecimal.ClickHouse: it leaves the
+  read hook alone, so nothing on the connection changes for code that never asks
+  for BigDecimal.
+
+Notes:
+- Registering the handlers moves no default. Query<decimal>, a dynamic query and
+  a reader's field type all still answer the driver's own decimal.
+- Writing needs the parameter's type named in the statement, in ClickHouse's own
+  {name:Decimal64(4)} syntax, and the parameters passed as DynamicParameters
+  built with Add. Dapper binds a parameter only when it finds its name in the
+  statement as @name, :name or ?name, so an anonymous parameter object - and the
+  DynamicParameters template form, which wraps one - loses the parameter before
+  any handler is consulted and the server answers that the substitution is not
+  set. The package README carries the shape that works.
+- A value with more fractional digits than the column's scale is rescaled half
+  to even before it is sent, where both the driver and the server would truncate
+  toward zero: 1.00015 into a Decimal64(4) column is stored as 1.0002 rather
+  than 1.0001. A value the column cannot hold raises OverflowException naming
+  the parameter and the type, and a non-finite value raises
+  NotSupportedException, both before anything is sent.
+- The two ways to configure the connection compose: a caller who used the wide
+  UseBigDecimal from PetToys.BigDecimal.ClickHouse already has the formatter
+  this package writes through.
+- The package works under neither PublishTrimmed nor PublishAot, and both
+  dependencies are the reason - Dapper's reflection and ClickHouse.Driver's own
+  Native AOT failure. Its assembly is marked all the same, which says what this
+  assembly's code is and nothing about either dependency. Both are in that
+  package's README.
+
+All six packages
 
 Added:
 - The assemblies are marked IsAotCompatible, which implies IsTrimmable. A
@@ -113,8 +158,9 @@ Notes:
   PetToys.BigDecimal.Core and PetToys.BigDecimal.Npgsql work in both forms; the
   Npgsql one uses NpgsqlSlimDataSourceBuilder under Native AOT, which
   UseBigDecimal already overloads.
-- PetToys.BigDecimal.Npgsql.Dapper is marked and has no probe either, and there
-  the dependency does not warn but fails: see that package's own section above.
+- PetToys.BigDecimal.Npgsql.Dapper and PetToys.BigDecimal.ClickHouse.Dapper are
+  marked and have no probe either, and there the dependencies do not warn but
+  fail: see those packages' own sections above.
 - PetToys.BigDecimal.Npgsql.EntityFrameworkCore is marked and has no probe. Of
   the four assemblies in its graph only Npgsql carries IsTrimmable, and a probe
   over it would be measuring Entity Framework's query pipeline rather than this

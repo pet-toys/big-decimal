@@ -357,8 +357,9 @@ hot.
 | [`PetToys.BigDecimal.ClickHouse`][ch-url] | Prerelease | The ClickHouse `Decimal32/64/128/256` family, for [ClickHouse.Driver][ch-driver]. |
 | [`PetToys.BigDecimal.Npgsql.EntityFrameworkCore`][ef-url] | Prerelease | PostgreSQL `numeric` columns as `BigDecimal` properties, over the Npgsql adapter. |
 | [`PetToys.BigDecimal.Npgsql.Dapper`][dapper-url] | Prerelease | PostgreSQL `numeric` columns read and written as `BigDecimal` through Dapper, over the Npgsql adapter. |
+| [`PetToys.BigDecimal.ClickHouse.Dapper`][ch-dapper-url] | Prerelease | The ClickHouse decimal family read and written as `BigDecimal` through Dapper, over the ClickHouse adapter. |
 
-All five version in lockstep, and a package brings the ones beneath it along as
+All six version in lockstep, and a package brings the ones beneath it along as
 dependencies. The binary wire codecs the adapters run on, which are the hard
 part, live inside the core and are exercised by its test suite, and they stay
 internal on purpose: the supported surface is the mapping each adapter exposes,
@@ -377,7 +378,7 @@ in the repository.
 | Core type | `1.0.0-dev.1` | The `BigDecimal` type: representation, arithmetic, conversions, formatting, parsing, non-finite values, integer powers, JSON. Complete. |
 | Database integration | `1.0.0-dev.2` | `PetToys.BigDecimal.Npgsql` and `PetToys.BigDecimal.ClickHouse`: reading and writing `numeric` and `Decimal*` columns through the two drivers. |
 | EF Core and Dapper for PostgreSQL | `1.0.0-dev.3` | `PetToys.BigDecimal.Npgsql.EntityFrameworkCore`: a `numeric` column as a `BigDecimal` property, with no value converter in the path. `PetToys.BigDecimal.Npgsql.Dapper`: the same column read and written exactly through Dapper. |
-| Dapper for ClickHouse | `1.0.0` | `PetToys.BigDecimal.ClickHouse.Dapper`. The two Dapper packages are split so that an Npgsql caller never pulls the ClickHouse driver, and both are split from the EF Core one so that a Dapper caller never pulls EF Core. |
+| Dapper for ClickHouse | `1.0.0` | `PetToys.BigDecimal.ClickHouse.Dapper`: a `Decimal32/64/128/256` column read and written exactly through Dapper. The two Dapper packages are split so that an Npgsql caller never pulls the ClickHouse driver, and both are split from the EF Core one so that a Dapper caller never pulls EF Core. |
 
 `1.0.0` arrives with all six packages at once and is the first release to reach
 nuget.org. Everything before it is a `1.0.0-dev.N` prerelease on
@@ -414,6 +415,7 @@ Provided under the [Apache License, Version 2.0][license-url].
 [ch-url]: https://www.nuget.org/packages/PetToys.BigDecimal.ClickHouse/
 [ef-url]: https://www.nuget.org/packages/PetToys.BigDecimal.Npgsql.EntityFrameworkCore/
 [dapper-url]: https://www.nuget.org/packages/PetToys.BigDecimal.Npgsql.Dapper/
+[ch-dapper-url]: https://www.nuget.org/packages/PetToys.BigDecimal.ClickHouse.Dapper/
 [gh-packages-url]: https://github.com/orgs/pet-toys/packages?repo_name=big-decimal
 [npgsql-home]: https://www.npgsql.org/
 [ch-driver]: https://www.nuget.org/packages/ClickHouse.Driver/
