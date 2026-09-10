@@ -9,6 +9,13 @@ constructs that disagree - one blacklist entry per construct somebody thinks of
 produces against the notes. Anything Markdown consumes, now or after a change
 to what Markdown means, shows up as a difference.
 
+The text comparison alone is not enough, and a mention is why: GitHub renders
+`@name` as a link to that account while leaving the visible text exactly as it
+was, so a body that names two strangers reads identically to one that does not.
+A body composed from plain text renders no links at all, so any anchor in the
+rendered HTML is a construct the renderer acted on and is reported beside the
+diff.
+
 Usage: verify-release-body.py <notes file> <rendered html file>
 """
 
@@ -23,6 +30,12 @@ class TextExtractor(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.parts = []
+        self.links = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "a":
+            attributes = dict(attrs)
+            self.links.append(attributes.get("href") or attributes.get("class") or "<anchor>")
 
     def handle_data(self, data):
         self.parts.append(data)
@@ -53,8 +66,17 @@ def main(argv):
         extractor.feed(handle.read())
         rendered = normalize(extractor.text())
 
+    if extractor.links:
+        print(
+            "::error title=Release body renders links::"
+            "The rendered body turned text into links, which a body composed from plain text "
+            "never does. A mention keeps its visible text, so the comparison below cannot see it: "
+            + ", ".join(extractor.links[:10]),
+        )
+        return 1
+
     if notes == rendered:
-        print(f"The rendered release body carries all {len(notes)} lines of the notes.")
+        print(f"The rendered release body carries all {len(notes)} lines of the notes, and renders no link.")
         return 0
 
     diff = difflib.unified_diff(notes, rendered, "release notes", "rendered body", lineterm="", n=1)
