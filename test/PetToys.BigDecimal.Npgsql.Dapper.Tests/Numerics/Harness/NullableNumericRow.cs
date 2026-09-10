@@ -1,9 +1,6 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace PetToys.BigDecimal.Numerics.Harness;
 
 /// <summary>A row whose value admits NULL.</summary>
-[SuppressMessage("Performance", "CA1812", Justification = "Materialised by Dapper.")]
 public sealed class NullableNumericRow
 {
     /// <summary>The row's identifier.</summary>
