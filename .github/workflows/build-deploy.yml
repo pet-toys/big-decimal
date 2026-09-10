@@ -117,11 +117,23 @@ jobs:
     - name: Pack
       run: dotnet pack ${{ env.SolutionToPack }} --configuration Release  --no-build --include-symbols --output ${{ github.workspace }}/${{ env.PackagesSubfolder }} -p:PackageVersion=${{ env.PACKAGE_VERSION }}
 
+    # The body is composed rather than posted as it stands: it is rendered as
+    # Markdown and the notes are plain text, so the fence is what keeps a
+    # generic argument from being read as an HTML tag and a parameter named in
+    # a sentence from being read as a mention. The pack job checks the same
+    # composition before a merge; the read-back below is the only place that
+    # sees what the published page actually shows.
     - name: Sync release notes to the GitHub release
       env:
         GH_TOKEN: ${{ github.token }}
         TAG_NAME: ${{ github.event.release.tag_name }}
-      run: gh release edit "$TAG_NAME" --notes-file "${{ runner.temp }}/release-notes.txt"
+      run: |
+        body="${{ runner.temp }}/release-body.md"
+        bash .github/scripts/compose-release-body.sh "${{ runner.temp }}/release-notes.txt" "$body"
+        gh release edit "$TAG_NAME" --notes-file "$body"
+
+        gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG_NAME"           -H "Accept: application/vnd.github.full+json" --jq '.body_html'           > "${{ runner.temp }}/release-body.html"
+        python3 .github/scripts/verify-release-body.py           "${{ runner.temp }}/release-notes.txt" "${{ runner.temp }}/release-body.html"
 
     - name: Upload artifacts
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
