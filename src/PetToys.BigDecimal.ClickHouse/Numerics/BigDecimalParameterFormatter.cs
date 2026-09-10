@@ -8,13 +8,13 @@ namespace PetToys.BigDecimal.Numerics;
 /// Renders a <see cref="BigDecimal"/> parameter as the decimal text a statement carries.
 /// </summary>
 /// <remarks>
-/// Beyond rescaling, this exists because the driver hands a value it does not recognise to
-/// <see cref="IConvertible.ToDecimal"/>, which <see cref="BigDecimal"/> implements: an
-/// unregistered value would not fail as unmapped but narrow through <see cref="decimal"/>, and
-/// neither outcome mentions this package. A value it does not handle is answered with
-/// <see langword="null"/>, as the driver's own <see cref="DictionaryParameterFormatter"/> does,
-/// because a formatter is consulted for every parameter on the connection. Stateless, so one
-/// instance serves every query.
+/// Beyond rescaling, this exists because the driver converts a value it does not recognise itself,
+/// through <see cref="IConvertible"/>, which <see cref="BigDecimal"/> does not implement: without
+/// this formatter the write raises <see cref="InvalidCastException"/> before the statement is sent,
+/// naming neither the column nor the value. Measured against ClickHouse.Driver 1.4.0. A value it
+/// does not handle is answered with <see langword="null"/>, as the driver's own
+/// <see cref="DictionaryParameterFormatter"/> does, because a formatter is consulted for every
+/// parameter on the connection. Stateless, so one instance serves every query.
 /// </remarks>
 internal sealed class BigDecimalParameterFormatter : IParameterFormatter
 {
