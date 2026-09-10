@@ -62,15 +62,23 @@ jobs:
           CLICKHOUSE_DB: probe
         ports:
         - 8123:8123
+        # 127.0.0.1 rather than localhost, and it is load bearing. ClickHouse binds the HTTP
+        # interface to 0.0.0.0, IPv4 only, while the image's wget is busybox and resolves
+        # localhost to ::1: the check then fails with "connection refused" against a server that
+        # is up and serving, and the container is declared unhealthy after the retries run out.
+        # The flags are busybox's own; --no-verbose and --tries are GNU wget's and mean nothing
+        # here.
         options: >-
-          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"
+          --health-cmd "wget --spider -q http://127.0.0.1:8123/ping || exit 1"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
 
+    # 127.0.0.1 for the reason in the health check above: a published port is bound on IPv4, and
+    # naming localhost leaves the resolver free to try ::1 first.
     env:
-      BIGDECIMAL_PROBE_POSTGRES: Host=localhost;Port=5432;Username=probe;Password=probe;Database=probe
-      BIGDECIMAL_PROBE_CLICKHOUSE: Host=localhost;Port=8123;Username=probe;Password=probe;Database=probe
+      BIGDECIMAL_PROBE_POSTGRES: Host=127.0.0.1;Port=5432;Username=probe;Password=probe;Database=probe
+      BIGDECIMAL_PROBE_CLICKHOUSE: Host=127.0.0.1;Port=8123;Username=probe;Password=probe;Database=probe
 
     steps:
     - name: Checkout
