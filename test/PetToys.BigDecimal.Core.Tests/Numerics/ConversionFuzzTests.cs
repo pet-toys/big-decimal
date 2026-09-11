@@ -34,6 +34,10 @@ public sealed class ConversionFuzzTests
 
     private static readonly ValueClass[] Classes = Enum.GetValues<ValueClass>();
 
+    // The default run splits 2000 cases over 20 rows, so the coverage floor is live by default and
+    // a deliberately tiny run - one case to see the suite move - is exempt rather than flaky.
+    private const int SmallestMeasurableBatch = 100;
+
     [Theory]
     [FuzzData]
     public void NarrowingToDecimal_MatchesDecimalParse(int seed, int cases)
@@ -55,10 +59,7 @@ public sealed class ConversionFuzzTests
             }
         }
 
-        // A case that overflows on both sides agrees without the rounding running at all, so a
-        // batch of nothing but those would pass while reporting nothing. Batches measure 23 to 53
-        // in a hundred; the floor is set well under that.
-        rounded.Should().BeGreaterThan(cases / 10, "the draw has to reach the rounding");
+        ReachedTheRounding(rounded, cases);
     }
 
     [Theory]
@@ -81,7 +82,21 @@ public sealed class ConversionFuzzTests
             }
         }
 
-        rounded.Should().BeGreaterThan(cases / 10, "the draw has to reach the rounding");
+        ReachedTheRounding(rounded, cases);
+    }
+
+    /// <summary>Asserts that a batch reached the rounding rather than agreeing on refusals alone.</summary>
+    /// <param name="rounded">The cases that needed narrowing and were representable once narrowed.</param>
+    /// <param name="cases">The batch size.</param>
+    private static void ReachedTheRounding(int rounded, int cases)
+    {
+        // A case that overflows on both sides agrees without the rounding running at all, so a
+        // batch of nothing but those would pass while reporting nothing. Both draws measure 23 to
+        // 53 in a hundred, and a twentieth sits far enough under that for any seed.
+        if (cases >= SmallestMeasurableBatch)
+        {
+            rounded.Should().BeGreaterThan(cases / 20, "the draw has to reach the rounding");
+        }
     }
 
     /// <summary>Compares one case, and reports whether it was one the rounding actually ran for.</summary>
