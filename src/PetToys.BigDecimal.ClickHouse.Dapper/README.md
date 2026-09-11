@@ -24,12 +24,10 @@ dotnet add package PetToys.BigDecimal.ClickHouse.Dapper
 [`PetToys.BigDecimal.ClickHouse`][clickhouse-package-url] and
 [`PetToys.BigDecimal.Core`][core-url] come along as dependencies.
 
-> **While the packages are in prerelease** they are published to
-> [GitHub Packages][gh-packages-url] rather than to nuget.org, so the command
-> above resolves nothing yet. Add the feed to your `nuget.config` first;
-> GitHub Packages requires a personal access token with `read:packages` even
-> for a public package. The `1.0.0` release goes to nuget.org, from which point
-> the command above is all that is needed.
+> **Releases go to nuget.org**, so the command above is all that is needed.
+> Prereleases are published to [GitHub Packages][gh-packages-url] instead: that
+> feed has to be added to your `nuget.config`, and it requires a personal access
+> token with `read:packages` even for a public package.
 
 ## Usage
 

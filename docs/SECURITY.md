@@ -11,9 +11,9 @@ current major line receives security fixes.
 | ------- | :----------------: |
 | 1.0.x   | :white_check_mark: |
 
-Prereleases (`1.0.0-dev.N`) are previews of the release above them. Each one is
-superseded by the next, so only the most recent prerelease is supported until
-`1.0.0` ships.
+Prereleases are previews of the release above them, published to GitHub
+Packages rather than to nuget.org. Each one is superseded by the next, and none
+is supported once the release it previews has shipped.
 
 ## Reporting a vulnerability
 
