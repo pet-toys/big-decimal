@@ -9,6 +9,12 @@ namespace PetToys.BigDecimal.Numerics;
 
 public readonly partial struct BigDecimal
 {
+    // decimal's two limits do not coincide: 2^96 - 1 stops partway through the 29th digit, so 29
+    // digits fit only sometimes and 28 always do.
+    private const int DecimalMaxScale = 28;
+
+    private const int DecimalMaxDigits = 29;
+
     private static readonly BigDecimal DecimalMaxValue = decimal.MaxValue;
 
     private static readonly BigDecimal DecimalMinValue = decimal.MinValue;
@@ -157,8 +163,9 @@ public readonly partial struct BigDecimal
     }
 
     /// <summary>
-    /// Converts a <see cref="BigDecimal"/> to a <see cref="decimal"/>, rounding a scale wider than
-    /// 28 to nearest with ties to even.
+    /// Converts a <see cref="BigDecimal"/> to the nearest <see cref="decimal"/>, giving up the
+    /// fewest digits that leave a representable value and rounding them, in one step, to nearest
+    /// with ties to even.
     /// </summary>
     /// <exception cref="OverflowException">The value is outside the range of <see cref="decimal"/>, or is NaN or an infinity, which <see cref="decimal"/> cannot represent.</exception>
     public static explicit operator decimal(BigDecimal value)
@@ -168,28 +175,45 @@ public readonly partial struct BigDecimal
             ThrowNonFiniteUnrepresentable("decimal");
         }
 
-        var source = value.Scale > 28 ? Round(value, 28, MidpointRounding.ToEven) : value;
-
         Span<ulong> magnitude = stackalloc ulong[WordCount];
-        var len = source.CopyMagnitude(magnitude);
-        var scale = source.Scale;
+        var len = value.CopyMagnitude(magnitude);
+        var scale = value.Scale;
 
-        while (len > 2 || (len == 2 && magnitude[1] > uint.MaxValue))
+        if (scale > DecimalMaxScale || !FitsDecimalMantissa(magnitude, len))
         {
-            if (scale == 0)
-            {
-                ThrowMantissaOverflow();
-            }
+            // The narrowest reduction that can be representable: smaller still does not fit,
+            // larger is not the nearest decimal.
+            var drop = Math.Max(
+                Math.Max(scale - DecimalMaxScale, Words.DecimalDigitCount(magnitude, len) - DecimalMaxDigits),
+                1);
 
-            len = Words.DivPow10Round(magnitude, len, 1, source.IsNegative, MidpointRounding.ToEven);
-            scale--;
+            // Two turns at most: 29 digits, then 28, which fit whatever they round to. Each turn
+            // rounds the value itself - rounding a rounded magnitude is the defect being removed.
+            while (true)
+            {
+                if (drop > scale)
+                {
+                    ThrowMantissaOverflow();
+                }
+
+                len = value.CopyMagnitude(magnitude);
+                len = Words.DivPow10Round(magnitude, len, drop, value.IsNegative, MidpointRounding.ToEven);
+                if (FitsDecimalMantissa(magnitude, len))
+                {
+                    scale -= drop;
+
+                    break;
+                }
+
+                drop++;
+            }
         }
 
         unchecked
         {
             var low = len > 0 ? magnitude[0] : 0;
             var high = len > 1 ? (uint)magnitude[1] : 0;
-            return new decimal((int)(uint)low, (int)(uint)(low >> 32), (int)high, source.IsNegative, (byte)scale);
+            return new decimal((int)(uint)low, (int)(uint)(low >> 32), (int)high, value.IsNegative, (byte)scale);
         }
     }
 
@@ -393,6 +417,10 @@ public readonly partial struct BigDecimal
 
     private static BigDecimal FromBigIntegerSaturating(BigInteger value) =>
         TryFromBigInteger(value, out var result) ? result : (value.Sign < 0 ? MinValue : MaxValue);
+
+    // A word and a half: 2^96 - 1 stops halfway through the second one.
+    private static bool FitsDecimalMantissa(ReadOnlySpan<ulong> magnitude, int length) =>
+        length < 2 || (length == 2 && magnitude[1] <= uint.MaxValue);
 
     private static decimal ToDecimalSaturating(BigDecimal value)
     {
