@@ -1,10 +1,19 @@
 1.0.0
 =====
 
+The first stable release, and the first to reach nuget.org: every version before
+it was a prerelease on GitHub Packages, a feed a consumer has to add and hold a
+token for. Nothing has been added to the scope 1.0.0-dev.3 reached - the same
+six packages, the same public surface, member for member - so what 1.0.0 adds is
+a commitment to that surface rather than anything new in it.
+
 One tag versions every package in the repository, so all six are published
 together. The core carries a correctness fix to the conversion into
 System.Decimal and names the destination when a conversion out of the type
-overflows; the other five are unchanged.
+overflows. One packaging change reaches all six: requireLicenseAcceptance is
+gone from every nuspec, so Visual Studio no longer asks a consumer to accept an
+Apache-2.0 licence before installing. The other five packages carry no code
+changes.
 
 PetToys.BigDecimal.Core
 
