@@ -4,7 +4,9 @@
     <!-- A range only where there is one to state: the first form rendered
          "2026 - 2026" for the whole of the first year. -->
     <CopyrightFirstYear>2026</CopyrightFirstYear>
-    <CopyrightCurrentYear>$([System.DateTime]::UtcNow.ToString(`yyyy`))</CopyrightCurrentYear>
+    <!-- Updated by hand: taken from UtcNow, the attribute changed at a year
+         boundary for the same commit and defeated ContinuousIntegrationBuild. -->
+    <CopyrightCurrentYear>2026</CopyrightCurrentYear>
     <CopyrightYears>$(CopyrightFirstYear)</CopyrightYears>
     <CopyrightYears Condition="'$(CopyrightCurrentYear)' != '$(CopyrightFirstYear)'">$(CopyrightFirstYear) - $(CopyrightCurrentYear)</CopyrightYears>
     <Copyright>Copyright © $(CopyrightYears) $(Authors). All rights reserved.</Copyright>
@@ -37,12 +39,12 @@
     <PackageProjectUrl>https://github.com/pet-toys/big-decimal</PackageProjectUrl>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
-    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
   </PropertyGroup>
-
 
   <PropertyGroup>
     <StrongNameKeyId>PetToys</StrongNameKeyId>
+    <!-- Public key only: RSA1 at 4096 bits, which is why it is 544 bytes and not
+         the 160 of a 1024-bit one. sn -p refuses it - there is no pair to extract. -->
     <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)assets\key.snk</AssemblyOriginatorKeyFile>
     <SignAssembly>true</SignAssembly>
     <DelaySign>false</DelaySign>
