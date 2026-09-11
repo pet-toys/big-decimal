@@ -576,6 +576,105 @@ public sealed class ConversionTests
         TOther.CreateChecked(converted).Should().Be(value, "{0} survives both directions", typeof(TOther).Name);
     }
 
+    [Fact]
+    public void AnOverflowOutOfTheType_NamesTheDestination()
+    {
+        // The value being converted is a BigDecimal by construction, so a message naming
+        // BigDecimal identifies nothing; what the caller needs is the type they asked for. The
+        // wording is the base class library's own for each destination, measured by running it,
+        // which is why three of them are named by a word. nint and nuint are named for the width
+        // of the process, because that is the width of the range they are checked against.
+        var big = BigDecimal.Parse("100000000000000000000000000000", Invariant);
+
+        Refuses(() => (decimal)big, "a Decimal");
+        Refuses(() => (long)big, "an Int64");
+        Refuses(() => (ulong)big, "a UInt64");
+        Refuses(() => (int)big, "an Int32");
+        Refuses(() => (uint)big, "a UInt32");
+        Refuses(() => (short)big, "an Int16");
+        Refuses(() => (ushort)big, "a UInt16");
+        Refuses(() => (byte)big, "an unsigned byte");
+        Refuses(() => (sbyte)big, "a signed byte");
+        Refuses(() => (Int128)BigDecimal.MaxValue, "an Int128");
+        Refuses(() => (UInt128)BigDecimal.MaxValue, "a UInt128");
+
+        // The two 128-bit operators compare against their own range only after the magnitude has
+        // reduced, and BigDecimal.MaxValue never reaches that comparison - it fails the reduction
+        // first. These three values do reach it, one for each of the three refusals there.
+        var pastInt128 = BigDecimal.Parse("170141183460469231731687303715884105728", Invariant);
+
+        Refuses(() => (Int128)pastInt128, "an Int128");
+        Refuses(() => (Int128)(-pastInt128 - BigDecimal.One), "an Int128");
+        Refuses(() => (UInt128)(-BigDecimal.One), "a UInt128");
+
+        // char, nint and nuint have no cast operator and are reachable only through generic math,
+        // so this is the only route that names them at all.
+        Refuses(() => CreateChecked<char>(big), "a character");
+        Refuses(() => CreateChecked<nint>(big), NativeSigned);
+        Refuses(() => CreateChecked<nuint>(big), NativeUnsigned);
+
+        // The two routes to the same destination agree.
+        Refuses(() => CreateChecked<int>(big), "an Int32");
+        Refuses(() => CreateChecked<decimal>(big), "a Decimal");
+    }
+
+    [Fact]
+    public void AnOverflowWiderThan128Bits_NamesTheSameDestination()
+    {
+        // Every bounded integer destination reduces through one helper that refuses a magnitude
+        // wider than 128 bits before any range is compared. Naming the destination only in the
+        // range checks would answer one way for 1e29 and another for 1e60.
+        var past128 = BigDecimal.Parse("1" + new string('0', 60), Invariant);
+
+        Refuses(() => (int)past128, "an Int32");
+        Refuses(() => (byte)past128, "an unsigned byte");
+        Refuses(() => CreateChecked<nuint>(past128), NativeUnsigned);
+    }
+
+    [Fact]
+    public void ANonFiniteRefusal_NamesTheDestinationToo()
+    {
+        // One operator can raise either refusal, so they answer in one voice. The integer path
+        // said "integer" before this, which named none of the eleven destinations it served.
+        RefusesNonFinite(() => (int)BigDecimal.NaN, "Int32");
+        RefusesNonFinite(() => (byte)BigDecimal.PositiveInfinity, "unsigned byte");
+        RefusesNonFinite(() => (decimal)BigDecimal.NaN, "Decimal");
+        RefusesNonFinite(() => (Int128)BigDecimal.NegativeInfinity, "Int128");
+        RefusesNonFinite(() => (BigInteger)BigDecimal.NaN, "BigInteger");
+        RefusesNonFinite(() => CreateChecked<char>(BigDecimal.NaN), "character");
+    }
+
+    [Fact]
+    public void AnOverflowIntoTheType_StillNamesThisType()
+    {
+        // The other direction keeps the message it has: there the value does not fit the 256-bit
+        // mantissa and BigDecimal is the type that could not hold it. Asserted so the two
+        // directions cannot drift back together.
+        Refuses(() => (BigDecimal)BigInteger.Pow(10, 100), "a BigDecimal");
+        Refuses(() => BigDecimal.CreateChecked(double.MaxValue), "a BigDecimal");
+        Refuses(() => BigDecimal.Parse("1" + new string('0', 100), Invariant), "a BigDecimal");
+    }
+
+    // Asserted for the process this runs in rather than pinned to one width: nint is checked
+    // against its own range, so on 32 bits the destination really is Int32 and naming Int64 there
+    // would be a false statement rather than a different spelling.
+    private static string NativeSigned => IntPtr.Size == sizeof(long) ? "an Int64" : "an Int32";
+
+    private static string NativeUnsigned => IntPtr.Size == sizeof(long) ? "a UInt64" : "a UInt32";
+
+    private static T CreateChecked<T>(BigDecimal value)
+        where T : INumberBase<T> => T.CreateChecked(value);
+
+    // Not WithMessage: it matches case-insensitively, measured, so it would accept "a decimal"
+    // for "a Decimal" - and the capitalisation is the whole of what these tests pin.
+    private static void Refuses<TResult>(Func<TResult> conversion, string destination) =>
+        conversion.Should().Throw<OverflowException>()
+            .Which.Message.Should().Be($"Value was either too large or too small for {destination}.");
+
+    private static void RefusesNonFinite<TResult>(Func<TResult> conversion, string destination) =>
+        conversion.Should().Throw<OverflowException>()
+            .Which.Message.Should().Be($"NaN and infinity have no {destination} representation.");
+
     /// <summary>
     /// Renders what a conversion produced, an exception included, so that the two oracles can be
     /// compared on failures as well as on values.
