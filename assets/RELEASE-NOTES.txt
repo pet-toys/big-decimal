@@ -3,7 +3,8 @@
 
 One tag versions every package in the repository, so all six are published
 together. The core carries a correctness fix to the conversion into
-System.Decimal; the other five are unchanged.
+System.Decimal and names the destination when a conversion out of the type
+overflows; the other five are unchanged.
 
 PetToys.BigDecimal.Core
 
@@ -22,6 +23,18 @@ Fixed:
   This reaches every route out of the type into decimal: the cast,
   decimal.CreateChecked, CreateSaturating and CreateTruncating, and any database
   column read into a decimal through one of the integration packages.
+
+Changed:
+- A checked conversion out of BigDecimal names the destination. Every one of
+  them used to report "Value was either too large or too small for a
+  BigDecimal.", which names the type the value came from rather than the type
+  that could not hold it, and that message is all the exception carries. A cast
+  or CreateChecked to decimal now reports "... for a Decimal.", to int "... for
+  an Int32.", to byte "... for an unsigned byte.", and so on for every
+  destination, in the wording the base class library uses for that type. The
+  refusal of NaN and the infinities names the destination the same way, in place
+  of the "integer" that named none of them. The exception type, the set of
+  values that throw, and every returned value are unchanged.
 
 ----------------------------------------------------------------------------
 

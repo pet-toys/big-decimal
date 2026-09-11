@@ -325,75 +325,77 @@ public readonly partial struct BigDecimal : INumber<BigDecimal>, ISignedNumber<B
     private static bool TryTo<TOther>(BigDecimal value, bool saturate, out TOther result)
         where TOther : INumberBase<TOther>
     {
-        long Signed(long min, long max) =>
-            saturate ? ToInt64Saturating(value, min, max) : ToInt64Checked(value, min, max);
+        // The destination reaches only the checked helper: a saturating conversion does not throw
+        // and so has nothing to name.
+        long Signed(long min, long max, ConversionTarget destination) =>
+            saturate ? ToInt64Saturating(value, min, max) : ToInt64Checked(value, min, max, destination);
 
-        ulong Unsigned(ulong max) =>
-            saturate ? ToUInt64Saturating(value, max) : ToUInt64Checked(value, max);
+        ulong Unsigned(ulong max, ConversionTarget destination) =>
+            saturate ? ToUInt64Saturating(value, max) : ToUInt64Checked(value, max, destination);
 
         if (typeof(TOther) == typeof(byte))
         {
-            result = (TOther)(object)(byte)Unsigned(byte.MaxValue);
+            result = (TOther)(object)(byte)Unsigned(byte.MaxValue, ConversionTarget.Byte);
             return true;
         }
 
         if (typeof(TOther) == typeof(sbyte))
         {
-            result = (TOther)(object)(sbyte)Signed(sbyte.MinValue, sbyte.MaxValue);
+            result = (TOther)(object)(sbyte)Signed(sbyte.MinValue, sbyte.MaxValue, ConversionTarget.SByte);
             return true;
         }
 
         if (typeof(TOther) == typeof(short))
         {
-            result = (TOther)(object)(short)Signed(short.MinValue, short.MaxValue);
+            result = (TOther)(object)(short)Signed(short.MinValue, short.MaxValue, ConversionTarget.Int16);
             return true;
         }
 
         if (typeof(TOther) == typeof(ushort))
         {
-            result = (TOther)(object)(ushort)Unsigned(ushort.MaxValue);
+            result = (TOther)(object)(ushort)Unsigned(ushort.MaxValue, ConversionTarget.UInt16);
             return true;
         }
 
         if (typeof(TOther) == typeof(int))
         {
-            result = (TOther)(object)(int)Signed(int.MinValue, int.MaxValue);
+            result = (TOther)(object)(int)Signed(int.MinValue, int.MaxValue, ConversionTarget.Int32);
             return true;
         }
 
         if (typeof(TOther) == typeof(uint))
         {
-            result = (TOther)(object)(uint)Unsigned(uint.MaxValue);
+            result = (TOther)(object)(uint)Unsigned(uint.MaxValue, ConversionTarget.UInt32);
             return true;
         }
 
         if (typeof(TOther) == typeof(long))
         {
-            result = (TOther)(object)Signed(long.MinValue, long.MaxValue);
+            result = (TOther)(object)Signed(long.MinValue, long.MaxValue, ConversionTarget.Int64);
             return true;
         }
 
         if (typeof(TOther) == typeof(ulong))
         {
-            result = (TOther)(object)Unsigned(ulong.MaxValue);
+            result = (TOther)(object)Unsigned(ulong.MaxValue, ConversionTarget.UInt64);
             return true;
         }
 
         if (typeof(TOther) == typeof(char))
         {
-            result = (TOther)(object)(char)Unsigned(char.MaxValue);
+            result = (TOther)(object)(char)Unsigned(char.MaxValue, ConversionTarget.Char);
             return true;
         }
 
         if (typeof(TOther) == typeof(nint))
         {
-            result = (TOther)(object)(nint)Signed(nint.MinValue, nint.MaxValue);
+            result = (TOther)(object)(nint)Signed(nint.MinValue, nint.MaxValue, ConversionTarget.Int64);
             return true;
         }
 
         if (typeof(TOther) == typeof(nuint))
         {
-            result = (TOther)(object)(nuint)Unsigned((ulong)nuint.MaxValue);
+            result = (TOther)(object)(nuint)Unsigned((ulong)nuint.MaxValue, ConversionTarget.UInt64);
             return true;
         }
 

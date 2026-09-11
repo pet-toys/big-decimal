@@ -172,7 +172,7 @@ public readonly partial struct BigDecimal
     {
         if (value.IsNonFinite)
         {
-            ThrowNonFiniteUnrepresentable("decimal");
+            ThrowNonFiniteUnrepresentable(ConversionTarget.Decimal);
         }
 
         Span<ulong> magnitude = stackalloc ulong[WordCount];
@@ -193,7 +193,7 @@ public readonly partial struct BigDecimal
             {
                 if (drop > scale)
                 {
-                    ThrowMantissaOverflow();
+                    ThrowDestinationOverflow(ConversionTarget.Decimal);
                 }
 
                 len = value.CopyMagnitude(magnitude);
@@ -235,7 +235,7 @@ public readonly partial struct BigDecimal
     {
         if (value.IsNonFinite)
         {
-            ThrowNonFiniteUnrepresentable(nameof(BigInteger));
+            ThrowNonFiniteUnrepresentable(ConversionTarget.BigInteger);
         }
 
         var whole = Truncate(value);
@@ -253,35 +253,35 @@ public readonly partial struct BigDecimal
 
     /// <summary>Converts a <see cref="BigDecimal"/> to a <see cref="long"/>, discarding the fraction towards zero.</summary>
     /// <exception cref="OverflowException">The integral part is outside the range of <see cref="long"/>.</exception>
-    public static explicit operator long(BigDecimal value) => (long)ToInt64Checked(value, long.MinValue, long.MaxValue);
+    public static explicit operator long(BigDecimal value) => (long)ToInt64Checked(value, long.MinValue, long.MaxValue, ConversionTarget.Int64);
 
     /// <summary>Converts a <see cref="BigDecimal"/> to a <see cref="int"/>, discarding the fraction towards zero.</summary>
     /// <exception cref="OverflowException">The integral part is outside the range of <see cref="int"/>.</exception>
-    public static explicit operator int(BigDecimal value) => (int)ToInt64Checked(value, int.MinValue, int.MaxValue);
+    public static explicit operator int(BigDecimal value) => (int)ToInt64Checked(value, int.MinValue, int.MaxValue, ConversionTarget.Int32);
 
     /// <summary>Converts a <see cref="BigDecimal"/> to a <see cref="short"/>, discarding the fraction towards zero.</summary>
     /// <exception cref="OverflowException">The integral part is outside the range of <see cref="short"/>.</exception>
-    public static explicit operator short(BigDecimal value) => (short)ToInt64Checked(value, short.MinValue, short.MaxValue);
+    public static explicit operator short(BigDecimal value) => (short)ToInt64Checked(value, short.MinValue, short.MaxValue, ConversionTarget.Int16);
 
     /// <summary>Converts a <see cref="BigDecimal"/> to a <see cref="sbyte"/>, discarding the fraction towards zero.</summary>
     /// <exception cref="OverflowException">The integral part is outside the range of <see cref="sbyte"/>.</exception>
-    public static explicit operator sbyte(BigDecimal value) => (sbyte)ToInt64Checked(value, sbyte.MinValue, sbyte.MaxValue);
+    public static explicit operator sbyte(BigDecimal value) => (sbyte)ToInt64Checked(value, sbyte.MinValue, sbyte.MaxValue, ConversionTarget.SByte);
 
     /// <summary>Converts a <see cref="BigDecimal"/> to a <see cref="ulong"/>, discarding the fraction towards zero.</summary>
     /// <exception cref="OverflowException">The integral part is outside the range of <see cref="ulong"/>.</exception>
-    public static explicit operator ulong(BigDecimal value) => ToUInt64Checked(value, ulong.MaxValue);
+    public static explicit operator ulong(BigDecimal value) => ToUInt64Checked(value, ulong.MaxValue, ConversionTarget.UInt64);
 
     /// <summary>Converts a <see cref="BigDecimal"/> to a <see cref="uint"/>, discarding the fraction towards zero.</summary>
     /// <exception cref="OverflowException">The integral part is outside the range of <see cref="uint"/>.</exception>
-    public static explicit operator uint(BigDecimal value) => (uint)ToUInt64Checked(value, uint.MaxValue);
+    public static explicit operator uint(BigDecimal value) => (uint)ToUInt64Checked(value, uint.MaxValue, ConversionTarget.UInt32);
 
     /// <summary>Converts a <see cref="BigDecimal"/> to a <see cref="ushort"/>, discarding the fraction towards zero.</summary>
     /// <exception cref="OverflowException">The integral part is outside the range of <see cref="ushort"/>.</exception>
-    public static explicit operator ushort(BigDecimal value) => (ushort)ToUInt64Checked(value, ushort.MaxValue);
+    public static explicit operator ushort(BigDecimal value) => (ushort)ToUInt64Checked(value, ushort.MaxValue, ConversionTarget.UInt16);
 
     /// <summary>Converts a <see cref="BigDecimal"/> to a <see cref="byte"/>, discarding the fraction towards zero.</summary>
     /// <exception cref="OverflowException">The integral part is outside the range of <see cref="byte"/>.</exception>
-    public static explicit operator byte(BigDecimal value) => (byte)ToUInt64Checked(value, byte.MaxValue);
+    public static explicit operator byte(BigDecimal value) => (byte)ToUInt64Checked(value, byte.MaxValue, ConversionTarget.Byte);
 
     /// <summary>Converts a <see cref="BigDecimal"/> to an <see cref="Int128"/>, discarding the fraction towards zero.</summary>
     /// <exception cref="OverflowException">The integral part is outside the range of <see cref="Int128"/>.</exception>
@@ -289,12 +289,12 @@ public readonly partial struct BigDecimal
     {
         unchecked
         {
-            var magnitude = ToUInt128Magnitude(value, out var negative);
+            var magnitude = ToUInt128Magnitude(value, ConversionTarget.Int128, out var negative);
             if (negative)
             {
                 if (magnitude > (UInt128)Int128.MaxValue + 1)
                 {
-                    ThrowMantissaOverflow();
+                    ThrowDestinationOverflow(ConversionTarget.Int128);
                 }
 
                 return magnitude == (UInt128)Int128.MaxValue + 1 ? Int128.MinValue : -(Int128)magnitude;
@@ -302,7 +302,7 @@ public readonly partial struct BigDecimal
 
             if (magnitude > (UInt128)Int128.MaxValue)
             {
-                ThrowMantissaOverflow();
+                ThrowDestinationOverflow(ConversionTarget.Int128);
             }
 
             return (Int128)magnitude;
@@ -313,10 +313,10 @@ public readonly partial struct BigDecimal
     /// <exception cref="OverflowException">The value is negative or its integral part is outside the range of <see cref="UInt128"/>.</exception>
     public static explicit operator UInt128(BigDecimal value)
     {
-        var magnitude = ToUInt128Magnitude(value, out var negative);
+        var magnitude = ToUInt128Magnitude(value, ConversionTarget.UInt128, out var negative);
         if (negative && magnitude != UInt128.Zero)
         {
-            ThrowMantissaOverflow();
+            ThrowDestinationOverflow(ConversionTarget.UInt128);
         }
 
         return magnitude;
@@ -462,15 +462,15 @@ public readonly partial struct BigDecimal
         }
     }
 
-    private static long ToInt64Checked(BigDecimal value, long min, long max)
+    private static long ToInt64Checked(BigDecimal value, long min, long max, ConversionTarget destination)
     {
         unchecked
         {
-            var magnitude = ToUInt128Magnitude(value, out var negative);
+            var magnitude = ToUInt128Magnitude(value, destination, out var negative);
             var limit = negative ? (UInt128)(ulong)(-(min + 1)) + 1 : (UInt128)max;
             if (magnitude > limit)
             {
-                ThrowMantissaOverflow();
+                ThrowDestinationOverflow(destination);
             }
 
             if (!negative)
@@ -482,12 +482,12 @@ public readonly partial struct BigDecimal
         }
     }
 
-    private static ulong ToUInt64Checked(BigDecimal value, ulong max)
+    private static ulong ToUInt64Checked(BigDecimal value, ulong max, ConversionTarget destination)
     {
-        var magnitude = ToUInt128Magnitude(value, out var negative);
+        var magnitude = ToUInt128Magnitude(value, destination, out var negative);
         if ((negative && magnitude != UInt128.Zero) || magnitude > max)
         {
-            ThrowMantissaOverflow();
+            ThrowDestinationOverflow(destination);
         }
 
         return (ulong)magnitude;
@@ -557,24 +557,78 @@ public readonly partial struct BigDecimal
         return negative && magnitude != UInt128.Zero ? UInt128.Zero : magnitude;
     }
 
-    private static UInt128 ToUInt128Magnitude(BigDecimal value, out bool negative)
+    // Every bounded integer destination passes through here, so this is where a magnitude wider
+    // than 128 bits is refused - before either range check is reached, and for the largest values.
+    private static UInt128 ToUInt128Magnitude(BigDecimal value, ConversionTarget destination, out bool negative)
     {
         if (value.IsNonFinite)
         {
-            ThrowNonFiniteUnrepresentable("integer");
+            ThrowNonFiniteUnrepresentable(destination);
         }
 
         if (!TryToUInt128Magnitude(value, out var magnitude, out negative))
         {
-            ThrowMantissaOverflow();
+            ThrowDestinationOverflow(destination);
         }
 
         return magnitude;
     }
 
+    // The destination of a conversion out, carried from the call site because the helpers below
+    // serve several each. nint and nuint have no members: on a 64-bit runtime the base class
+    // library reports them as Int64 and UInt64, measured from a decimal and a BigInteger source
+    // alike, so they pass those. A 32-bit process was not measured.
+    private enum ConversionTarget
+    {
+        Decimal,
+        Int64,
+        UInt64,
+        Int32,
+        UInt32,
+        Int16,
+        UInt16,
+        Byte,
+        SByte,
+        Char,
+        Int128,
+        UInt128,
+        BigInteger,
+    }
+
+    // The article does not follow from the name - UInt64 takes "a" where Int64 takes "an" - so
+    // both are written out, and one table serves both messages rather than two that can drift.
+    private static (string Article, string Name) Describe(ConversionTarget destination) =>
+        destination switch
+        {
+            ConversionTarget.Decimal => ("a", "Decimal"),
+            ConversionTarget.Int64 => ("an", "Int64"),
+            ConversionTarget.UInt64 => ("a", "UInt64"),
+            ConversionTarget.Int32 => ("an", "Int32"),
+            ConversionTarget.UInt32 => ("a", "UInt32"),
+            ConversionTarget.Int16 => ("an", "Int16"),
+            ConversionTarget.UInt16 => ("a", "UInt16"),
+            ConversionTarget.Byte => ("an", "unsigned byte"),
+            ConversionTarget.SByte => ("a", "signed byte"),
+            ConversionTarget.Char => ("a", "character"),
+            ConversionTarget.Int128 => ("an", "Int128"),
+            ConversionTarget.UInt128 => ("a", "UInt128"),
+            ConversionTarget.BigInteger => ("a", "BigInteger"),
+            _ => throw new UnreachableException($"No wording for {destination}."),
+        };
+
+    // Names the destination, not this type: the value being converted is a BigDecimal by
+    // construction, so naming it identifies nothing the caller did not already know.
     [DoesNotReturn]
-    private static void ThrowNonFiniteUnrepresentable(string destination) =>
-        throw new OverflowException($"NaN and infinity have no {destination} representation.");
+    private static void ThrowDestinationOverflow(ConversionTarget destination)
+    {
+        var (article, name) = Describe(destination);
+
+        throw new OverflowException($"Value was either too large or too small for {article} {name}.");
+    }
+
+    [DoesNotReturn]
+    private static void ThrowNonFiniteUnrepresentable(ConversionTarget destination) =>
+        throw new OverflowException($"NaN and infinity have no {Describe(destination).Name} representation.");
 
     /// <summary>
     /// Reduces the value to its integral part, truncated towards zero, as a magnitude and a sign.
