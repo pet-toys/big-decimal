@@ -389,13 +389,13 @@ public readonly partial struct BigDecimal : INumber<BigDecimal>, ISignedNumber<B
 
         if (typeof(TOther) == typeof(nint))
         {
-            result = (TOther)(object)(nint)Signed(nint.MinValue, nint.MaxValue, ConversionTarget.Int64);
+            result = (TOther)(object)(nint)Signed(nint.MinValue, nint.MaxValue, NativeSigned);
             return true;
         }
 
         if (typeof(TOther) == typeof(nuint))
         {
-            result = (TOther)(object)(nuint)Unsigned((ulong)nuint.MaxValue, ConversionTarget.UInt64);
+            result = (TOther)(object)(nuint)Unsigned((ulong)nuint.MaxValue, NativeUnsigned);
             return true;
         }
 

@@ -582,7 +582,8 @@ public sealed class ConversionTests
         // The value being converted is a BigDecimal by construction, so a message naming
         // BigDecimal identifies nothing; what the caller needs is the type they asked for. The
         // wording is the base class library's own for each destination, measured by running it,
-        // which is why three of them are named by a word and nint reports Int64.
+        // which is why three of them are named by a word. nint and nuint are named for the width
+        // of the process, because that is the width of the range they are checked against.
         var big = BigDecimal.Parse("100000000000000000000000000000", Invariant);
 
         Refuses(() => (decimal)big, "a Decimal");
@@ -609,8 +610,8 @@ public sealed class ConversionTests
         // char, nint and nuint have no cast operator and are reachable only through generic math,
         // so this is the only route that names them at all.
         Refuses(() => CreateChecked<char>(big), "a character");
-        Refuses(() => CreateChecked<nint>(big), "an Int64");
-        Refuses(() => CreateChecked<nuint>(big), "a UInt64");
+        Refuses(() => CreateChecked<nint>(big), NativeSigned);
+        Refuses(() => CreateChecked<nuint>(big), NativeUnsigned);
 
         // The two routes to the same destination agree.
         Refuses(() => CreateChecked<int>(big), "an Int32");
@@ -627,7 +628,7 @@ public sealed class ConversionTests
 
         Refuses(() => (int)past128, "an Int32");
         Refuses(() => (byte)past128, "an unsigned byte");
-        Refuses(() => CreateChecked<nuint>(past128), "a UInt64");
+        Refuses(() => CreateChecked<nuint>(past128), NativeUnsigned);
     }
 
     [Fact]
@@ -653,6 +654,13 @@ public sealed class ConversionTests
         Refuses(() => BigDecimal.CreateChecked(double.MaxValue), "a BigDecimal");
         Refuses(() => BigDecimal.Parse("1" + new string('0', 100), Invariant), "a BigDecimal");
     }
+
+    // Asserted for the process this runs in rather than pinned to one width: nint is checked
+    // against its own range, so on 32 bits the destination really is Int32 and naming Int64 there
+    // would be a false statement rather than a different spelling.
+    private static string NativeSigned => IntPtr.Size == sizeof(long) ? "an Int64" : "an Int32";
+
+    private static string NativeUnsigned => IntPtr.Size == sizeof(long) ? "a UInt64" : "a UInt32";
 
     private static T CreateChecked<T>(BigDecimal value)
         where T : INumberBase<T> => T.CreateChecked(value);

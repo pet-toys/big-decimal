@@ -575,9 +575,8 @@ public readonly partial struct BigDecimal
     }
 
     // The destination of a conversion out, carried from the call site because the helpers below
-    // serve several each. nint and nuint have no members: on a 64-bit runtime the base class
-    // library reports them as Int64 and UInt64, measured from a decimal and a BigInteger source
-    // alike, so they pass those. A 32-bit process was not measured.
+    // serve several each. nint and nuint have no members of their own: they are the width of the
+    // process, and NativeSigned and NativeUnsigned pick the member that matches it.
     private enum ConversionTarget
     {
         Decimal,
@@ -594,6 +593,16 @@ public readonly partial struct BigDecimal
         UInt128,
         BigInteger,
     }
+
+    // The range checked against nint is the process's, so the name has to follow it: reporting
+    // Int64 for a 32-bit nint would refuse a value with a message saying Int64 cannot hold it.
+    // On 64 bits this is what the base class library reports for them, measured from a decimal
+    // and a BigInteger source alike.
+    private static ConversionTarget NativeSigned =>
+        IntPtr.Size == sizeof(long) ? ConversionTarget.Int64 : ConversionTarget.Int32;
+
+    private static ConversionTarget NativeUnsigned =>
+        IntPtr.Size == sizeof(long) ? ConversionTarget.UInt64 : ConversionTarget.UInt32;
 
     // The article does not follow from the name - UInt64 takes "a" where Int64 takes "an" - so
     // both are written out, and one table serves both messages rather than two that can drift.
