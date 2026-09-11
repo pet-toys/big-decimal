@@ -84,6 +84,16 @@ jobs:
     - name: Checkout
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+    # Mirrors the release gate so the script and the header's shape are
+    # exercised on every pull request rather than for the first time at a tag.
+    # A pull request packs 0.0.0-ci and has no version to compare against; the
+    # release run reaches this through workflow_call with the tag in the ref,
+    # and then the two have to agree.
+    - name: Check the release notes header
+      env:
+        TAG_NAME: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+      run: bash .github/scripts/check-release-notes-version.sh assets/RELEASE-NOTES.txt "${TAG_NAME#v}"
+
     - name: Setup .NET
       uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
       with:
