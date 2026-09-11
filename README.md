@@ -6,11 +6,12 @@
 > PostgreSQL `numeric` and ClickHouse `Decimal*` values, exactly, and without
 > allocating.
 
-`BigDecimal` is a stack-only decimal value: a 256-bit unsigned magnitude, a
-sign, and a decimal scale of 0 to 255, denoting
-`(-1)^sign * magnitude * 10^-scale`. The whole state lives in the struct, so a
-value never reaches the heap. It implements [`INumber<T>`][inumber-url] and the
-rest of the generic math surface, parses and formats exactly as
+`BigDecimal` is an allocation-free decimal value type: a 256-bit unsigned
+magnitude, a sign, and a decimal scale of 0 to 255, denoting
+`(-1)^sign * magnitude * 10^-scale`. The whole state lives in the struct and
+the working buffers on the stack, so an operation allocates only what it hands
+back. It implements [`INumber<T>`][inumber-url] and the rest of the generic
+math surface, parses and formats exactly as
 [`System.Decimal`][decimal-url] does, and carries a `System.Text.Json`
 converter.
 
@@ -84,12 +85,10 @@ integration packages put their helpers in.
 using PetToys.BigDecimal.Numerics;
 ```
 
-> **While the packages are in prerelease** they are published to
-> [GitHub Packages][gh-packages-url] rather than to nuget.org, so the command
-> above resolves nothing yet. Add the feed to your `nuget.config` first;
-> GitHub Packages requires a personal access token with `read:packages` even
-> for a public package. The `1.0.0` release goes to nuget.org, from which point
-> the command above is all that is needed.
+> **Releases go to nuget.org**, so the command above is all that is needed.
+> Prereleases are published to [GitHub Packages][gh-packages-url] instead: that
+> feed has to be added to your `nuget.config`, and it requires a personal access
+> token with `read:packages` even for a public package.
 
 ## Getting started
 
@@ -350,14 +349,14 @@ hot.
 
 ## Packages
 
-| Package | Status | What it does |
-| ------- | ------ | ------------ |
-| [`PetToys.BigDecimal.Core`][core-url] | Prerelease | The `BigDecimal` type itself. No runtime dependencies. |
-| [`PetToys.BigDecimal.Npgsql`][npgsql-url] | Prerelease | PostgreSQL `numeric` mapping for [Npgsql][npgsql-home]. |
-| [`PetToys.BigDecimal.ClickHouse`][ch-url] | Prerelease | The ClickHouse `Decimal32/64/128/256` family, for [ClickHouse.Driver][ch-driver]. |
-| [`PetToys.BigDecimal.Npgsql.EntityFrameworkCore`][ef-url] | Prerelease | PostgreSQL `numeric` columns as `BigDecimal` properties, over the Npgsql adapter. |
-| [`PetToys.BigDecimal.Npgsql.Dapper`][dapper-url] | Prerelease | PostgreSQL `numeric` columns read and written as `BigDecimal` through Dapper, over the Npgsql adapter. |
-| [`PetToys.BigDecimal.ClickHouse.Dapper`][ch-dapper-url] | Prerelease | The ClickHouse decimal family read and written as `BigDecimal` through Dapper, over the ClickHouse adapter. |
+| Package | What it does |
+| ------- | ------------ |
+| [`PetToys.BigDecimal.Core`][core-url] | The `BigDecimal` type itself. No runtime dependencies. |
+| [`PetToys.BigDecimal.Npgsql`][npgsql-url] | PostgreSQL `numeric` mapping for [Npgsql][npgsql-home]. |
+| [`PetToys.BigDecimal.ClickHouse`][ch-url] | The ClickHouse `Decimal32/64/128/256` family, for [ClickHouse.Driver][ch-driver]. |
+| [`PetToys.BigDecimal.Npgsql.EntityFrameworkCore`][ef-url] | PostgreSQL `numeric` columns as `BigDecimal` properties, over the Npgsql adapter. |
+| [`PetToys.BigDecimal.Npgsql.Dapper`][dapper-url] | PostgreSQL `numeric` columns read and written as `BigDecimal` through Dapper, over the Npgsql adapter. |
+| [`PetToys.BigDecimal.ClickHouse.Dapper`][ch-dapper-url] | The ClickHouse decimal family read and written as `BigDecimal` through Dapper, over the ClickHouse adapter. |
 
 All six versions move in lockstep, and a package brings the ones beneath it along as
 dependencies. The binary wire codecs the adapters run on, which are the hard
@@ -367,11 +366,12 @@ not the bytes underneath it. A caller who works the wire directly, without eithe
 driver, is the case that would change that, and it is a
 [feature request][issues-url] rather than a gap.
 
-## Roadmap
+## History
 
 All six packages exist and each public surface is settled. `1.0.0` adds no
-scope of its own; what it waits for is a prerelease meeting real code. Versions
-are released in lockstep across every package in the repository.
+scope of its own; what it waited for was a prerelease meeting real code.
+Versions are released in lockstep across every package in the repository, which
+is why a fix to one adapter moves every other package's version too.
 
 | Milestone | Version | Contents |
 | --------- | ------- | -------- |
@@ -380,13 +380,13 @@ are released in lockstep across every package in the repository.
 | EF Core and Dapper | `1.0.0-dev.3` | `PetToys.BigDecimal.Npgsql.EntityFrameworkCore`: a `numeric` column as a `BigDecimal` property, with no value converter in the path. `PetToys.BigDecimal.Npgsql.Dapper` and `PetToys.BigDecimal.ClickHouse.Dapper`: the same columns read and written exactly through Dapper. The two Dapper packages are split so that an Npgsql caller never pulls the ClickHouse driver, and both are split from the EF Core one so that a Dapper caller never pulls EF Core. Every published assembly is marked trimmable, the core gains a `TypeConverter`, and a ClickHouse parameter the statement did not annotate is refused by name. |
 | First stable release | `1.0.0` | The same six packages, unchanged in scope, on nuget.org. |
 
-`1.0.0` arrives with all six packages at once and is the first release to reach
-nuget.org. Everything before it is a `1.0.0-dev.N` prerelease on
-[GitHub Packages][gh-packages-url], which is what lets each surface meet a real
-consumer while it can still change: a package that reaches nuget.org is out
+`1.0.0` is the first release to reach nuget.org and carries all six packages at
+once. Everything before it was a `1.0.0-dev.N` prerelease on
+[GitHub Packages][gh-packages-url], which is what let each surface meet a real
+consumer while it could still change: a package that reaches nuget.org is out
 there for good, and this project would rather find out what an adapter gets
-wrong before that than after. Feedback is the most useful thing this repository
-can receive right now: open an [issue][issues-url] or a
+wrong before that than after. Feedback is still the most useful thing this
+repository can receive: open an [issue][issues-url] or a
 [discussion][discussions-url].
 
 ## Contributing

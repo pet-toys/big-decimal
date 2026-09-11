@@ -2,11 +2,11 @@
 
 [![NuGet Version][nuget-v-badge]][nuget-url] [![NuGet Downloads][nuget-dt-badge]][nuget-url] [![Unit Test][test-badge]][test-url] [![Target frameworks][dotnet-badge]][nuget-url] [![License][license-badge]][license-url]
 
-A stack-only decimal value: a 256-bit magnitude, a sign, and a scale of 0 to
-255. Every value of at most 77 significant digits is representable, the largest
-representable magnitude has 78 digits, and the range runs from 1e-255 to
-roughly 1.157e77. The whole state lives in the struct, so a `BigDecimal` never
-allocates.
+An allocation-free decimal value type: a 256-bit magnitude, a sign, and a scale
+of 0 to 255. Every value of at most 77 significant digits is representable, the
+largest representable magnitude has 78 digits, and the range runs from 1e-255 to
+roughly 1.157e77. The whole state lives in the struct and the working buffers
+on the stack, so an operation allocates only what it hands back.
 
 It exists because PostgreSQL `numeric` and ClickHouse `Decimal*` columns hold
 values that `decimal` cannot represent - a large integer part, a long fraction,
@@ -162,12 +162,10 @@ The `.Core` suffix belongs to the package, not to the API: the type is
 `PetToys.BigDecimal.Numerics.BigDecimal`, the same namespace the database
 packages put their helpers in.
 
-> **While the packages are in prerelease** they are published to
-> [GitHub Packages][gh-packages-url] rather than to nuget.org, so the command
-> above resolves nothing yet. Add the feed to your `nuget.config` first;
-> GitHub Packages requires a personal access token with `read:packages` even
-> for a public package. The `1.0.0` release goes to nuget.org, from which point
-> the command above is all that is needed.
+> **Releases go to nuget.org**, so the command above is all that is needed.
+> Prereleases are published to [GitHub Packages][gh-packages-url] instead: that
+> feed has to be added to your `nuget.config`, and it requires a personal access
+> token with `read:packages` even for a public package.
 
 ## Links
 
