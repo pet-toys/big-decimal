@@ -135,6 +135,77 @@ public sealed class ConversionTests
             BigInteger.Pow(2, 256) - BigInteger.One);
     }
 
+    [Theory]
+
+    // The two a pre-release review found: one digit at a time decided each tie from a remainder
+    // that no longer carried the digits already given up.
+    [InlineData("1234567890123456789012345678.451", "12345678901234567890123456785", 1)]
+    [InlineData("8.000000000000000000000000001451", "8000000000000000000000000001", 27)]
+
+    // The nearest decimal here is at scale 0; ...033.6 would need a mantissa of 2^96.
+    [InlineData("7922816251426433759354395033.55", "7922816251426433759354395034", 0)]
+
+    // The reduction carries to 10^29, so it is taken again a digit wider and lands on 10^28.
+    [InlineData("9999999999999999999999999999.99999999999", "10000000000000000000000000000", 0)]
+
+    // decimal.MaxValue from just above it, and as itself.
+    [InlineData("79228162514264337593543950335.4", "79228162514264337593543950335", 0)]
+    [InlineData("79228162514264337593543950335", "79228162514264337593543950335", 0)]
+
+    // Exact ties, which a randomised draw never produces: the remainder has to be one half and
+    // nothing else. Even survivor, odd survivor, and the same tie broken eleven places right.
+    [InlineData("1.00000000000000000000000000005", "10000000000000000000000000000", 28)]
+    [InlineData("1.00000000000000000000000000015", "10000000000000000000000000002", 28)]
+    [InlineData("1.0000000000000000000000000000500000000001", "10000000000000000000000000001", 28)]
+
+    // The same pair, reduced by the mantissa rather than by the scale.
+    [InlineData("7922816251426433759354395033.45", "79228162514264337593543950334", 1)]
+    [InlineData("7922816251426433759354395033.35", "79228162514264337593543950334", 1)]
+
+    // Below half a unit in decimal's last place: the scale survives, the digits do not.
+    [InlineData("0.0000000000000000000000000000000000000001", "0", 28)]
+    [InlineData("-0.0000000000000000000000000000000000000001", "0", 28)]
+
+    // Nothing to give up, so the trailing zeros stay.
+    [InlineData("1.500", "1500", 3)]
+    public void NarrowingToDecimal_RoundsOnceAtTheWidestScaleThatFits(string text, string mantissa, int scale)
+    {
+        var magnitude = BigInteger.Parse(mantissa, Invariant);
+        var value = BigDecimal.Parse(text, NumberStyles.Float, Invariant);
+        var expected = new OracleValue(text.StartsWith('-') ? -magnitude : magnitude, scale);
+
+        var produced = DecimalParityOracle.From((decimal)value);
+
+        // Both halves: decimal equality is numeric, so the value alone would accept the right
+        // number at the wrong scale.
+        produced.Should().Be(expected, "{0} narrows by one rounding of the whole value", text);
+        produced.Should().Be(
+            DecimalParityOracle.From(decimal.Parse(text, NumberStyles.Float, Invariant)),
+            "{0} is what decimal makes of the same text",
+            text);
+    }
+
+    [Theory]
+
+    // Rounding at scale 0 gives 2^96, with no fractional digit left to give up instead.
+    [InlineData("79228162514264337593543950335.5")]
+    [InlineData("79228162514264337593543950335.9")]
+    [InlineData("-79228162514264337593543950335.5")]
+
+    // A carry out of the 29th digit with nothing left to trade for it.
+    [InlineData("99999999999999999999999999999.9")]
+    [InlineData("100000000000000000000000000000")]
+    public void AValueNoDecimalScaleHolds_Overflows(string text)
+    {
+        var value = BigDecimal.Parse(text, NumberStyles.Float, Invariant);
+
+        var narrowing = () => (decimal)value;
+        var reference = () => decimal.Parse(text, NumberStyles.Float, Invariant);
+
+        narrowing.Should().Throw<OverflowException>("no scale from 0 to 28 holds {0}", text);
+        reference.Should().Throw<OverflowException>("decimal refuses {0} itself", text);
+    }
+
     [Fact]
     public void AnUnrecognisedType_IsRefusedByAllThreeCreateMethods()
     {

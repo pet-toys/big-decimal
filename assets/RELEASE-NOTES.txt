@@ -1,3 +1,30 @@
+1.0.0
+=====
+
+One tag versions every package in the repository, so all six are published
+together. The core carries a correctness fix to the conversion into
+System.Decimal; the other five are unchanged.
+
+PetToys.BigDecimal.Core
+
+Fixed:
+- Converting to System.Decimal rounds once. The conversion used to round to
+  scale 28 and then give up the remaining digits one at a time, and each of
+  those steps decided its own tie from a remainder that no longer carried the
+  digits already dropped, so a result could come back a unit in the last place
+  away from the nearest decimal. It now computes the digits to give up and
+  rounds them in a single step, half to even, at the widest scale the value
+  fits. Measured against decimal itself over 200000 random values of 29 to 40
+  significant digits: of the 171976 a narrowing can represent, one in
+  thirty-three came back different before this change and none does now. Which
+  values overflow has not changed.
+
+  This reaches every route out of the type into decimal: the cast,
+  decimal.CreateChecked, CreateSaturating and CreateTruncating, and any database
+  column read into a decimal through one of the integration packages.
+
+----------------------------------------------------------------------------
+
 1.0.0-dev.3
 ===========
 
