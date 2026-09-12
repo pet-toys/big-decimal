@@ -165,8 +165,10 @@ spells out its `using` directives.
 ### Tests
 
 Tests use xUnit and are named as a sentence split at the underscore, subject
-first and outcome second (for example, `Zero_IsNeverSigned` or
-`AProductBeyondTheMantissa_NormalisesToSeventySevenDigits`). Keep test
+first and outcome last, with a condition between them where one is needed (for
+example, `Zero_IsNeverSigned`,
+`AProductBeyondTheMantissa_NormalisesToSeventySevenDigits` or
+`Round_ToAWiderScale_ChangesNothing`). Keep test
 data close to the tests that use it, and prefer deterministic tests over ones
 that depend on a container, the network, or timing - cover the arithmetic and
 formatting rules with plain in-memory cases and reserve the Testcontainers-based
