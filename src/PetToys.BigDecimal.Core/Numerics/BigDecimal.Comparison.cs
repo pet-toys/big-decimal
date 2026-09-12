@@ -6,17 +6,10 @@ public readonly partial struct BigDecimal : IEquatable<BigDecimal>, IComparable<
 {
     /// <summary>Tests two values for numeric equality.</summary>
     /// <remarks>
-    /// <para>
-    /// Comparison is numeric, so values that differ only in scale compare equal: <c>1.0</c> equals
-    /// <c>1.00</c>. Use <see cref="Scale"/> when the difference matters.
-    /// </para>
-    /// <para>
-    /// This operator is false whenever either side is <see cref="NaN"/>, including when both are,
-    /// while <see cref="Equals(BigDecimal)"/> is true for two NaNs. The two deliberately
-    /// disagree, as they do for <see cref="double"/>: the operator follows IEEE 754 and
-    /// <see cref="Equals(BigDecimal)"/> follows the total order that
-    /// <c>Dictionary</c> and <see cref="Array.Sort{T}(T[])"/> need.
-    /// </para>
+    /// Values that differ only in scale compare equal: <c>1.0</c> equals <c>1.00</c>. False
+    /// whenever either side is <see cref="NaN"/>, where <see cref="Equals(BigDecimal)"/> is true
+    /// for two NaNs; the two disagree as they do for <see cref="double"/>, the operator following
+    /// IEEE 754 and <see cref="Equals(BigDecimal)"/> the total order a dictionary needs.
     /// </remarks>
     public static bool operator ==(BigDecimal left, BigDecimal right) =>
         !IsNaN(left) && !IsNaN(right) && left.Equals(right);
@@ -26,9 +19,7 @@ public readonly partial struct BigDecimal : IEquatable<BigDecimal>, IComparable<
     public static bool operator !=(BigDecimal left, BigDecimal right) => !(left == right);
 
     /// <summary>Tests whether the left value is less than the right one.</summary>
-    /// <remarks>False whenever either side is <see cref="NaN"/>, which is why the four
-    /// relational operators are not defined through <see cref="CompareTo(BigDecimal)"/>: that
-    /// orders NaN rather than leaving it unordered.</remarks>
+    /// <remarks>False whenever either side is <see cref="NaN"/>, unlike <see cref="CompareTo(BigDecimal)"/>.</remarks>
     public static bool operator <(BigDecimal left, BigDecimal right) =>
         AreOrdered(left, right) && left.CompareTo(right) < 0;
 
@@ -50,10 +41,7 @@ public readonly partial struct BigDecimal : IEquatable<BigDecimal>, IComparable<
     /// <summary>Tests this value for numeric equality with another.</summary>
     /// <param name="other">The value to compare with.</param>
     /// <returns><see langword="true"/> when the two are numerically equal, whatever their scales.</returns>
-    /// <remarks>
-    /// True for two <see cref="NaN"/> values, where <c>operator ==</c> is false. That split is
-    /// <see cref="double"/>'s and is what lets a NaN be found again as a dictionary key.
-    /// </remarks>
+    /// <remarks>True for two <see cref="NaN"/> values, where <c>operator ==</c> is false.</remarks>
     public bool Equals(BigDecimal other) => CompareTo(other) == 0;
 
     /// <summary>Tests this value for numeric equality with another object.</summary>
@@ -71,9 +59,7 @@ public readonly partial struct BigDecimal : IEquatable<BigDecimal>, IComparable<
     {
         if (IsNonFinite)
         {
-            // Three values, three flag words, each far from the zero a zero magnitude hashes to,
-            // and one bit pattern per value so equal values hash alike. Unchecked because negative
-            // infinity's flags word has bit 31 set and Debug builds check their conversions.
+            // One bit pattern per value. Unchecked: negative infinity's flags word has bit 31 set.
             return unchecked((int)_flags);
         }
 
@@ -94,9 +80,7 @@ public readonly partial struct BigDecimal : IEquatable<BigDecimal>, IComparable<
             hash.Add(magnitude[i]);
         }
 
-        // The sign rides in the low bit of the scale rather than in a round of its own; the scale
-        // is at most MaxScale after the strip, so they cannot collide. Zero returned above, which
-        // is what keeps a negative zero from hashing apart from a positive one.
+        // The sign rides in the low bit of the scale.
         hash.Add((scale << 1) | (IsNegative ? 1 : 0));
         return hash.ToHashCode();
     }
@@ -105,12 +89,10 @@ public readonly partial struct BigDecimal : IEquatable<BigDecimal>, IComparable<
     /// <param name="other">The value to compare with.</param>
     /// <returns>A negative number, zero or a positive number as this value is less than, equal to, or greater than <paramref name="other"/>.</returns>
     /// <remarks>
-    /// A total order, which is what <see cref="Array.Sort{T}(T[])"/> requires and what the
-    /// relational operators deliberately are not: <see cref="NaN"/> compares equal to itself and
-    /// less than every other value, <see cref="NegativeInfinity"/> included. That is
-    /// <see cref="double"/>'s order too. PostgreSQL sorts its <c>numeric</c> NaN the other way,
-    /// above every value; the divergence is deliberate and is recorded in the database
-    /// correspondence.
+    /// A total order, as <see cref="Array.Sort{T}(T[])"/> requires: <see cref="NaN"/> compares
+    /// equal to itself and less than every other value, <see cref="NegativeInfinity"/> included,
+    /// which is <see cref="double"/>'s order. PostgreSQL sorts its <c>numeric</c> NaN above every
+    /// value instead.
     /// </remarks>
     public int CompareTo(BigDecimal other)
     {
@@ -146,9 +128,8 @@ public readonly partial struct BigDecimal : IEquatable<BigDecimal>, IComparable<
         _ => throw new ArgumentException($"Object must be of type {nameof(BigDecimal)}.", nameof(obj)),
     };
 
-    // NaN below negative infinity, positive infinity above everything, every finite value in
-    // one band between them. Only reached when at least one side is non-finite, so two finite
-    // values never share the zero rank here.
+    // NaN, then negative infinity, then every finite value, then positive infinity. Only reached
+    // when at least one side is non-finite.
     private static int OrderRank(BigDecimal value)
     {
         if (IsNaN(value))

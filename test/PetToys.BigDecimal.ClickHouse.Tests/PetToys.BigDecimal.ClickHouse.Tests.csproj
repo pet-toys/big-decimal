@@ -5,12 +5,8 @@
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
-    <!-- The codecs under test live in PetToys.BigDecimal.Numerics, and a test file has
-         to be able to name the type. From any namespace under PetToys.BigDecimal that
-         does not hold the type itself, the identifier BigDecimal binds to the namespace
-         and every mention of it is CS0118; a using alias does not override that. So the
-         layout mirrors the source of the code under test, and this pin is what makes
-         the folder Numerics/ come out as PetToys.BigDecimal.Numerics. -->
+    <!-- Mirrors the code under test: from any other namespace under PetToys.BigDecimal the
+         identifier BigDecimal binds to the namespace rather than the type. -->
     <RootNamespace>PetToys.BigDecimal</RootNamespace>
   </PropertyGroup>
 
@@ -24,11 +20,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\PetToys.BigDecimal.ClickHouse\PetToys.BigDecimal.ClickHouse.csproj" />
-    <!-- The harness, as a library. WireFormatOracle and ValueGenerator already exist
-         and are public; a second copy here would drift, and two drifting oracles
-         grading one codec is worse than none. xunit discovers tests in the assembly
-         it runs, not in the ones it references, so the core suite does not run twice:
-         the count on this project is asserted to stay its own. -->
+    <!-- For the harness (WireFormatOracle, ValueGenerator) as a library. xunit discovers tests
+         in the assembly it runs, so the core suite does not run twice from here. -->
     <ProjectReference Include="..\PetToys.BigDecimal.Core.Tests\PetToys.BigDecimal.Core.Tests.csproj" />
   </ItemGroup>
 

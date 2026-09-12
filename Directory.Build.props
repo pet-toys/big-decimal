@@ -1,11 +1,9 @@
 ﻿<Project>
   <PropertyGroup>
     <Authors>andbaz</Authors>
-    <!-- A range only where there is one to state: the first form rendered
-         "2026 - 2026" for the whole of the first year. -->
     <CopyrightFirstYear>2026</CopyrightFirstYear>
-    <!-- Updated by hand: taken from UtcNow, the attribute changed at a year
-         boundary for the same commit and defeated ContinuousIntegrationBuild. -->
+    <!-- Updated by hand: taken from UtcNow it would change at a year boundary for the same
+         commit and defeat ContinuousIntegrationBuild. -->
     <CopyrightCurrentYear>2026</CopyrightCurrentYear>
     <CopyrightYears>$(CopyrightFirstYear)</CopyrightYears>
     <CopyrightYears Condition="'$(CopyrightCurrentYear)' != '$(CopyrightFirstYear)'">$(CopyrightFirstYear) - $(CopyrightCurrentYear)</CopyrightYears>
@@ -19,10 +17,8 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <AnalysisLevel>10.0-Recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
-    <!-- Stays on for every project, test and benchmark ones included: IDE0005
-         is reported on build only while a documentation file is generated.
-         Projects that publish no API silence CS1591 in their own
-         .editorconfig instead of turning this off. -->
+    <!-- On for every project: IDE0005 is reported on build only while a documentation file is
+         generated. Projects that publish no API silence CS1591 in their own .editorconfig. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
@@ -43,8 +39,7 @@
 
   <PropertyGroup>
     <StrongNameKeyId>PetToys</StrongNameKeyId>
-    <!-- Public key only: RSA1 at 4096 bits, which is why it is 544 bytes and not
-         the 160 of a 1024-bit one. sn -p refuses it - there is no pair to extract. -->
+    <!-- Public key only, RSA 4096 (544 bytes): there is no private half to sign with. -->
     <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)assets\key.snk</AssemblyOriginatorKeyFile>
     <SignAssembly>true</SignAssembly>
     <DelaySign>false</DelaySign>

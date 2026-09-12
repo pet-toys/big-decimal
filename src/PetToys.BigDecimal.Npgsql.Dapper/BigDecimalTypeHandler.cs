@@ -3,7 +3,7 @@ using System.Data;
 using System.Globalization;
 using PetToys.BigDecimal.Numerics;
 
-#pragma warning disable IDE0130 // See the remarks: the namespace is Dapper's on purpose.
+#pragma warning disable IDE0130 // Dapper's namespace, where a caller registering a handler already is.
 
 namespace Dapper;
 
@@ -12,28 +12,17 @@ namespace Dapper;
 /// Dapper has already materialised.
 /// </summary>
 /// <remarks>
-/// <para>
-/// In Dapper's own namespace, which is where a caller registering a handler already is, so that
-/// <c>SqlMapper.AddTypeHandler(new BigDecimalTypeHandler())</c> - the line every Dapper plugin's
-/// documentation carries - needs no <c>using</c> beyond the one they have. IDE0130 is suppressed
-/// here rather than for the project for that reason.
-/// </para>
-/// <para>
 /// What this handler cannot do is read a value wider than <see cref="decimal"/> from a
-/// <c>numeric</c> column. Dapper hands <see cref="Parse"/> whatever <c>GetValue</c> produced, and
-/// over <c>numeric</c> the driver produces a <see cref="decimal"/>, so a wider value throws inside
-/// the driver before this type is reached. The exact read is <c>QueryBigDecimal</c> and the
-/// reader behind it, both on <see cref="SqlMapperBigDecimalExtensions"/>.
-/// </para>
+/// <c>numeric</c> column: Dapper hands <see cref="Parse"/> whatever <c>GetValue</c> produced, and
+/// a wider value throws inside the driver first. The exact read is <c>QueryBigDecimal</c> on
+/// <see cref="SqlMapperBigDecimalExtensions"/>.
 /// </remarks>
 public sealed class BigDecimalTypeHandler : SqlMapper.TypeHandler<BigDecimal>
 {
     /// <summary>Converts what Dapper materialised into a <see cref="BigDecimal"/>.</summary>
     /// <remarks>
-    /// Every accepted form converts exactly. A binary floating-point value is refused rather than
-    /// converted: it would be a <c>real</c> or <c>double precision</c> column read as this type,
-    /// and the conversion a caller wants there is a decision about precision rather than a
-    /// mapping.
+    /// Every accepted form converts exactly. A binary floating-point value is refused: the
+    /// conversion a caller wants there is a decision about precision rather than a mapping.
     /// </remarks>
     /// <param name="value">What Dapper read from the column.</param>
     /// <returns>The value.</returns>
@@ -64,9 +53,8 @@ public sealed class BigDecimalTypeHandler : SqlMapper.TypeHandler<BigDecimal>
 
     /// <summary>Puts the value on the parameter, naming no database type.</summary>
     /// <remarks>
-    /// The mapping <c>UseBigDecimal</c> installs on the data source resolves a parameter by its
-    /// CLR type, so the value alone is enough. Without that registration the driver refuses the
-    /// parameter by name, which is the failure a caller who skipped it should see.
+    /// The mapping on the data source resolves a parameter by its CLR type; without it the driver
+    /// refuses the parameter by name.
     /// </remarks>
     /// <param name="parameter">The parameter Dapper created.</param>
     /// <param name="value">The value to write.</param>

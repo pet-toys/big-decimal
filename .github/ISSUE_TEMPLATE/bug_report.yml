@@ -18,6 +18,9 @@ body:
         - PetToys.BigDecimal.Core
         - PetToys.BigDecimal.Npgsql
         - PetToys.BigDecimal.ClickHouse
+        - PetToys.BigDecimal.Npgsql.EntityFrameworkCore
+        - PetToys.BigDecimal.Npgsql.Dapper
+        - PetToys.BigDecimal.ClickHouse.Dapper
     validations:
       required: true
   - type: textarea

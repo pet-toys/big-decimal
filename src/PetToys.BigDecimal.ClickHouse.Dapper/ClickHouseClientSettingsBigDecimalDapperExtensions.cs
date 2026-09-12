@@ -2,7 +2,7 @@ using System;
 using ClickHouse.Driver.ADO;
 using PetToys.BigDecimal.Numerics;
 
-#pragma warning disable IDE0130 // See the remarks: the namespace is the driver's root on purpose.
+#pragma warning disable IDE0130 // The driver's namespace, the one a ClickHouse caller already imports.
 
 namespace ClickHouse.Driver;
 
@@ -10,12 +10,9 @@ namespace ClickHouse.Driver;
 /// Configures a connection for a Dapper caller who maps <see cref="BigDecimal"/>.
 /// </summary>
 /// <remarks>
-/// In <c>ClickHouse.Driver</c>, beside the adapter's own surface and for the same reason: it is
-/// the namespace a ClickHouse caller already has. The method name differs from the adapter's
-/// <c>UseBigDecimal</c> because both extend <see cref="ClickHouseClientSettings"/> from this
-/// namespace, and two extension methods of one name over one type are ambiguous at a call site
-/// that imports both packages - which every consumer of this one does, since it depends on the
-/// adapter.
+/// The method name differs from the adapter's <c>UseBigDecimal</c> because both extend
+/// <see cref="ClickHouseClientSettings"/> from this namespace, and every consumer of this package
+/// imports both.
 /// </remarks>
 public static class ClickHouseClientSettingsBigDecimalDapperExtensions
 {
@@ -30,31 +27,16 @@ public static class ClickHouseClientSettingsBigDecimalDapperExtensions
     /// </exception>
     /// <remarks>
     /// <para>
-    /// This is the narrow form and the read hook is deliberately not part of it. The Dapper
-    /// handlers widen a column when a caller asks for the type by naming it on a member, so
-    /// nothing here has to move what an untyped read produces. <c>UseBigDecimal</c> on these same
-    /// settings is the wide form, for a caller working through the ADO surface; a caller who has
-    /// already used it needs nothing from here, because it installs this formatter too.
+    /// The narrow form: the read hook is not part of it, because the Dapper handlers widen a
+    /// column when a member names the type. A caller who has already used the adapter's
+    /// <c>UseBigDecimal</c> needs nothing from here, since it installs this formatter too.
     /// </para>
     /// <para>
-    /// The formatter is what makes a write exact and it is not optional. Without one the driver
-    /// converts the parameter itself, by reaching for <see cref="IConvertible"/>, which
-    /// <see cref="BigDecimal"/> does not implement: the write fails with an
-    /// <see cref="InvalidCastException"/> before the statement is sent, naming neither the column
-    /// nor the value. With it, the value is rescaled at the column's declared scale, half to even,
-    /// and a value beyond the column's width or precision is refused by name.
-    /// </para>
-    /// <para>
-    /// The parameter type resolver this installs refuses a <see cref="BigDecimal"/> parameter the
-    /// statement did not annotate, naming the parameter and the shape that works, where the driver
-    /// would answer <c>Unknown type</c>. A parameter Dapper removes before any of this reaches it -
-    /// an anonymous object, or <c>DynamicParameters</c> built from a template - is still the
-    /// server's to refuse, and it still answers that the substitution is not set.
-    /// </para>
-    /// <para>
-    /// A read hook or a parameter formatter already on the settings is replaced rather than
-    /// composed with; the driver holds one of each. A parameter type resolver is kept instead, and
-    /// asked about every type this package does not map.
+    /// The formatter is what makes a write exact: without it the driver converts the parameter
+    /// through <see cref="IConvertible"/>, which <see cref="BigDecimal"/> does not implement, and
+    /// fails naming neither the column nor the value. The parameter type resolver refuses a
+    /// parameter the statement did not annotate, by name; a parameter Dapper removes before any
+    /// of this reaches it is still the server's to refuse.
     /// </para>
     /// </remarks>
     public static ClickHouseClientSettings UseBigDecimalForDapper(this ClickHouseClientSettings settings)

@@ -4,7 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using PetToys.BigDecimal.Numerics;
 
-#pragma warning disable IDE0130 // See NpgsqlBigDecimalExtensions: the namespace is the driver's on purpose.
+#pragma warning disable IDE0130 // The driver's namespace, where every Npgsql plugin puts its registration.
 
 namespace Npgsql;
 
@@ -13,37 +13,12 @@ namespace Npgsql;
 /// fails.
 /// </summary>
 /// <remarks>
-/// <para>
-/// These exist for one reason. PostgreSQL <c>numeric</c> holds 131072 integer digits against this
-/// type's 78, so reading is the direction that can fail, and the converter cannot say which column
-/// failed: it is handed a buffer and a length and never learns that a column was involved.
-/// Measured against PostgreSQL 18, an exception raised in a converter reaches the caller unwrapped
-/// and unannotated through <c>GetFieldValue</c> and <c>GetFieldValueAsync</c> alike, so the name has
-/// to be added by the first layer that knows one, which is the reader.
-/// </para>
-/// <para>
-/// Both of the codec's documented failures are named, not just the expected one. An integer part
-/// beyond the magnitude raises <see cref="OverflowException"/>, and a payload that is not the
-/// documented layout raises <see cref="FormatException"/>; the second is the rarer and the more
-/// confusing of the two, so leaving it unnamed would leave the harder case to the situation these
-/// methods exist to improve.
-/// </para>
-/// <para>
-/// The exception type does not change in either case. The core's contract is that an integer part
-/// beyond the magnitude throws <see cref="OverflowException"/>, a caller catching that has to keep
-/// working, and the original is carried as <see cref="Exception.InnerException"/>.
-/// </para>
-/// <para>
-/// This is a convenience with a boundary, and the boundary is stated rather than hidden: a caller
-/// who uses <c>GetFieldValue&lt;BigDecimal&gt;</c> directly, or who reaches the column through
-/// Dapper or Entity Framework Core, gets the same mapping and the same exception without the column
-/// name.
-/// </para>
-/// <para>
-/// Nothing here handles NULL. Reading a NULL into the value type already fails with an
-/// <see cref="InvalidCastException"/> that names the column, which is the message a caller should
-/// see; the nullable accessors are for a column that admits one.
-/// </para>
+/// PostgreSQL <c>numeric</c> holds 131072 integer digits against this type's 78, so reading is the
+/// direction that can fail, and the converter never learns which column it was reading. These
+/// accessors add the name to both of the codec's failures, <see cref="OverflowException"/> and
+/// <see cref="FormatException"/>, keeping the type and carrying the original as
+/// <see cref="Exception.InnerException"/>. <c>GetFieldValue&lt;BigDecimal&gt;</c>, Dapper and
+/// Entity Framework Core get the same mapping and the same exception without the name.
 /// </remarks>
 public static class NpgsqlBigDecimalReaderExtensions
 {
@@ -51,14 +26,9 @@ public static class NpgsqlBigDecimalReaderExtensions
     /// <param name="reader">The reader, positioned on a row.</param>
     /// <param name="ordinal">The zero-based column ordinal.</param>
     /// <returns>The value.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is
-    /// <see langword="null"/>.</exception>
-    /// <exception cref="OverflowException">The column's integer part is larger than this type's
-    /// magnitude. The message names the column and its ordinal, and the exception the converter
-    /// threw is the inner exception.</exception>
-    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.
-    /// The message names the column and its ordinal, and the exception the converter threw is the
-    /// inner exception.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is <see langword="null"/>.</exception>
+    /// <exception cref="OverflowException">The column's integer part is larger than this type's magnitude.</exception>
+    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.</exception>
     /// <exception cref="InvalidCastException">The column is NULL.</exception>
     public static BigDecimal GetBigDecimal(this NpgsqlDataReader reader, int ordinal)
     {
@@ -78,14 +48,9 @@ public static class NpgsqlBigDecimalReaderExtensions
     /// <param name="reader">The reader, positioned on a row.</param>
     /// <param name="name">The column's name.</param>
     /// <returns>The value.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is
-    /// <see langword="null"/>.</exception>
-    /// <exception cref="OverflowException">The column's integer part is larger than this type's
-    /// magnitude. The message names the column and its ordinal, and the exception the converter
-    /// threw is the inner exception.</exception>
-    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.
-    /// The message names the column and its ordinal, and the exception the converter threw is the
-    /// inner exception.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is <see langword="null"/>.</exception>
+    /// <exception cref="OverflowException">The column's integer part is larger than this type's magnitude.</exception>
+    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.</exception>
     /// <exception cref="InvalidCastException">The column is NULL.</exception>
     public static BigDecimal GetBigDecimal(this NpgsqlDataReader reader, string name)
     {
@@ -98,14 +63,9 @@ public static class NpgsqlBigDecimalReaderExtensions
     /// <param name="reader">The reader, positioned on a row.</param>
     /// <param name="ordinal">The zero-based column ordinal.</param>
     /// <returns>The value, or <see langword="null"/> when the column is NULL.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is
-    /// <see langword="null"/>.</exception>
-    /// <exception cref="OverflowException">The column's integer part is larger than this type's
-    /// magnitude. The message names the column and its ordinal, and the exception the converter
-    /// threw is the inner exception.</exception>
-    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.
-    /// The message names the column and its ordinal, and the exception the converter threw is the
-    /// inner exception.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is <see langword="null"/>.</exception>
+    /// <exception cref="OverflowException">The column's integer part is larger than this type's magnitude.</exception>
+    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.</exception>
     public static BigDecimal? GetNullableBigDecimal(this NpgsqlDataReader reader, int ordinal)
     {
         ArgumentNullException.ThrowIfNull(reader);
@@ -124,14 +84,9 @@ public static class NpgsqlBigDecimalReaderExtensions
     /// <param name="reader">The reader, positioned on a row.</param>
     /// <param name="name">The column's name.</param>
     /// <returns>The value, or <see langword="null"/> when the column is NULL.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is
-    /// <see langword="null"/>.</exception>
-    /// <exception cref="OverflowException">The column's integer part is larger than this type's
-    /// magnitude. The message names the column and its ordinal, and the exception the converter
-    /// threw is the inner exception.</exception>
-    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.
-    /// The message names the column and its ordinal, and the exception the converter threw is the
-    /// inner exception.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is <see langword="null"/>.</exception>
+    /// <exception cref="OverflowException">The column's integer part is larger than this type's magnitude.</exception>
+    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.</exception>
     public static BigDecimal? GetNullableBigDecimal(this NpgsqlDataReader reader, string name)
     {
         ArgumentNullException.ThrowIfNull(reader);
@@ -144,14 +99,9 @@ public static class NpgsqlBigDecimalReaderExtensions
     /// <param name="ordinal">The zero-based column ordinal.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>The value.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is
-    /// <see langword="null"/>.</exception>
-    /// <exception cref="OverflowException">The column's integer part is larger than this type's
-    /// magnitude. The message names the column and its ordinal, and the exception the converter
-    /// threw is the inner exception.</exception>
-    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.
-    /// The message names the column and its ordinal, and the exception the converter threw is the
-    /// inner exception.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is <see langword="null"/>.</exception>
+    /// <exception cref="OverflowException">The column's integer part is larger than this type's magnitude.</exception>
+    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.</exception>
     /// <exception cref="InvalidCastException">The column is NULL.</exception>
     public static async Task<BigDecimal> GetBigDecimalAsync(
         this NpgsqlDataReader reader,
@@ -177,14 +127,9 @@ public static class NpgsqlBigDecimalReaderExtensions
     /// <param name="name">The column's name.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>The value.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is
-    /// <see langword="null"/>.</exception>
-    /// <exception cref="OverflowException">The column's integer part is larger than this type's
-    /// magnitude. The message names the column and its ordinal, and the exception the converter
-    /// threw is the inner exception.</exception>
-    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.
-    /// The message names the column and its ordinal, and the exception the converter threw is the
-    /// inner exception.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is <see langword="null"/>.</exception>
+    /// <exception cref="OverflowException">The column's integer part is larger than this type's magnitude.</exception>
+    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.</exception>
     /// <exception cref="InvalidCastException">The column is NULL.</exception>
     public static Task<BigDecimal> GetBigDecimalAsync(
         this NpgsqlDataReader reader,
@@ -203,14 +148,9 @@ public static class NpgsqlBigDecimalReaderExtensions
     /// <param name="ordinal">The zero-based column ordinal.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>The value, or <see langword="null"/> when the column is NULL.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is
-    /// <see langword="null"/>.</exception>
-    /// <exception cref="OverflowException">The column's integer part is larger than this type's
-    /// magnitude. The message names the column and its ordinal, and the exception the converter
-    /// threw is the inner exception.</exception>
-    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.
-    /// The message names the column and its ordinal, and the exception the converter threw is the
-    /// inner exception.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is <see langword="null"/>.</exception>
+    /// <exception cref="OverflowException">The column's integer part is larger than this type's magnitude.</exception>
+    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.</exception>
     public static async Task<BigDecimal?> GetNullableBigDecimalAsync(
         this NpgsqlDataReader reader,
         int ordinal,
@@ -235,14 +175,9 @@ public static class NpgsqlBigDecimalReaderExtensions
     /// <param name="name">The column's name.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>The value, or <see langword="null"/> when the column is NULL.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is
-    /// <see langword="null"/>.</exception>
-    /// <exception cref="OverflowException">The column's integer part is larger than this type's
-    /// magnitude. The message names the column and its ordinal, and the exception the converter
-    /// threw is the inner exception.</exception>
-    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.
-    /// The message names the column and its ordinal, and the exception the converter threw is the
-    /// inner exception.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is <see langword="null"/>.</exception>
+    /// <exception cref="OverflowException">The column's integer part is larger than this type's magnitude.</exception>
+    /// <exception cref="FormatException">The column's payload is not a well-formed <c>numeric</c>.</exception>
     public static Task<BigDecimal?> GetNullableBigDecimalAsync(
         this NpgsqlDataReader reader,
         string name,
@@ -253,32 +188,11 @@ public static class NpgsqlBigDecimalReaderExtensions
         return reader.GetNullableBigDecimalAsync(reader.GetOrdinal(name), cancellationToken);
     }
 
-    /// <summary>
-    /// Answers whether an exception is one of the two the codec documents, which are the two a
-    /// column name belongs on.
-    /// </summary>
-    /// <remarks>
-    /// The <see cref="FormatException"/> half cannot have a test against a live server, since a
-    /// well-formed one never emits a payload this codec calls malformed. It is for a future
-    /// PostgreSQL that adds a sign code, as 14 added the infinities.
-    /// </remarks>
-    /// <param name="exception">What the read threw.</param>
-    /// <returns><see langword="true"/> for a failure this class annotates.</returns>
+    // The FormatException half is for a future PostgreSQL that adds a sign code, as 14 did.
     private static bool IsCodecFailure(Exception exception) =>
         exception is OverflowException or FormatException;
 
-    /// <summary>
-    /// Builds the exception that names the column, carrying the original underneath it and keeping
-    /// its type.
-    /// </summary>
-    /// <remarks>
-    /// The ordinal travels beside the name, because a query can project two columns of the same
-    /// name and the name alone would then point at either.
-    /// </remarks>
-    /// <param name="reader">The reader the column belongs to.</param>
-    /// <param name="ordinal">The column's ordinal.</param>
-    /// <param name="failure">What the read threw.</param>
-    /// <returns>The exception to throw, of the same type as <paramref name="failure"/>.</returns>
+    // The ordinal travels beside the name: a query can project two columns of one name.
     private static Exception Named(NpgsqlDataReader reader, int ordinal, Exception failure)
     {
         var column = string.Create(

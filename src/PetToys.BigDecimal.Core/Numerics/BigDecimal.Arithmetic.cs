@@ -10,24 +10,19 @@ public readonly partial struct BigDecimal
 
     private const int DivideWorkWords = 32;
 
-    // Sized from an error budget rather than from a lifted dividend, which is what WorkWords is
-    // for. Five words hold any representable result plus AddOne's carry; the other three are guard
-    // digits. At most 62 multiplications are reachable, each losing half an ulp of a 154-digit
-    // value, so the accumulated relative error stays below 1e-151 against a 77-digit result.
+    // Five words hold any result plus a carry; three are guard digits. At most 62 multiplications
+    // each lose half an ulp of 154 digits, so the error stays below 1e-151 against 77 digits.
     private const int PowWorkWords = 8;
 
-    // Every 154-digit value fits eight words and only some 155-digit ones do, which is why the
-    // reduction takes both numbers.
+    // Every 154-digit value fits eight words; only some 155-digit ones do.
     private const int PowWorkDigits = 154;
 
-    // The floor the chain's scale saturates at. It goes below zero to record digits given up, and
-    // doubles on every squaring, so an unsaturated one would leave what an int holds. A value that
-    // reaches it is at least 1e562, so saturating decides nothing the arithmetic had not.
+    // The chain's scale saturates here: it doubles on every squaring and would leave an int. A
+    // value that reaches the floor is at least 1e562.
     private const int PowMinScale = -(MaxScale + PowWorkDigits);
 
-    // The mirror of the floor, and deliberately not MaxScale: capping an intermediate where a
-    // result is capped makes packing round a second time. The two extra digits put the cap out of
-    // a result's reach - a value reduced here is below 1.4e-257, under half an ulp of MaxScale.
+    // Not MaxScale: capping an intermediate where a result is capped rounds twice. A value reduced
+    // here is below 1.4e-257, under half an ulp of MaxScale.
     private const int PowMaxScale = MaxScale + PowWorkDigits + 2;
 
     /// <summary>Adds two values.</summary>
@@ -117,8 +112,7 @@ public readonly partial struct BigDecimal
 
     private static BigDecimal AddCore(BigDecimal left, BigDecimal right, bool rightNegative)
     {
-        // The guard sits here, not in the one-line Add and Subtract forwarders: a branch in their
-        // bodies stopped the caller inlining them, at 4.3 ns on the worst shape.
+        // Here rather than in Add and Subtract: a branch there stopped them inlining, at 4.3 ns.
         if (left.IsNonFinite || right.IsNonFinite)
         {
             return NonFiniteSum(left, right, rightNegative);
@@ -259,18 +253,15 @@ public readonly partial struct BigDecimal
         var floorLift = Math.Max(-scale, 0);
         var floorScale = scale + floorLift;
 
-        // Look for an exact quotient before lifting to full precision: lifting first manufactures a
-        // trailing zero per lifted digit and then pays a division per nineteen of them. This trial
-        // lifts nothing, and an exact quotient may not be reduced below the scale difference
-        // anyway, so a zero remainder is the whole answer.
+        // An exact quotient at the floor scale first: lifting to full precision manufactures
+        // trailing zeros that then cost a division per nineteen to strip.
         if (TryDivideExactly(left, num, den, denLen, quotient, floorLift, out var exactLen))
         {
             return Pack(quotient, exactLen, negative, floorScale);
         }
 
-        // Failing that, the divisor's own factors: a divisor of 2^x * 5^y divides exactly at
-        // max(x, y) places whatever the dividend is, so lift by that rather than by the whole
-        // mantissa. One remainder pass, and any other prime factor is rejected on it.
+        // Then the divisor's own factors: 2^x * 5^y divides exactly at max(x, y) places, so lift
+        // by that rather than by the whole mantissa.
         Span<ulong> factors = stackalloc ulong[WordCount];
         den[..denLen].CopyTo(factors);
         if (Words.TryDecimalDivisorExponent(factors, denLen, out var places))
@@ -329,8 +320,6 @@ public readonly partial struct BigDecimal
 
         if (left.IsNonFinite || right.IsNonFinite)
         {
-            // The requested scale is dropped rather than applied: a non-finite result carries
-            // scale 0 and has no digits to round.
             return NonFiniteResult(left, right, NonFiniteOp.Divide);
         }
 
@@ -444,40 +433,24 @@ public readonly partial struct BigDecimal
 
     /// <summary>Raises a value to an integer power.</summary>
     /// <remarks>
-    /// The exact power is returned whenever the exact power is representable, and a caller can
-    /// decide whether that holds from the operands alone: it holds when the unscaled magnitude
+    /// The exact power is returned whenever it is representable: when the unscaled magnitude
     /// raised to the exponent fits the 256-bit mantissa and the value's scale multiplied by the
-    /// exponent is at most <see cref="MaxScale"/>. Where it does not hold, the excess fractional
-    /// digits are rounded half to even and <see cref="OverflowException"/> is thrown only when no
-    /// fractional digits remain to give up, which is the same rule multiplication answers to. The
-    /// result's scale is the value's scale multiplied by the exponent, capped at
-    /// <see cref="MaxScale"/>, so trailing zeros are preserved exactly as multiplication preserves
-    /// them. The digits are given up once, from the exact power rather than from an intermediate
-    /// standing in for it, and a result that had to give any up is reduced into the same 77-digit
-    /// band a product that does not fit is reduced into, for as long as it has fractional digits
-    /// to give. A reduction that reaches scale 0 stops there, so a power with no fraction left can
-    /// still come back at the 78 digits the mantissa holds.
+    /// exponent is at most <see cref="MaxScale"/>. Otherwise the excess fractional digits are
+    /// rounded half to even, once, from the exact power, and <see cref="OverflowException"/> is
+    /// thrown only when no fractional digits remain to give up - the rule multiplication follows.
+    /// The result's scale is the value's scale multiplied by the exponent, capped at
+    /// <see cref="MaxScale"/>, so trailing zeros are preserved as multiplication preserves them.
     /// <para>
-    /// A negative exponent is the reciprocal of the positive power, to the full precision the
-    /// magnitude allows and rounded to nearest with ties to even, under the contract
-    /// <see cref="Divide(BigDecimal, BigDecimal)"/> states. It is computed rather than composed, so
-    /// a result the type can represent is returned even where the positive power it is the
-    /// reciprocal of cannot be: <c>Pow(2, -300)</c> answers, though <c>2^300</c> does not fit.
+    /// A negative exponent is the reciprocal of the positive power, computed rather than composed,
+    /// to the precision <see cref="Divide(BigDecimal, BigDecimal)"/> gives: <c>Pow(2, -300)</c>
+    /// answers though <c>2^300</c> does not fit, and a positive power too small to represent has
+    /// a reciprocal too large, which throws. The exception is raised for the result and never for
+    /// an intermediate, so whether a call throws follows from the operands alone.
     /// </para>
     /// <para>
-    /// <see cref="OverflowException"/> is raised for the result and never for an intermediate, so
-    /// whether this operation throws can be decided from the operands and the exponent alone. The
-    /// two edges of a negative exponent are each other's mirror: a positive power too small to
-    /// represent has a reciprocal too large to represent and throws, and one too large to represent
-    /// has a reciprocal below the floor of the range and returns zero.
-    /// </para>
-    /// <para>
-    /// An exponent of zero returns <see cref="One"/> for every value including
-    /// <see cref="NaN"/>, which is the one place in this type where a NaN operand does not
-    /// propagate; <c>x^0</c> does not read <c>x</c>. <c>Pow(Zero, -1)</c> is
-    /// <see cref="double.PositiveInfinity"/> in <see cref="Math.Pow"/> and throws
-    /// <see cref="DivideByZeroException"/> here, because no finite operand of this type produces a
-    /// non-finite value.
+    /// An exponent of zero returns <see cref="One"/> for every value, <see cref="NaN"/> included:
+    /// <c>x^0</c> does not read <c>x</c>. <c>Pow(Zero, -1)</c> throws
+    /// <see cref="DivideByZeroException"/>, as no finite operand produces a non-finite value.
     /// </para>
     /// </remarks>
     /// <param name="value">The value to raise.</param>
@@ -487,8 +460,7 @@ public readonly partial struct BigDecimal
     /// <exception cref="OverflowException">The integer part of the result does not fit the 256-bit magnitude, or <paramref name="exponent"/> is negative and the positive power is too small to represent, so its reciprocal is too large.</exception>
     public static BigDecimal Pow(BigDecimal value, int exponent)
     {
-        // Before everything, including the non-finite check: x^0 does not read x, so it is One for
-        // NaN too. That is System.Double's answer and IEEE 754's.
+        // Before the non-finite check: x^0 does not read x, so it is One for NaN too, as for double.
         if (exponent == 0)
         {
             return One;
@@ -504,7 +476,7 @@ public readonly partial struct BigDecimal
             return value;
         }
 
-        // The magnitude of the exponent does not fit an int when the exponent is int.MinValue.
+        // long: -int.MinValue does not fit an int.
         var count = exponent < 0 ? -(long)exponent : exponent;
         var negative = value.IsNegative && (count & 1) != 0;
 
@@ -532,10 +504,8 @@ public readonly partial struct BigDecimal
         var factorLen = value.CopyMagnitude(factor);
         var factorScale = value.Scale;
 
-        // Square and multiply. The exactness guarantee rests on the shape of this loop, not on the
-        // accumulator's width: the final squaring is skipped once the exponent is exhausted, so no
-        // intermediate is wider than the exact result and a representable one is never reduced.
-        // Squaring one more time would break that without failing a test that names it.
+        // Square and multiply, skipping the final squaring: no intermediate is then wider than the
+        // exact result, which is what keeps a representable power exact.
         for (var remaining = count; ;)
         {
             if ((remaining & 1) != 0)
@@ -591,8 +561,7 @@ public readonly partial struct BigDecimal
         ArgumentOutOfRangeException.ThrowIfNegative(scale);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(scale, MaxScale);
 
-        // A non-finite value reports scale 0 and this only narrows, so it leaves through the check
-        // below rather than a guard of its own. Floor, Ceiling and Truncate inherit that.
+        // A non-finite value reports scale 0, so it leaves here; Floor, Ceiling and Truncate too.
         if (value.Scale <= scale)
         {
             return value;
@@ -625,10 +594,8 @@ public readonly partial struct BigDecimal
     /// is narrower.
     /// </summary>
     /// <remarks>
-    /// This is the widening counterpart of <see cref="Round(BigDecimal, int, MidpointRounding)"/>,
-    /// which never adds digits. Widening is exact by definition, so a scale the magnitude cannot
-    /// hold is rejected rather than rounded: the operation exists to present a value at the scale
-    /// a database column declares, and a silently narrower result would not serve that.
+    /// The widening counterpart of <see cref="Round(BigDecimal, int, MidpointRounding)"/>, which
+    /// never adds digits. A scale the magnitude cannot hold is rejected rather than rounded.
     /// </remarks>
     /// <param name="scale">The requested scale, from 0 to <see cref="MaxScale"/> inclusive.</param>
     /// <param name="mode">The rounding mode applied when <paramref name="scale"/> is narrower than the current scale.</param>
@@ -724,11 +691,7 @@ public readonly partial struct BigDecimal
     /// <param name="min">The lower bound.</param>
     /// <param name="max">The upper bound.</param>
     /// <returns><paramref name="min"/>, <paramref name="value"/> or <paramref name="max"/>.</returns>
-    /// <remarks>
-    /// NaN anywhere gives NaN, in a bound as well as in the value. A NaN bound leaves
-    /// <c>min &gt; max</c> false, so it raises nothing on its own and would otherwise hand the
-    /// value back as if the range had been checked.
-    /// </remarks>
+    /// <remarks>NaN anywhere gives NaN, in a bound as well as in the value.</remarks>
     /// <exception cref="ArgumentException"><paramref name="min"/> is greater than <paramref name="max"/>.</exception>
     public static BigDecimal Clamp(BigDecimal value, BigDecimal min, BigDecimal max)
     {
@@ -745,9 +708,7 @@ public readonly partial struct BigDecimal
         return value < min ? min : (value > max ? max : value);
     }
 
-    // Addition and subtraction over a non-finite operand; they differ only in the sign the right
-    // operand is taken with, which AddCore already has. Answers measured against System.Double.
-    // Not inlined, so a cold path never puts a frame back on a caller that would otherwise inline.
+    // Answers measured against double. Not inlined, so the cold path does not weigh on AddCore.
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static BigDecimal NonFiniteSum(BigDecimal left, BigDecimal right, bool rightNegative)
     {
@@ -766,7 +727,6 @@ public readonly partial struct BigDecimal
             return rightNegative ? NegativeInfinity : PositiveInfinity;
         }
 
-        // Two infinities: the same sign gives that infinity, opposite signs give NaN.
         return left.IsNegative == rightNegative ? left : NaN;
     }
 
@@ -777,10 +737,8 @@ public readonly partial struct BigDecimal
         Remainder,
     }
 
-    // Multiplication, division and remainder over a non-finite operand, answered before any scale
-    // work and before the IsZero fast paths, which keeps 0 * Infinity off the zero shortcut.
-    // Measured against System.Double; the one divergence is 1 / -Infinity, Zero here because zero
-    // carries no sign. Not inlined for the reason BASELINE.md records under runs F to I.
+    // Answered before the IsZero fast paths, which keeps 0 * Infinity off the zero shortcut.
+    // Measured against double; the one divergence is 1 / -Infinity, Zero here as zero has no sign.
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static BigDecimal NonFiniteResult(BigDecimal left, BigDecimal right, NonFiniteOp op)
     {
@@ -805,19 +763,15 @@ public readonly partial struct BigDecimal
                     return NaN;
                 }
 
-                // An infinity over zero is an infinity, not a DivideByZeroException: the divisor
-                // never reaches the check below, which is deliberate and is what double does.
+                // An infinity over zero is an infinity, not DivideByZeroException, as for double.
                 return leftInfinite
                     ? (negative ? NegativeInfinity : PositiveInfinity)
                     : Zero;
             default:
-                // An infinite dividend has no remainder; a finite one modulo an infinity is itself.
                 return leftInfinite ? NaN : left;
         }
     }
 
-    // The three values raised to a power. The exponent is never zero here: x^0 does not read x, so
-    // it is answered before the value is, which is why NaN does not propagate through it.
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static BigDecimal NonFinitePower(BigDecimal value, int exponent)
     {
@@ -830,8 +784,7 @@ public readonly partial struct BigDecimal
 
         if (exponent < 0)
         {
-            // Math.Pow gives -0 for (-Infinity)^-1. Zero carries no sign in this type, which is the
-            // same divergence 1 / -Infinity already carries and is documented as.
+            // Math.Pow gives -0 for (-Infinity)^-1; zero carries no sign here.
             return Zero;
         }
 
@@ -843,15 +796,9 @@ public readonly partial struct BigDecimal
     /// back to that width when it outgrows it.
     /// </summary>
     /// <remarks>
-    /// The reduction is <c>TryReduce</c>, the same rule that packs a result, at the chain's own
-    /// width rather than the mantissa's - reducing to <see cref="MaxScale"/> here would spend the
-    /// one rounding the result is entitled to, and packing would round again. It is reached only
-    /// when the exact power does not fit, never on the way to one that does.
-    /// <para>
-    /// Nothing here refuses: a step with no fractional digits left goes below scale 0 instead, so
-    /// the operation throws only for the reason a caller can check - the result does not fit -
-    /// and a reciprocal stays answerable where the power it inverts is not representable.
-    /// </para>
+    /// Reduced at the chain's width rather than the mantissa's, so the result is rounded once, at
+    /// packing. Nothing here refuses: a step out of fractional digits goes below scale 0 instead,
+    /// which keeps a reciprocal answerable where the power it inverts is not representable.
     /// </remarks>
     private static int MultiplyReduced(
         Span<ulong> accumulator,
@@ -876,24 +823,16 @@ public readonly partial struct BigDecimal
 
     /// <summary>Divides one by a power held at the working width, to full precision.</summary>
     /// <remarks>
-    /// Taken from the accumulator rather than a packed value: composing it as
-    /// <c>One / Pow(value, -exponent)</c> would throw for every result whose positive power does
-    /// not fit, and those are results this type holds perfectly well - <c>2^-300</c> is 4.9e-91
-    /// while <c>2^300</c> is out of range.
-    /// <para>
-    /// With the power as magnitude <c>U</c> at scale <c>S</c>, the answer is <c>10^(S+t) / U</c>
-    /// at scale <c>t</c>, with <c>t</c> chosen for the full significant-digit capacity and clamped
-    /// to 0 once <c>S</c> passes <c>MaxDigits - 2</c> plus the digit count, which keeps the lifted
-    /// numerator inside the 32-word buffer. Rounding is the division's own code, so an exact
-    /// reciprocal comes back at its shortest scale as an exact quotient does.
-    /// </para>
+    /// From the accumulator rather than a packed value, so <c>2^-300</c> answers though
+    /// <c>2^300</c> does not fit. With the power as magnitude <c>U</c> at scale <c>S</c>, the
+    /// answer is <c>10^(S+t) / U</c> at scale <c>t</c>, chosen for the full digit capacity and
+    /// clamped so the lifted numerator stays inside the 32-word buffer.
     /// </remarks>
     private static BigDecimal Reciprocal(ReadOnlySpan<ulong> power, int powerLength, int powerScale, bool isNegative)
     {
         if (powerLength == 0)
         {
             // The positive power underflowed to zero, so the reciprocal is too large to represent.
-            // DivideByZeroException would send the caller looking at the wrong operand.
             ThrowMantissaOverflow();
         }
 
@@ -903,8 +842,7 @@ public readonly partial struct BigDecimal
 
         if (lift < 0)
         {
-            // The reciprocal rounds to nothing even at MaxScale. That is underflow, not overflow:
-            // the answer is representable, and it is zero.
+            // Rounds to nothing even at MaxScale: underflow, and the answer is zero.
             Span<ulong> underflow = stackalloc ulong[WordCount];
             underflow.Clear();
             return Pack(underflow, 0, false, MaxScale);
@@ -922,7 +860,6 @@ public readonly partial struct BigDecimal
 
         if (remainderLen == 0)
         {
-            // The floor is zero, which is what Divide uses for a dividend of One at scale zero.
             quotientLen = StripTrailingZeros(quotient, quotientLen, ref scale, 0);
             return Pack(quotient, quotientLen, isNegative, scale);
         }
@@ -945,10 +882,8 @@ public readonly partial struct BigDecimal
     /// places, and reports whether the quotient came out exactly.
     /// </summary>
     /// <remarks>
-    /// The buffers are the caller's, and both are left in an undefined state when the division is
-    /// not exact: the primitive writes the remainder over the dividend. A caller that goes on to
-    /// the next depth therefore copies the dividend again, which is four words and was measured to
-    /// be the cheaper half of the trade against continuing from the remainder.
+    /// Both buffers are left undefined when the division is not exact: the primitive writes the
+    /// remainder over the dividend, and copying it again is four words.
     /// </remarks>
     private static bool TryDivideExactly(
         BigDecimal dividend,
@@ -976,8 +911,7 @@ public readonly partial struct BigDecimal
         floorScale = Math.Max(floorScale, 0);
         while (scale > floorScale && length > 0)
         {
-            // Count first, divide once: counting costs one remainder pass at most, and nothing when
-            // the value ends in a non-zero digit. Dividing by ten to test was the whole cost.
+            // Count first, divide once: dividing by ten to test was the whole cost.
             var zeros = Words.TrailingDecimalZeros(magnitude, length, scale - floorScale);
             if (zeros == 0)
             {

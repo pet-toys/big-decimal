@@ -8,16 +8,12 @@ namespace PetToys.BigDecimal.Numerics;
 /// imply.
 /// </summary>
 /// <remarks>
-/// Both spellings have to parse: a read hook is given the normalised <c>Decimal(38, 10)</c> and a
-/// query annotates a parameter with the width-named <c>Decimal128(10)</c>, for the same column.
-/// The width follows from the precision - 9, 18, 38 and 76 digits in 4, 8, 16 and 32 bytes - and
-/// both bounds are carried because neither subsumes the other: a mantissa between
-/// <c>Decimal64(2)</c>'s 1e18 of precision and its 9.22e18 of payload fits the bytes and is
-/// refused by the server.
+/// Both spellings parse: a read hook is given the normalised <c>Decimal(38, 10)</c> and a query
+/// annotates a parameter with the width-named <c>Decimal128(10)</c>. The width follows from the
+/// precision, and both bounds are carried because neither subsumes the other.
 /// </remarks>
 internal readonly struct ClickHouseColumnType
 {
-    /// <summary>The largest precision ClickHouse allows, which is <c>Decimal256</c>.</summary>
     internal const int MaxPrecision = 76;
 
     private ClickHouseColumnType(int precision, int scale)
@@ -45,20 +41,10 @@ internal readonly struct ClickHouseColumnType
     internal string Declared =>
         string.Create(CultureInfo.InvariantCulture, $"Decimal({this.Precision}, {this.Scale})");
 
-    /// <summary>Reads a declared ClickHouse type, if it is a decimal one.</summary>
-    /// <param name="declared">
-    /// The type as the driver or the server spells it, in either the normalised
-    /// <c>Decimal(p, s)</c> form or the width-named <c>Decimal128(s)</c> one, optionally wrapped in
-    /// <c>Nullable(...)</c>.
-    /// </param>
-    /// <param name="type">The parsed type, when this returns <see langword="true"/>.</param>
-    /// <returns>
-    /// <see langword="true"/> when <paramref name="declared"/> is a decimal column type.
-    /// </returns>
-    /// <remarks>
-    /// A type this cannot read is not an error but the answer "not a decimal column", which every
-    /// caller has to handle anyway: the read hook sees every column of every row.
-    /// </remarks>
+    /// <summary>
+    /// Reads a declared ClickHouse type in either spelling, optionally wrapped in
+    /// <c>Nullable(...)</c>, answering <see langword="false"/> for anything that is not a decimal.
+    /// </summary>
     internal static bool TryParse(string? declared, out ClickHouseColumnType type)
     {
         type = default;
@@ -128,10 +114,6 @@ internal readonly struct ClickHouseColumnType
         return true;
     }
 
-    /// <summary>Removes one <c>Wrapper(...)</c> layer, when the text carries it.</summary>
-    /// <param name="text">The declared type.</param>
-    /// <param name="wrapper">The wrapper to remove.</param>
-    /// <returns>What the wrapper held, or the text unchanged.</returns>
     private static ReadOnlySpan<char> Unwrap(ReadOnlySpan<char> text, ReadOnlySpan<char> wrapper)
     {
         if (!text.StartsWith(wrapper, StringComparison.Ordinal)
@@ -145,10 +127,6 @@ internal readonly struct ClickHouseColumnType
         return text[(wrapper.Length + 1)..^1].Trim();
     }
 
-    /// <summary>Reads one decimal argument of a type declaration.</summary>
-    /// <param name="text">The argument, with any surrounding space.</param>
-    /// <param name="value">The number, when this returns <see langword="true"/>.</param>
-    /// <returns><see langword="true"/> when the argument is a number.</returns>
     private static bool TryReadNumber(ReadOnlySpan<char> text, out int value) =>
         int.TryParse(text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out value);
 }

@@ -9,8 +9,7 @@ namespace PetToys.BigDecimal.Numerics;
 
 public readonly partial struct BigDecimal
 {
-    // decimal's two limits do not coincide: 2^96 - 1 stops partway through the 29th digit, so 29
-    // digits fit only sometimes and 28 always do.
+    // 2^96 - 1 stops partway through the 29th digit, so 29 digits fit only sometimes.
     private const int DecimalMaxScale = 28;
 
     private const int DecimalMaxDigits = 29;
@@ -80,18 +79,11 @@ public readonly partial struct BigDecimal
     /// form that round-trips through <see cref="double"/>.
     /// </summary>
     /// <remarks>
-    /// <para>
     /// <c>(double)(BigDecimal)value</c> returns <c>value</c> for every finite <see cref="double"/>
-    /// whose shortest form has at most 77 integer digits and needs a scale of at most
-    /// <see cref="MaxScale"/>. Outside that window the ordinary rules apply: a larger value throws
-    /// and a smaller one is rounded at <see cref="MaxScale"/>, which may reach zero. This departs
-    /// from <see cref="decimal"/>, whose own conversion rounds to 15 significant digits, because
-    /// this type has the digits to hand the value back unchanged.
-    /// </para>
-    /// <para>
-    /// A non-finite source converts to the matching value: <see cref="NaN"/>,
-    /// <see cref="PositiveInfinity"/> or <see cref="NegativeInfinity"/>.
-    /// </para>
+    /// whose shortest form has at most 77 integer digits and a scale of at most
+    /// <see cref="MaxScale"/>; a larger value throws and a smaller one is rounded at
+    /// <see cref="MaxScale"/>. This departs from <see cref="decimal"/>, whose own conversion
+    /// rounds to 15 significant digits. A non-finite source converts to the matching value.
     /// </remarks>
     /// <exception cref="OverflowException">The value is too large for the 256-bit magnitude.</exception>
     public static explicit operator BigDecimal(double value) => FromFloatChecked(value);
@@ -101,16 +93,9 @@ public readonly partial struct BigDecimal
     /// form that round-trips through <see cref="float"/>.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// <c>(float)(BigDecimal)value</c> returns <c>value</c> for every finite <see cref="float"/>,
-    /// without exception: the whole finite range fits. This departs from <see cref="decimal"/>,
-    /// whose own conversion rounds to 7 significant digits, so that <c>(decimal)1.0000001f</c> is
-    /// 1 where this conversion keeps 1.0000001.
-    /// </para>
-    /// <para>
-    /// A non-finite source converts to the matching value: <see cref="NaN"/>,
-    /// <see cref="PositiveInfinity"/> or <see cref="NegativeInfinity"/>.
-    /// </para>
+    /// <c>(float)(BigDecimal)value</c> returns <c>value</c> for every finite <see cref="float"/>:
+    /// the whole finite range fits. This departs from <see cref="decimal"/>, whose own conversion
+    /// rounds to 7 significant digits. A non-finite source converts to the matching value.
     /// </remarks>
     public static explicit operator BigDecimal(float value) => FromFloatChecked(value);
 
@@ -181,14 +166,12 @@ public readonly partial struct BigDecimal
 
         if (scale > DecimalMaxScale || !FitsDecimalMantissa(magnitude, len))
         {
-            // The narrowest reduction that can be representable: smaller still does not fit,
-            // larger is not the nearest decimal.
+            // The narrowest reduction that can fit; two turns at most, 29 digits then 28, each
+            // rounded from the value itself rather than from the previous turn.
             var drop = Math.Max(
                 Math.Max(scale - DecimalMaxScale, Words.DecimalDigitCount(magnitude, len) - DecimalMaxDigits),
                 1);
 
-            // Two turns at most: 29 digits, then 28, which fit whatever they round to. Each turn
-            // rounds the value itself - rounding a rounded magnitude is the defect being removed.
             while (true)
             {
                 if (drop > scale)
@@ -322,15 +305,8 @@ public readonly partial struct BigDecimal
         return magnitude;
     }
 
-    /// <summary>
-    /// Converts a binary floating-point value through its shortest round-trippable form, throwing
-    /// where the value has no counterpart here.
-    /// </summary>
-    /// <remarks>
-    /// The shortest form is what the default format produces, and it is what makes the conversion
-    /// reversible: a fixed digit count either loses the value, as <c>"G15"</c> did, or writes out
-    /// digits the caller never had, as <c>"G17"</c> does.
-    /// </remarks>
+    // Through the shortest round-trippable form, which the default format produces: "G15" loses
+    // the value and "G17" writes digits the caller never had.
     private static BigDecimal FromFloatChecked<TFloat>(TFloat value)
         where TFloat : IBinaryFloatingPointIeee754<TFloat>
     {
@@ -347,10 +323,6 @@ public readonly partial struct BigDecimal
         return result;
     }
 
-    /// <summary>
-    /// Converts a binary floating-point value, clamping anything without a counterpart here to the
-    /// nearest extreme, as <see cref="decimal"/> does.
-    /// </summary>
     private static BigDecimal FromFloatSaturating<TFloat>(TFloat value)
         where TFloat : IBinaryFloatingPointIeee754<TFloat>
     {
@@ -364,9 +336,7 @@ public readonly partial struct BigDecimal
             : (TFloat.IsNegative(value) ? MinValue : MaxValue);
     }
 
-    // All three contracts agree for a non-finite source, because it is representable here and
-    // none of them has anything left to refuse. decimal still flattens NaN to zero and an
-    // infinity to MaxValue, having no such value to convert to.
+    // Checked and saturating agree: a non-finite source is representable here.
     private static BigDecimal FromNonFinite<TFloat>(TFloat value)
         where TFloat : IBinaryFloatingPointIeee754<TFloat>
     {
@@ -381,9 +351,8 @@ public readonly partial struct BigDecimal
     private static bool TryFromFloat<TFloat>(TFloat value, out BigDecimal result)
         where TFloat : IBinaryFloatingPointIeee754<TFloat>
     {
-        // 24 characters is the longest shortest-form double. Asserted rather than only handled:
-        // the saturating caller reads a false as "does not fit" and would clamp to MaxValue for a
-        // buffer that was merely too small.
+        // 24 characters is the longest shortest-form double. Asserted, because the saturating
+        // caller reads a false as "does not fit" and would clamp over a buffer merely too small.
         Span<char> buffer = stackalloc char[32];
         if (!value.TryFormat(buffer, out var written, default, CultureInfo.InvariantCulture))
         {
@@ -418,14 +387,13 @@ public readonly partial struct BigDecimal
     private static BigDecimal FromBigIntegerSaturating(BigInteger value) =>
         TryFromBigInteger(value, out var result) ? result : (value.Sign < 0 ? MinValue : MaxValue);
 
-    // A word and a half: 2^96 - 1 stops halfway through the second one.
+    // A word and a half: 2^96 - 1.
     private static bool FitsDecimalMantissa(ReadOnlySpan<ulong> magnitude, int length) =>
         length < 2 || (length == 2 && magnitude[1] <= uint.MaxValue);
 
     private static decimal ToDecimalSaturating(BigDecimal value)
     {
-        // NaN first: it is unordered, so both comparisons below are false and it would fall
-        // through to the cast and throw. decimal.CreateSaturating(double.NaN) is zero.
+        // NaN is unordered, so it would fall through both comparisons to the cast and throw.
         if (IsNaN(value))
         {
             return decimal.Zero;
@@ -451,9 +419,7 @@ public readonly partial struct BigDecimal
 
     private static BigDecimal FromUInt64(ulong value, bool negative) => new(value, 0, 0, 0, negative, 0);
 
-    // Unchecked because both casts discard the half of the value the other one keeps. Without it a
-    // Debug build, which compiles with CheckForOverflowUnderflow, throws on any Int128 or UInt128
-    // past 64 bits: (BigDecimal)Int128.MaxValue failed where the Release build was correct.
+    // Unchecked: each cast discards the half the other keeps, which a Debug build otherwise throws on.
     private static BigDecimal FromUInt128(UInt128 value, bool negative, int scale)
     {
         unchecked
@@ -493,11 +459,6 @@ public readonly partial struct BigDecimal
         return (ulong)magnitude;
     }
 
-    /// <summary>Clamps the integral part into a signed 64-bit range instead of throwing.</summary>
-    /// <remarks>
-    /// Every bounded signed target reaches its own range through this one, so the reduction from a
-    /// 256-bit magnitude is written once rather than once per target and variant.
-    /// </remarks>
     private static long ToInt64Saturating(BigDecimal value, long min, long max)
     {
         var integral = ToInt128Saturating(value);
@@ -509,7 +470,6 @@ public readonly partial struct BigDecimal
         return integral > max ? max : (long)integral;
     }
 
-    /// <summary>Clamps the integral part into an unsigned 64-bit range instead of throwing.</summary>
     private static ulong ToUInt64Saturating(BigDecimal value, ulong max)
     {
         var integral = ToUInt128Saturating(value);
@@ -518,9 +478,7 @@ public readonly partial struct BigDecimal
 
     private static Int128 ToInt128Saturating(BigDecimal value)
     {
-        // NaN saturates to zero and an infinity to the destination's extreme, which is what the
-        // base class library does converting double to an integer type. Measured. The checked
-        // contract throws instead; a saturating conversion that throws would not be one.
+        // NaN saturates to zero and an infinity to the extreme, as double does into an integer.
         if (IsNaN(value))
         {
             return Int128.Zero;
@@ -557,8 +515,8 @@ public readonly partial struct BigDecimal
         return negative && magnitude != UInt128.Zero ? UInt128.Zero : magnitude;
     }
 
-    // Every bounded integer destination passes through here, so this is where a magnitude wider
-    // than 128 bits is refused - before either range check is reached, and for the largest values.
+    // Every bounded integer destination passes through here, so a magnitude wider than 128 bits
+    // is refused here, before either range check.
     private static UInt128 ToUInt128Magnitude(BigDecimal value, ConversionTarget destination, out bool negative)
     {
         if (value.IsNonFinite)
@@ -574,9 +532,8 @@ public readonly partial struct BigDecimal
         return magnitude;
     }
 
-    // The destination of a conversion out, carried from the call site because the helpers below
-    // serve several each. nint and nuint have no members of their own: they are the width of the
-    // process, and NativeSigned and NativeUnsigned pick the member that matches it.
+    // The destination of a conversion out, for the message. nint and nuint have no member of
+    // their own: NativeSigned and NativeUnsigned pick the one matching the process width.
     private enum ConversionTarget
     {
         Decimal,
@@ -594,18 +551,15 @@ public readonly partial struct BigDecimal
         BigInteger,
     }
 
-    // The range checked against nint is the process's, so the name has to follow it: reporting
-    // Int64 for a 32-bit nint would refuse a value with a message saying Int64 cannot hold it.
-    // On 64 bits this is what the base class library reports for them, measured from a decimal
-    // and a BigInteger source alike.
+    // nint is checked against the process's range, so the name follows the width: on 32 bits a
+    // message naming Int64 would refuse a value Int64 holds.
     private static ConversionTarget NativeSigned =>
         IntPtr.Size == sizeof(long) ? ConversionTarget.Int64 : ConversionTarget.Int32;
 
     private static ConversionTarget NativeUnsigned =>
         IntPtr.Size == sizeof(long) ? ConversionTarget.UInt64 : ConversionTarget.UInt32;
 
-    // The article does not follow from the name - UInt64 takes "a" where Int64 takes "an" - so
-    // both are written out, and one table serves both messages rather than two that can drift.
+    // The base class library's wording per destination, article included: "an Int64", "a UInt64".
     private static (string Article, string Name) Describe(ConversionTarget destination) =>
         destination switch
         {
@@ -625,8 +579,7 @@ public readonly partial struct BigDecimal
             _ => throw new UnreachableException($"No wording for {destination}."),
         };
 
-    // Names the destination, not this type: the value being converted is a BigDecimal by
-    // construction, so naming it identifies nothing the caller did not already know.
+    // Names the destination: the source is a BigDecimal by construction, so naming it says nothing.
     [DoesNotReturn]
     private static void ThrowDestinationOverflow(ConversionTarget destination)
     {
@@ -639,21 +592,13 @@ public readonly partial struct BigDecimal
     private static void ThrowNonFiniteUnrepresentable(ConversionTarget destination) =>
         throw new OverflowException($"NaN and infinity have no {Describe(destination).Name} representation.");
 
-    /// <summary>
-    /// Reduces the value to its integral part, truncated towards zero, as a magnitude and a sign.
-    /// </summary>
-    /// <remarks>
-    /// The sign is reported even when the magnitude does not fit, because a saturating conversion
-    /// needs it to choose which extreme to clamp to.
-    /// </remarks>
-    /// <returns><see langword="false"/> when the integral part is wider than 128 bits.</returns>
+    // The integral part, truncated towards zero. The sign is reported even when the magnitude
+    // does not fit, because a saturating conversion clamps by it.
     private static bool TryToUInt128Magnitude(BigDecimal value, out UInt128 magnitude, out bool negative)
     {
         if (value.IsNonFinite)
         {
-            // Its four words are zero, so without this it would report a magnitude of zero and
-            // an infinity would convert to 0 rather than to an extreme. The sign is still
-            // reported, because that is what the saturating caller clamps by.
+            // Its four words are zero, so an infinity would otherwise convert to 0.
             magnitude = UInt128.Zero;
             negative = value.IsNegative;
             return false;

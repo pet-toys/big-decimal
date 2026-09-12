@@ -125,7 +125,9 @@ Package versions are managed centrally
 ([`Directory.Packages.props`](../Directory.Packages.props) for the packages,
 [`test/Directory.Packages.props`](../test/Directory.Packages.props) for the
 tests), so add a `PackageReference` without a version and pin the version
-there, as a `[x.y.z,)` range.
+there as a range whose floor is the version you measured against. A test or
+analyzer package is open above the floor, `[x.y.z,)`; a driver the packages
+depend on is closed at the next major, and the comment beside it says why.
 
 ## Pull requests
 
@@ -162,8 +164,9 @@ spells out its `using` directives.
 
 ### Tests
 
-Tests use xUnit and follow the `Method_State_ExpectedResult` naming pattern
-(for example, `Parse_MoreFractionalDigitsThanScale_RoundsHalfToEven`). Keep test
+Tests use xUnit and are named as a sentence split at the underscore, subject
+first and outcome second (for example, `Zero_IsNeverSigned` or
+`AProductBeyondTheMantissa_NormalisesToSeventySevenDigits`). Keep test
 data close to the tests that use it, and prefer deterministic tests over ones
 that depend on a container, the network, or timing - cover the arithmetic and
 formatting rules with plain in-memory cases and reserve the Testcontainers-based

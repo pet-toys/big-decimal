@@ -334,8 +334,10 @@ hot.
 - **Zero never carries a sign.** This is the one deliberate divergence from
   `decimal`.
 - **Casting from `double` or `float` takes the shortest round-trippable form**,
-  not 15 and 7 significant digits, so `(double)(BigDecimal)value` returns
-  `value`. This is a deliberate divergence from `decimal`'s own cast.
+  not 15 and 7 significant digits, so `(float)(BigDecimal)value` returns
+  `value` for every finite `float`, and `(double)(BigDecimal)value` does for
+  every finite `double` inside the range. This is a deliberate divergence from
+  `decimal`'s own cast.
 - **Parsing accepts the same white space `System.Decimal` does**, which is a
   tab, newline, vertical tab, form feed, carriage return or space and nothing
   else. Nineteen further characters that `char.IsWhiteSpace` accepts are

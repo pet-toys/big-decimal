@@ -1,12 +1,8 @@
 name: integration
 
-# The server-backed tests live here rather than in test.yml on purpose, and moving them would cost
-# more than it looks. build-deploy.yml calls test.yml through `uses:` and its build job needs it, so
-# a job added there becomes a gate on publishing a package: a container that fails to pull would
-# block a release. `test-integration` became a required status check on 2026-09-10, which gates
-# merging and not publishing - the two stay separate because nothing calls this workflow. The name
-# is pinned in the branch ruleset. What it is for is that the wire formats are checked against the
-# servers that define them before a pull request merges, which no other leg does.
+# Checks the wire formats against the servers that define them before a pull request merges.
+# Not in test.yml, which the release calls: a container that fails to pull must not block a
+# publish. `test-integration` is a required check, and the name is pinned in the branch ruleset.
 
 on:
   workflow_dispatch:
@@ -29,8 +25,7 @@ jobs:
     name: test-integration
     runs-on: ubuntu-latest
 
-    # Docker is on the GitHub-hosted Ubuntu runners and on neither of the other two, which is why
-    # this leg is one job rather than a matrix.
+    # One job, not a matrix: only the Ubuntu runner has Docker.
     timeout-minutes: 20
 
     steps:
@@ -45,23 +40,13 @@ jobs:
     - name: Restore
       run: dotnet restore big-decimal.integration.slnf
 
-    # No category filter. The solution filter already selects the projects that hold these
-    # tests, and a filter that matches nothing is a failed run under the Microsoft Testing Platform
-    # rather than an empty one, so filtering again only adds a way to be wrong. One framework: the
-    # bytes are the same on all three, and the codecs are covered on all three by the byte-level
-    # layers in the required legs.
-    #
-    # GitHub Actions sets CI, which the fixtures read: with it set, a server that cannot be started
-    # fails the run instead of skipping the tests, so this leg cannot report success over a suite
-    # that ran nothing.
+    # No category filter: the solution filter selects the projects, and a filter that matches
+    # nothing is a failed run under the Microsoft Testing Platform. One framework: the bytes are
+    # the same on all three. With CI set, the fixtures fail rather than skip when no server starts.
     - name: Test
       run: dotnet test big-decimal.integration.slnf --no-restore --configuration Release --framework net10.0
 
-    # The same suite under the other supported major. The EF Core package is compiled once against
-    # EF Core 9 and supported on 9 and 10, and NuGet resolves a range to its floor, so the run above
-    # tests 9 and never 10. Forward compatibility across an EF major is not something Microsoft
-    # promises, so it is checked rather than assumed, and a test in that suite asserts that what
-    # loaded is what was asked for - a restore that unified upward would otherwise look like a pass.
-    # This step restores on its own, because it resolves a different graph than the step above.
+    # NuGet resolves the EF Core range to its floor, so the run above tests EF Core 9 and never
+    # 10. This restores its own graph, and a test asserts that what loaded is what was asked for.
     - name: Test against EF Core 10
       run: dotnet test big-decimal.integration.slnf --configuration Release --framework net10.0 -p:EfCoreProviderFloor=10.0.3

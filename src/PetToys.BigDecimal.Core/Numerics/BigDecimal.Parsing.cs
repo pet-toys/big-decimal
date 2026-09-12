@@ -191,9 +191,8 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
         result = default;
         var info = NumberFormatInfo.GetInstance(provider);
 
-        // The three non-finite symbols are answered on the whole input, before the styles are
-        // consulted. Measured against double: it admits them under NumberStyles.None and trims
-        // around them with both white-space styles cleared. The number path keeps its own rule.
+        // Before the styles are consulted: double admits the three symbols under NumberStyles.None
+        // and trims around them whatever the white-space styles say.
         if (TryParseNonFinite(input, info, out result))
         {
             return ParseStatus.Ok;
@@ -361,9 +360,7 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
             }
         }
 
-        // Not a try/catch around the throwing form: an input the type cannot hold is an ordinary
-        // outcome here, and paying 464 bytes of exception for it broke the zero-allocation
-        // guarantee on the only path whose whole purpose is to fail quietly.
+        // Not a try/catch: an exception here is 464 bytes on a path that exists to fail quietly.
         return TryPack(magnitude, length, negative, scale, out result)
             ? ParseStatus.Ok
             : ParseStatus.Overflow;
@@ -411,25 +408,10 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
         return true;
     }
 
-    /// <summary>
-    /// Whether a character is white space to <see cref="decimal"/>, which accepts a narrower
-    /// set than <see cref="char.IsWhiteSpace(char)"/> does.
-    /// </summary>
-    /// <param name="value">The character to test.</param>
-    /// <returns><see langword="true"/> when the parser may consume it as white space.</returns>
-    /// <remarks>
-    /// <see cref="char.IsWhiteSpace(char)"/> accepts twenty-five BMP codepoints against these six,
-    /// nineteen of which <see cref="decimal"/> refuses - including U+00A0, the group separator in
-    /// sv-SE and ru-RU, and U+202F, the one in fr-FR, both consumed here before the parse loop
-    /// could refuse a separator standing before the first digit. A predicate rather than a set
-    /// passed to the trimming overloads: the set's linear scan costs about three nanoseconds a
-    /// parse.
-    /// </remarks>
+    // The six characters decimal accepts, not the twenty-five of char.IsWhiteSpace: those include
+    // U+00A0 and U+202F, the group separators of ru-RU and fr-FR.
     private static bool IsWhiteSpace(char value) => value == ' ' || value is >= '\t' and <= '\r';
 
-    /// <summary>Removes the leading white space <see cref="IsWhiteSpace"/> accepts.</summary>
-    /// <param name="input">The text to trim.</param>
-    /// <returns>The text without its leading white space.</returns>
     private static ReadOnlySpan<char> TrimWhiteStart(ReadOnlySpan<char> input)
     {
         var start = 0;
@@ -441,9 +423,6 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
         return input[start..];
     }
 
-    /// <summary>Removes the trailing white space <see cref="IsWhiteSpace"/> accepts.</summary>
-    /// <param name="input">The text to trim.</param>
-    /// <returns>The text without its trailing white space.</returns>
     private static ReadOnlySpan<char> TrimWhiteEnd(ReadOnlySpan<char> input)
     {
         var end = input.Length;
@@ -458,8 +437,7 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
     private static bool StartsWith(ReadOnlySpan<char> input, string value) =>
         value.Length > 0 && input.StartsWith(value, StringComparison.Ordinal);
 
-    // Cold, and kept out of TryParseCore so the prologue that runs on every parse reads as short
-    // as it is. TryParseCore is too large to inline either way, so this costs nothing.
+    // Cold, and kept out of the prologue every parse runs.
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static bool TryParseNonFinite(ReadOnlySpan<char> input, NumberFormatInfo info, out BigDecimal result)
     {
@@ -488,9 +466,8 @@ public readonly partial struct BigDecimal : IParsable<BigDecimal>, ISpanParsable
             return true;
         }
 
-        // One sign, leading only: "--Infinity" is not a number. A sign before NaN is accepted and
-        // ignored, as double does for "-NaN", and one before the positive infinity symbol is how
-        // "+∞" parses under a culture whose symbols are "∞" and "-∞".
+        // One leading sign. Before NaN it is ignored, as double does for "-NaN"; before the
+        // positive infinity symbol it is how "-∞" parses under a culture whose symbol is "∞".
         var negative = TryConsume(ref input, info.NegativeSign);
         if (!negative && !TryConsume(ref input, info.PositiveSign))
         {

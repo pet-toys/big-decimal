@@ -10,12 +10,9 @@ namespace PetToys.BigDecimal.Numerics;
 /// the column type rather than to the payload.
 /// </summary>
 /// <remarks>
-/// The two directions are deliberately asymmetric. Reading is total by construction: 256 bits of
-/// two's complement is at most 2^255 and a column scale is at most 76, so it never overflows and
-/// never rounds. Writing can do both, and refuses a non-finite value by name because no width has
-/// a counterpart for one. The width comes from the span's length rather than a separate argument
-/// that could disagree with the bytes; the column's precision is the caller's to enforce, being a
-/// property of the declared type rather than of the payload.
+/// Reading never overflows and never rounds: 256 bits of two's complement is at most 2^255 and a
+/// column scale is at most 76. Writing can do both, and refuses a non-finite value. The width is
+/// the span's length; the column's precision is the caller's to enforce.
 /// </remarks>
 internal static class ClickHouseDecimal
 {
@@ -31,11 +28,9 @@ internal static class ClickHouseDecimal
     /// <summary>The payload width of a <c>Decimal256</c> column.</summary>
     internal const int Decimal256Size = 32;
 
-    /// <summary>The widest payload, which is also the width every read is sign-extended into.</summary>
     private const int MaxSize = Decimal256Size;
 
-    // Sized to hold the check rather than the product: a magnitude that has outgrown five words
-    // has outgrown Decimal256 as well, and scaling stops there.
+    // A magnitude past five words has outgrown Decimal256, and scaling stops there.
     private const int WorkWords = BigDecimal.WordCount + 2;
 
     /// <summary>Reads a ClickHouse decimal payload.</summary>
@@ -54,9 +49,7 @@ internal static class ClickHouseDecimal
 
         var isNegative = (source[^1] & 0x80) != 0;
 
-        // Sign-extended into the widest width first, so that one reader serves all four and the
-        // narrow ones do not each need a negation of their own. Only the bytes above the payload
-        // are filled: the rest are about to be overwritten, and at Decimal256 there are none.
+        // Sign-extended into the widest width, so one reader serves all four.
         Span<byte> extended = stackalloc byte[MaxSize];
         source.CopyTo(extended);
         extended[source.Length..].Fill(isNegative ? (byte)0xFF : (byte)0x00);
@@ -98,8 +91,7 @@ internal static class ClickHouseDecimal
         ArgumentOutOfRangeException.ThrowIfNegative(scale);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(scale, BigDecimal.MaxScale);
 
-        // Answered here rather than left to the magnitude accessors, which refuse a non-finite
-        // value with a message about magnitudes. The caller is writing to a column, and the message
+        // Before the magnitude accessors refuse it with a message about magnitudes: the message
         // that helps names the value and the column.
         if (value.IsNonFinite)
         {
@@ -110,8 +102,7 @@ internal static class ClickHouseDecimal
         var length = value.CopyMagnitude(magnitude);
         var isNegative = value.IsNegative;
 
-        // The rescale comes before the range check, because the range is a property of the value at
-        // the column's scale and not of the value as it arrived.
+        // Rescaled before the range check: the range is of the value at the column's scale.
         if (scale > value.Scale)
         {
             length = ScaleUpUntilItCannotFit(magnitude, length, scale - value.Scale);
@@ -143,13 +134,7 @@ internal static class ClickHouseDecimal
         full[..destination.Length].CopyTo(destination);
     }
 
-    /// <summary>
-    /// Multiplies by a power of ten, stopping as soon as the result has outgrown every width.
-    /// </summary>
-    /// <remarks>
-    /// Past five words the value is already past <c>Decimal256</c> and no further digit changes
-    /// that, so the loop stops and reports a length the range check reads as too wide.
-    /// </remarks>
+    // Multiplies by a power of ten, stopping once the result has outgrown every width.
     private static int ScaleUpUntilItCannotFit(Span<ulong> magnitude, int length, int power)
     {
         while (power > 0 && length <= BigDecimal.WordCount)
@@ -162,10 +147,7 @@ internal static class ClickHouseDecimal
         return length;
     }
 
-    /// <summary>
-    /// Replaces a four-word value by its two's complement, in place. Its own inverse, which is why
-    /// one method serves the reader and the writer alike.
-    /// </summary>
+    // Two's complement in place; its own inverse, so it serves the reader and the writer alike.
     private static void Negate(Span<ulong> words)
     {
         unchecked
@@ -180,12 +162,7 @@ internal static class ClickHouseDecimal
         }
     }
 
-    /// <summary>Answers whether a magnitude fits the two's complement range of a width.</summary>
-    /// <remarks>
-    /// The range is asymmetric by one: <c>b</c> bits hold every magnitude below 2^(b-1), and
-    /// 2^(b-1) itself only when negative. Written over the sign bit's word rather than once per
-    /// width, so the four cannot come to disagree.
-    /// </remarks>
+    // b bits hold every magnitude below 2^(b-1), and 2^(b-1) itself only when negative.
     private static bool FitsTheWidth(ReadOnlySpan<ulong> magnitude, int length, bool isNegative, int size)
     {
         if (length > BigDecimal.WordCount)
@@ -216,8 +193,7 @@ internal static class ClickHouseDecimal
             return false;
         }
 
-        // Exactly the sign bit and nothing under it is the one value a width holds in negative and
-        // not in positive: -2^(b-1).
+        // Exactly the sign bit and nothing under it is -2^(b-1).
         for (var i = 0; i < signWord && i < length; i++)
         {
             if (magnitude[i] != 0)

@@ -25,10 +25,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Runs before anything else so that a bad release fails in seconds rather
-  # than after the full test matrix. The release is already published by the
-  # time this workflow starts, so neither check can prevent a mistake, only
-  # stop it from reaching a feed.
+  # Fails a bad release in seconds rather than after the test matrix. The release is already
+  # published when this starts, so a check here stops a mistake reaching a feed, not the page.
   validate:
     name: validate
     runs-on: ubuntu-latest
@@ -45,11 +43,8 @@ jobs:
         TAG_NAME: ${{ github.event.release.tag_name }}
         IS_PRERELEASE: ${{ github.event.release.prerelease }}
       run: |
-        # beta is deliberately absent: prerelease identifiers order as strings,
-        # so beta would sort below dev. The ladder that stays ordered is
-        # dev, then preview, then rc, then the release itself. The same pattern
-        # without the v is in check-release-notes-version.sh, which reads the
-        # notes header; a new identifier has to be added in both.
+        # beta is absent: prerelease identifiers order as strings, and beta would sort below dev.
+        # The same pattern without the v is in check-release-notes-version.sh; change both.
         pattern='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(dev|rc|preview)\.(0|[1-9][0-9]*))?$'
         if [[ ! $TAG_NAME =~ $pattern ]]; then
           echo "::error title=Malformed release tag::'$TAG_NAME' is not a v-prefixed semantic version. Expected v1.2.3, or a prerelease such as v1.2.3-dev.4 (dev, preview, rc)."
@@ -58,11 +53,8 @@ jobs:
 
         version="${TAG_NAME#v}"
 
-        # Which feed a package reaches is decided by the release's prerelease
-        # checkbox and not by the tag, so the two can disagree silently: a
-        # v1.0.0-dev.1 published with the box unticked lands on nuget.org, and a
-        # v1.0.0 published with it ticked never leaves GitHub Packages. Neither
-        # is reversible once pushed.
+        # The prerelease checkbox picks the feed, not the tag: a v1.0.0-dev.1 with the box
+        # unticked lands on nuget.org, irreversibly.
         if [[ $version == *-* ]]; then
           tagged_as_prerelease=true
         else
@@ -76,10 +68,8 @@ jobs:
 
         echo "version=$version" >> "$GITHUB_OUTPUT"
 
-    # The notes are the third thing a release cannot take back, after the
-    # packages and the release body rendered from them. The export takes the top
-    # section whatever its header says, so without this a v1.0.0 release ships
-    # the 1.0.0-dev.3 notes and reads as correct everywhere downstream.
+    # The export takes the top section whatever its header says, so without this a v1.0.0
+    # release would ship the 1.0.0-dev.3 notes.
     - name: Check the release notes against the version
       run: bash .github/scripts/check-release-notes-version.sh assets/RELEASE-NOTES.txt "${{ steps.version.outputs.version }}"
 
@@ -111,11 +101,8 @@ jobs:
     - name: Build
       run: dotnet build ${{ env.SolutionToPack }} --configuration Release --no-restore -p:Version=${{ env.PACKAGE_VERSION }}
 
-    # Before the pack, because the packed <releaseNotes> is generated from the
-    # same file: PreparePackageReleaseNotesFromFile overwrites the property
-    # unconditionally, so an empty file ships as empty notes rather than as an
-    # obvious omission, and `gh release edit` below would then wipe the release
-    # body with it.
+    # Before the pack: an empty file ships as empty notes rather than failing, and `gh release
+    # edit` would then wipe the release body with it.
     - name: Export the release notes
       run: |
         notes="${{ runner.temp }}/release-notes.txt"
@@ -129,12 +116,9 @@ jobs:
     - name: Pack
       run: dotnet pack ${{ env.SolutionToPack }} --configuration Release  --no-build --include-symbols --output ${{ github.workspace }}/${{ env.PackagesSubfolder }} -p:PackageVersion=${{ env.PACKAGE_VERSION }}
 
-    # The body is composed rather than posted as it stands: it is rendered as
-    # Markdown and the notes are plain text, so the fence is what keeps a
-    # generic argument from being read as an HTML tag and a parameter named in
-    # a sentence from being read as a mention. The pack job checks the same
-    # composition before a merge; the read-back below is the only place that
-    # sees what the published page actually shows.
+    # Fenced, because the body is Markdown and the notes are plain text: a generic argument
+    # would otherwise read as an HTML tag and a parameter name as a mention. The read-back is the
+    # only place that sees what the published page shows.
     - name: Sync release notes to the GitHub release
       env:
         GH_TOKEN: ${{ github.token }}

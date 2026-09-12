@@ -7,13 +7,10 @@ namespace PetToys.BigDecimal.Numerics;
 /// them, and whether it is negative.
 /// </summary>
 /// <remarks>
-/// Formatting works on this rather than on the value, so that the scaling <c>P</c> and a custom
-/// format's <c>%</c>, <c>‰</c> and trailing commas call for is a move of <see cref="Point"/>
-/// rather than arithmetic: <c>MaxValue</c> times a hundred does not fit the mantissa, yet
-/// <see cref="decimal"/> renders its own maximum with <c>P0</c>. Rounding is here for the same
-/// reason - the deciding digit sits at a different position before and after the shift, so
-/// rounding the value first rounds the wrong one. Zero is the empty digit string with the point
-/// at one, which renders a leading <c>0</c> with no special case at each use.
+/// Scaling for <c>P</c>, <c>%</c>, <c>‰</c> and trailing commas is a move of <see cref="Point"/>
+/// rather than arithmetic, since <c>MaxValue</c> times a hundred does not fit the mantissa, and
+/// rounding happens after the move so it rounds the right digit. Zero is the empty digit string
+/// with the point at one.
 /// </remarks>
 internal ref struct DigitText
 {
@@ -31,43 +28,25 @@ internal ref struct DigitText
     internal int Count { get; private set; }
 
     /// <summary>How many digits belong before the decimal point.</summary>
-    /// <remarks>
-    /// May be zero or negative, which is a value below one, and may exceed <see cref="Count"/>,
-    /// which is an integer part that ends in zeros the digits do not carry.
-    /// </remarks>
+    /// <remarks>Zero or negative for a value below one; past <see cref="Count"/> for an integer part ending in zeros.</remarks>
     internal int Point { get; private set; }
 
     /// <summary>Whether a sign belongs on the rendering.</summary>
-    /// <remarks>Cleared when rounding takes the value to zero, because a rounded-away sign is not
-    /// written: <see cref="decimal"/> renders -0.004 with <c>F1</c> as <c>0.0</c>.</remarks>
+    /// <remarks>Cleared when rounding takes the value to zero: -0.004 with <c>F1</c> is <c>0.0</c>.</remarks>
     internal bool Negative { get; private set; }
 
-    /// <summary>Whether the value is zero.</summary>
     internal readonly bool IsZero => Count == 0;
 
-    /// <summary>Returns the digit at a position, counting from the first significant one.</summary>
-    /// <param name="index">The position. Outside the digits, the answer is a zero.</param>
-    /// <returns>The digit, or <c>'0'</c> for a position the digits do not reach.</returns>
-    /// <remarks>
-    /// Positions before the first digit are the leading zeros of a value below one, and positions
-    /// past the last are the trailing zeros of an integer part wider than the significand. Both
-    /// are zeros, and answering them here keeps every writer free of the distinction.
-    /// </remarks>
-    // Two comparisons rather than the usual unsigned trick: the project builds Debug with
-    // CheckForOverflowUnderflow, where casting a negative index to uint throws, and a negative
-    // index is the ordinary case here rather than a bug.
+    /// <summary>Returns the digit at a position, or <c>'0'</c> for a position the digits do not reach.</summary>
+    // Two comparisons rather than the unsigned trick: a Debug build checks the cast, and a
+    // negative index is the ordinary case here.
     internal readonly char At(int index) => index >= 0 && index < Count ? digits[index] : '0';
 
-    /// <summary>Rounds so that the given number of digits remain after the decimal point.</summary>
-    /// <param name="precision">The count of fractional digits to keep.</param>
     internal void RoundTo(int precision) => Keep(Point + precision);
 
-    /// <summary>Rounds to a count of significant digits.</summary>
-    /// <param name="significant">The count of significant digits to keep.</param>
     internal void RoundToSignificant(int significant) => Keep(significant);
 
-    /// <summary>Drops the trailing zeros the rounding left behind.</summary>
-    /// <remarks><c>G</c> with a precision strips them; nothing else does.</remarks>
+    /// <summary>Drops the trailing zeros the rounding left behind, which only <c>G</c> with a precision does.</summary>
     internal void StripTrailingZeros()
     {
         while (Count > 0 && digits[Count - 1] == '0')
@@ -81,8 +60,7 @@ internal ref struct DigitText
         }
     }
 
-    /// <summary>Moves the decimal point, which is what scaling a rendering means.</summary>
-    /// <param name="places">Places to move it to the right; negative moves it left.</param>
+    /// <summary>Moves the decimal point to the right, or to the left for a negative count.</summary>
     internal void Shift(int places)
     {
         if (!IsZero)
@@ -91,8 +69,7 @@ internal ref struct DigitText
         }
     }
 
-    // Keeps the first count digits, rounding away from zero on the first digit dropped, which is
-    // what decimal does: 0.5 renders as 1 with F0 and 2.5 renders as 3.
+    // Rounds away from zero on the first digit dropped, as decimal does: 2.5 with F0 is 3.
     private void Keep(int count)
     {
         if (IsZero || count >= Count)
@@ -139,8 +116,7 @@ internal ref struct DigitText
             digits[i] = '0';
         }
 
-        // Every kept digit was a nine, so the carry runs off the front: 99 becomes 10 with the
-        // point one place further right.
+        // Every kept digit was a nine: 99 becomes 10 with the point one place further right.
         digits[0] = '1';
         Point++;
     }

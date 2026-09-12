@@ -8,18 +8,13 @@ namespace PetToys.BigDecimal.Numerics;
 /// Reads culture data that the framework hands out as a defensive copy.
 /// </summary>
 /// <remarks>
-/// <see cref="NumberFormatInfo.NumberGroupSizes"/> clones its array on every read, measured on
-/// .NET 10 at 32 bytes and 48.7 ns against 0.22 ns for the field behind it; the currency and
-/// percent properties clone by the same mechanism. Grouped formatting needs the list on every
-/// call, so that copy was the last allocation in the type and most of what <c>N</c> cost over
-/// <c>F</c>. Caching the arrays is not an option: a <see cref="NumberFormatInfo"/> that is not
-/// read-only can change between calls, and a cache would go on serving the old list.
+/// The group size properties clone their array on every read - 32 bytes and 48.7 ns against
+/// 0.22 ns for the field - and that copy was the last allocation in the type. Caching is not an
+/// option: a writable <see cref="NumberFormatInfo"/> can change between calls.
 /// </remarks>
 internal static class CultureData
 {
-    // Probed once per property, not once for the class: a runtime that renames one field must not
-    // be hidden by the two that still resolve. Field initialisers rather than a static
-    // constructor, so the type keeps beforefieldinit and the branches stay inlineable.
+    // Probed per property, so a renamed field is not hidden by the two that still resolve.
     private static readonly bool NumberFieldIsReachable = ProbeNumberGroupSizes();
 
     private static readonly bool CurrencyFieldIsReachable = ProbeCurrencyGroupSizes();
@@ -27,11 +22,7 @@ internal static class CultureData
     private static readonly bool PercentFieldIsReachable = ProbePercentGroupSizes();
 
     /// <summary>Whether the number group sizes are read from the field rather than the property.</summary>
-    /// <remarks>
-    /// Exposed for the suite to assert. Nothing else can detect a renamed field: the fallback
-    /// returns exactly what the property returns, so every value this class hands out stays
-    /// correct while the cost and the allocation come back.
-    /// </remarks>
+    /// <remarks>For the suite: the fallback is correct, so nothing else would notice a renamed field.</remarks>
     internal static bool ReadsTheNumberFieldDirectly => NumberFieldIsReachable;
 
     /// <summary>Whether the currency group sizes are read from the field rather than the property.</summary>
@@ -41,24 +32,18 @@ internal static class CultureData
     internal static bool ReadsThePercentFieldDirectly => PercentFieldIsReachable;
 
     /// <summary>Returns a culture's number group sizes without the copy the property makes.</summary>
-    /// <param name="info">The format info to read.</param>
     /// <returns>
     /// The sizes as the framework stores them: the first entry sizes the rightmost group, the last
-    /// entry repeats for every group beyond it, an entry of zero stops grouping, and an empty span
-    /// means no grouping at all.
+    /// repeats, a zero stops grouping, and an empty span means no grouping at all.
     /// </returns>
     internal static ReadOnlySpan<int> NumberGroupSizes(NumberFormatInfo info) =>
         NumberFieldIsReachable ? NumberGroupSizesField(info) : info.NumberGroupSizes;
 
     /// <summary>Returns a culture's currency group sizes without the copy the property makes.</summary>
-    /// <param name="info">The format info to read.</param>
-    /// <returns>The sizes as the framework stores them, read the same way as the number sizes.</returns>
     internal static ReadOnlySpan<int> CurrencyGroupSizes(NumberFormatInfo info) =>
         CurrencyFieldIsReachable ? CurrencyGroupSizesField(info) : info.CurrencyGroupSizes;
 
     /// <summary>Returns a culture's percent group sizes without the copy the property makes.</summary>
-    /// <param name="info">The format info to read.</param>
-    /// <returns>The sizes as the framework stores them, read the same way as the number sizes.</returns>
     internal static ReadOnlySpan<int> PercentGroupSizes(NumberFormatInfo info) =>
         PercentFieldIsReachable ? PercentGroupSizesField(info) : info.PercentGroupSizes;
 
@@ -71,8 +56,7 @@ internal static class CultureData
     [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_percentGroupSizes")]
     private static extern ref int[] PercentGroupSizesField(NumberFormatInfo info);
 
-    // Three probes rather than one taking a delegate: a delegate would be the only allocation this
-    // class makes, and it would sit in the type initialiser of the type that exists to avoid one.
+    // Three probes rather than one taking a delegate, which would be this class's one allocation.
     private static bool ProbeNumberGroupSizes()
     {
         try

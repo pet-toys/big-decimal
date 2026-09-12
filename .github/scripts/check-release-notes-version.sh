@@ -1,39 +1,31 @@
 #!/usr/bin/env bash
 
-# Checks the top section of the release notes against the version being built.
-#
+# Checks the top section of the release notes against the version being built:
 # PreparePackageReleaseNotesFromFile takes the top section whatever its header
-# says and strips the version line on the way out, so a 1.0.0 package can carry
-# the 1.0.0-dev.3 notes with nothing downstream able to tell. Measured: packing
-# with -p:PackageVersion=0.0.0-ci produced a nuspec whose releaseNotes element
-# was the dev.3 section. A nupkg cannot be corrected once pushed, and the GitHub
-# release body is rendered from the same text.
+# says, so a 1.0.0 package could carry the 1.0.0-dev.3 notes with nothing
+# downstream able to tell.
 #
 # Usage: check-release-notes-version.sh <notes-file> [expected-version]
 #
 # Without the version only the header's shape is checked, which is all a pull
-# request can know: it packs 0.0.0-ci and no tag exists yet.
+# request can know.
 
 set -euo pipefail
 
 notes=$1
 expected=${2-}
 
-# Without the file, PreparePackageReleaseNotesFromFile does not run and the
-# placeholder in Directory.Build.targets ships as the release notes - non-empty,
-# so the export check upstream of this one passes it.
+# Without the file the Directory.Build.targets placeholder ships as the notes,
+# and it is non-empty, so the export check passes it.
 if [[ ! -f $notes ]]; then
   echo "::error title=Release notes missing::$notes does not exist. The packaging target only runs when it does, so the build would ship the Directory.Build.targets placeholder as the packed <releaseNotes> and as the release body."
   exit 1
 fi
 
-# The tag pattern from build-deploy.yml without the v, so a header cannot pass
-# here and fail there. beta is absent in both: prerelease identifiers order as
-# strings, and beta would sort below dev.
+# The tag pattern from build-deploy.yml without the v; change both together.
 pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(dev|rc|preview)\.(0|[1-9][0-9]*))?$'
 
-# The file is CRLF in a Windows working tree; * text=auto checks it out LF on a
-# Linux runner, but the strip keeps this correct wherever it is run.
+# The file is CRLF in a Windows working tree.
 header=$(sed -n '1p' "$notes" | tr -d '\r')
 underline=$(sed -n '2p' "$notes" | tr -d '\r')
 
@@ -42,10 +34,8 @@ if [[ ! $header =~ $pattern ]]; then
   exit 1
 fi
 
-# ReleaseNotesHeaderPattern needs an =-underline to find the header it strips.
-# Without one the replace is a no-op and the version line ships inside the notes.
-# Trailing whitespace and all: ReleaseNotesHeaderPattern matches `=+[ 	]*`, and
-# failing a release over a space the target accepts would be this check's own bug.
+# Without the =-underline ReleaseNotesHeaderPattern strips nothing and the
+# version line ships inside the notes. Trailing blanks allowed, as the target allows them.
 if [[ ! $underline =~ ^=+[[:blank:]]*$ ]]; then
   echo "::error title=Missing release notes underline::Line 2 of $notes is '$underline'. The header is stripped by matching the version line and an =-underline beneath it, so without the underline the version ships as the first line of the packed <releaseNotes> and of the release body."
   exit 1

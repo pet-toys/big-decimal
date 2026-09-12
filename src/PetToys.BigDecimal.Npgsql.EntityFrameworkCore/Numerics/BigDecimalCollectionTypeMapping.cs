@@ -11,26 +11,11 @@ namespace PetToys.BigDecimal.Numerics;
 /// <see cref="BigDecimal"/>: an array or a list, of the value type or of its nullable form.
 /// </summary>
 /// <remarks>
-/// <para>
-/// This mapping exists because leaving the collection forms to the provider is not the cheap
-/// option it looks like. Left alone, the provider builds an array mapping over the element mapping
-/// and everything visible is right: the model builds, the generated schema declares
-/// <c>numeric[]</c>, and the element comparer even reaches the collection comparer, so an edit
-/// inside an array is still seen. The first write then throws
-/// <c>InvalidCastException: Writing values of 'BigDecimal[]' is not supported for parameters
-/// having NpgsqlDbType '-2147483608'</c>, because that mapping names an explicit provider
-/// parameter type, and resolving a parameter by that name reaches the driver's default
-/// <c>numeric[]</c> mapping rather than the one the adapter registered, which matches on the CLR
-/// type as well. Declining the collections would have cost the same mapping, since that failure is
-/// what declining actually produces.
-/// </para>
-/// <para>
-/// So this mapping names no provider parameter type, which leaves the driver to resolve the
-/// parameter by its CLR type and find the adapter's registration. One mapping serves all four
-/// forms because they differ only in the CLR type Entity Framework matches on and in the comparer;
-/// the nullable element form <see cref="BigDecimal"/>? needs nothing here at all, since Entity
-/// Framework reaches the element mapping for it and wraps the comparer itself.
-/// </para>
+/// Left to the provider, the array mapping names an explicit provider parameter type, and the
+/// first write throws <c>InvalidCastException: Writing values of 'BigDecimal[]' is not
+/// supported</c> because that name reaches the driver's default <c>numeric[]</c> mapping rather
+/// than the adapter's. This mapping names none, so the driver resolves the parameter by its CLR
+/// type. <c>BigDecimal?</c> needs nothing here: Entity Framework wraps the element mapping itself.
 /// </remarks>
 internal sealed class BigDecimalCollectionTypeMapping : RelationalTypeMapping
 {
@@ -75,16 +60,9 @@ internal sealed class BigDecimalCollectionTypeMapping : RelationalTypeMapping
     /// The mapping for a collection form, or <see langword="null"/> for anything else.
     /// </summary>
     /// <remarks>
-    /// The four forms are spelled out here as literals rather than passed through as a
-    /// <see cref="Type"/> because the trim analyzer is right to object to the latter: the base
-    /// constructor wants a type whose public methods survive trimming, and a
-    /// <see cref="Type"/> arriving from Entity Framework's mapping information carries no such
-    /// promise. A literal <c>typeof</c> does, so the closed set is written out and the gate stays
-    /// a gate rather than a suppression.
+    /// Literal <c>typeof</c>s rather than the <see cref="Type"/> passed in: the base constructor
+    /// wants a type whose public methods survive trimming, which the literal promises.
     /// </remarks>
-    /// <param name="clrType">The CLR type the model declared.</param>
-    /// <param name="storeType">The store type name, <c>numeric[]</c> unless the model named one.</param>
-    /// <returns>The mapping, or <see langword="null"/>.</returns>
     public static BigDecimalCollectionTypeMapping? For(Type clrType, string storeType)
     {
         if (clrType == typeof(BigDecimal[]))

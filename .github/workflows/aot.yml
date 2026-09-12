@@ -1,19 +1,10 @@
 name: aot
 
-# The trimming and Native AOT probes live here rather than in test.yml, for the reason
-# integration.yml already records: build-deploy.yml calls test.yml through `uses:` and its build
-# job needs it, so a job added there gates publishing a package. This leg needs a C++ toolchain and
-# two containers, which is more ways to fail than a release should wait on. `aot-linux` and
-# `aot-windows` are also the only legs the branch ruleset leaves out of the required checks, for
-# that same reason.
-#
-# What it is for is that a clean analyzer pass proves nothing on its own: the packages are marked
-# IsAotCompatible, and the only way to know that a marked package still works is to publish a
-# binary over it and run it.
-#
-# Two jobs rather than one matrix. GitHub's service containers are Linux containers, and the
-# Windows runner cannot start them, so the two adapter probes - which need a real server - run on
-# Linux, and the Windows job carries the core probe and the MSVC half of the toolchain.
+# Publishes the probe applications trimmed and Native AOT and runs them: a clean analyzer pass
+# proves nothing about a marked package on its own. Not in test.yml, which the release calls, and
+# not a required check: this leg needs a C++ toolchain and two containers. Two jobs rather than a
+# matrix because the Windows runner cannot start the Linux service containers the adapter probes
+# need.
 
 on:
   workflow_dispatch:
@@ -38,8 +29,7 @@ jobs:
 
     timeout-minutes: 30
 
-    # The same images, tags and digests the integration fixtures pin. A rebuilt upstream image
-    # cannot change what this leg means.
+    # The same images and digests the integration fixtures pin.
     services:
       postgres:
         image: postgres:18-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
@@ -63,20 +53,15 @@ jobs:
           CLICKHOUSE_DB: probe
         ports:
         - 8123:8123
-        # 127.0.0.1 rather than localhost, and it is load bearing. ClickHouse binds the HTTP
-        # interface to 0.0.0.0, IPv4 only, while the image's wget is busybox and resolves
-        # localhost to ::1: the check then fails with "connection refused" against a server that
-        # is up and serving, and the container is declared unhealthy after the retries run out.
-        # The flags are busybox's own; --no-verbose and --tries are GNU wget's and mean nothing
-        # here.
+        # 127.0.0.1, not localhost: ClickHouse binds IPv4 only and busybox wget resolves
+        # localhost to ::1, so the check fails against a server that is up. Busybox flags only.
         options: >-
           --health-cmd "wget --spider -q http://127.0.0.1:8123/ping || exit 1"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
 
-    # 127.0.0.1 for the reason in the health check above: a published port is bound on IPv4, and
-    # naming localhost leaves the resolver free to try ::1 first.
+    # 127.0.0.1: a published port is bound on IPv4, and localhost may resolve to ::1 first.
     env:
       BIGDECIMAL_PROBE_POSTGRES: Host=127.0.0.1;Port=5432;Username=probe;Password=probe;Database=probe
       BIGDECIMAL_PROBE_CLICKHOUSE: Host=127.0.0.1;Port=8123;Username=probe;Password=probe;Database=probe
@@ -93,9 +78,7 @@ jobs:
     - name: Restore
       run: dotnet restore big-decimal.aot.slnf
 
-    # Trimmed covers every framework the packages ship: the trimmer comes from the pinned SDK, but
-    # the framework assemblies it trims are the consumer's, and that is where a difference between
-    # the three would come from.
+    # Every framework: the framework assemblies the trimmer works on differ between the three.
     - name: Publish trimmed and run
       run: |
         for probe in Core Npgsql ClickHouse; do
@@ -108,16 +91,9 @@ jobs:
           done
         done
 
-    # Native AOT covers the newest framework alone: the compile costs minutes rather than seconds
-    # and nothing in these packages is conditional on the framework.
-    #
-    # ClickHouse is absent on purpose. ClickHouse.Driver 1.4.0 publishes and then throws on first
-    # use: the static constructor of its TypeConverter calls TupleType.BuildTupleFactory, which
-    # looks up a constructor of System.Tuple<double, double> by reflection and does not find it
-    # after ILC, so the first query fails with a TypeInitializationException before any of this
-    # package's code runs. That is the driver's limit, it is stated in that package's README, and
-    # a red leg over it would only teach people to ignore this one. Trimmed is unaffected and runs
-    # in the step above.
+    # The newest framework alone: the compile costs minutes and nothing here is conditional on
+    # the framework. ClickHouse is absent because ClickHouse.Driver 1.4.0 throws on its first
+    # query after a Native AOT publish; the package README states the limit.
     - name: Publish Native AOT and run
       run: |
         for probe in Core Npgsql; do
@@ -143,12 +119,8 @@ jobs:
       with:
         global-json-file: global.json
 
-    # Native AOT resolves MSVC through vswhere, and vcvarsall.bat calls it by bare name. When the
-    # Installer directory is not on PATH the failure is not "toolchain missing": the error text
-    # goes to stderr, which the `> NUL` inside ILCompiler's findvcvarsall.bat does not redirect,
-    # and its first output line is read as the linker directory - MSB3073, exit code 123, and a
-    # linker command with an error message glued to the front of it. Setting it here costs nothing
-    # if the image already has it.
+    # vcvarsall.bat calls vswhere by bare name; without this the failure is MSB3073 with an error
+    # message glued to the linker path, not "toolchain missing". probe/README.md has the detail.
     - name: Put the Visual Studio Installer on PATH
       shell: bash
       run: echo "C:\Program Files (x86)\Microsoft Visual Studio\Installer" >> "$GITHUB_PATH"
@@ -156,9 +128,7 @@ jobs:
     - name: Restore
       run: dotnet restore big-decimal.aot.slnf
 
-    # The core probe alone. The two adapter probes need a server, and a Windows runner cannot start
-    # the Linux containers the other job uses; publishing them here without running them would
-    # report that they link, which is not the question this leg exists to ask.
+    # The core probe alone: the adapter probes need a server this runner cannot start.
     - name: Publish trimmed and run
       shell: bash
       run: |

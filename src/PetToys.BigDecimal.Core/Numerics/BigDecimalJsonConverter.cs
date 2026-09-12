@@ -10,11 +10,9 @@ namespace PetToys.BigDecimal.Numerics;
 /// Reads and writes <see cref="BigDecimal"/> values as JSON.
 /// </summary>
 /// <remarks>
-/// Values are written as JSON strings, which keeps every digit intact: a JSON number would be
-/// re-read by many parsers as an IEEE double and lose precision long before the type's own
-/// limits. Reading accepts both a string and a JSON number, and preserves the scale the text
-/// carries. The converter is applied automatically through
-/// <see cref="System.Text.Json.Serialization.JsonConverterAttribute"/> on the type.
+/// Values are written as JSON strings, since many parsers re-read a JSON number as a double.
+/// Reading accepts both a string and a number, and preserves the scale the text carries. The
+/// converter is applied through <see cref="JsonConverterAttribute"/> on the type.
 /// </remarks>
 public sealed class BigDecimalJsonConverter : JsonConverter<BigDecimal>
 {

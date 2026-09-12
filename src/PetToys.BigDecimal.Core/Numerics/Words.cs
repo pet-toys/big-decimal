@@ -17,13 +17,7 @@ internal static class Words
     /// <summary>The largest exponent of five a single word holds.</summary>
     private const int MaxFivesPerWord = 27;
 
-    /// <summary>The value <see cref="Poison"/> writes.</summary>
-    /// <remarks>
-    /// Every <see cref="ulong"/> is a valid magnitude word, so this cannot be an invalid value and
-    /// is not one. It is a sentinel: recognisable on sight in a debugger, and far enough from
-    /// anything the suite generates that a value carrying it is wrong by an obvious margin rather
-    /// than by a digit.
-    /// </remarks>
+    // The sentinel Poison writes, recognisable in a debugger.
     private const ulong PoisonWord = 0xDEAD_BEEF_DEAD_BEEFUL;
 
     private static readonly ulong[] Pow5Values =
@@ -84,11 +78,8 @@ internal static class Words
 
     internal static ReadOnlySpan<ulong> Pow10 => Pow10Values;
 
-    // Prepared once, at type initialisation, so no division pays for a reciprocal it could be
-    // handed. Static readonly arrays behind span-returning properties, never a collection
-    // expression in an expression-bodied property: that form is not cached and allocates on every
-    // access, which once made the "never allocates" claim false. Both are filled end to end -
-    // under 1.2 kB together - so there is no question of which indices are hot.
+    // Static readonly arrays behind span-returning properties, never a collection expression in
+    // an expression-bodied property: that form allocates on every access.
     private static readonly Divisor[] Pow10DivisorValues = BuildDivisors(Pow10Values);
 
     private static readonly Divisor[] Pow5DivisorValues = BuildDivisors(Pow5Values);
@@ -96,11 +87,7 @@ internal static class Words
     /// <summary>The powers of ten, each prepared for <see cref="DivRem2By1"/>.</summary>
     internal static ReadOnlySpan<Divisor> Pow10Divisors => Pow10DivisorValues;
 
-    /// <summary>
-    /// <see cref="TenPow19"/> prepared for <see cref="DivRem2By1"/>, the largest power of ten a
-    /// word holds. Named rather than indexed, so a caller peeling nineteen digits at a time cannot
-    /// pick up whichever entry another constant happens to point at.
-    /// </summary>
+    /// <summary><see cref="TenPow19"/> prepared for <see cref="DivRem2By1"/>.</summary>
     internal static ref readonly Divisor TenPow19Divisor => ref Pow10DivisorValues[MaxZerosPerPass];
 
     /// <summary>The powers of five, each prepared for <see cref="DivRem2By1"/>.</summary>
@@ -111,15 +98,9 @@ internal static class Words
     /// most <see cref="MaxZerosPerPass"/>, without dividing it.
     /// </summary>
     /// <remarks>
-    /// The smaller of the twos and the fives, neither of which needs a division: the twos are a
-    /// trailing-zero count on the low non-zero word, and the fives come from one remainder pass by
-    /// 5^27 - zero means at least 27, past the cap, and otherwise the fives of the remainder are
-    /// the fives of the value and fit one word.
+    /// The smaller of the twos and the fives: the twos are a trailing-zero count, and the fives
+    /// come from one remainder pass by 5^27, whose remainder carries the value's fives.
     /// </remarks>
-    /// <param name="value">The magnitude.</param>
-    /// <param name="length">The number of significant words in <paramref name="value"/>.</param>
-    /// <param name="limit">The largest count the caller can use.</param>
-    /// <returns>The number of trailing decimal zeros, capped by <paramref name="limit"/>.</returns>
     internal static int TrailingDecimalZeros(ReadOnlySpan<ulong> value, int length, int limit)
     {
         limit = Math.Min(limit, MaxZerosPerPass);
@@ -134,8 +115,6 @@ internal static class Words
             return 0;
         }
 
-        // The twos and the caller's limit already bound the answer, so a value with one trailing
-        // zero pays one test rather than the search for nineteen.
         var cap = Math.Min(twos, limit);
         var remainder = RemSmall(value, length, Pow5Divisors[MaxFivesPerWord]);
         return remainder == 0 ? cap : CountFives(remainder, cap);
@@ -146,15 +125,9 @@ internal static class Words
     /// the number of decimal places at which a division by it comes out exactly.
     /// </summary>
     /// <remarks>
-    /// a / b is exact at max(x, y) places when b is 2^x times 5^y, since a * 10^max(x,y) / b is
-    /// then a * 2^(max-x) * 5^(max-y). Knowing it up front lets a division lift its dividend by a
-    /// few places instead of by the whole mantissa. One shift and one remainder pass, on which any
-    /// other prime factor is rejected.
+    /// a / b is exact at max(x, y) places when b is 2^x times 5^y. One shift and one remainder
+    /// pass, on which any other prime factor is rejected. The magnitude is consumed.
     /// </remarks>
-    /// <param name="value">The divisor's magnitude. It is consumed, so pass a copy.</param>
-    /// <param name="length">The number of significant words in <paramref name="value"/>.</param>
-    /// <param name="places">The number of decimal places at which a division by it is exact.</param>
-    /// <returns><see langword="true"/> when the magnitude is 2^x times 5^y.</returns>
     internal static bool TryDecimalDivisorExponent(Span<ulong> value, int length, out int places)
     {
         places = 0;
@@ -201,43 +174,24 @@ internal static class Words
     /// normalised divisor, less 2^64.
     /// </summary>
     /// <remarks>
-    /// The quotient always lies between 2^64 and 2^65, so subtracting 2^64 is keeping the low 64
-    /// bits and the result fits one word. Written as the plain division rather than a Newton
-    /// refinement because it runs once per divisor, never once per word - that is the loop that
-    /// had to be made cheap.
+    /// A plain division rather than a Newton refinement: it runs once per divisor, not per word.
     /// </remarks>
-    /// <param name="divisorNormalized">The divisor, whose most significant bit must be set.</param>
-    /// <returns>The reciprocal to pass to <see cref="DivRem2By1"/> alongside that divisor.</returns>
     internal static ulong Reciprocal(ulong divisorNormalized)
     {
         Debug.Assert(divisorNormalized >> 63 != 0, "divisor must be normalized");
 
-        // The conversion discards the high bit, which is the subtraction of 2^64. A Debug build
-        // compiles with CheckForOverflowUnderflow, where discarding it throws instead.
+        // The conversion discards the high bit, which is the subtraction of 2^64.
         return unchecked((ulong)(UInt128.MaxValue / divisorNormalized));
     }
 
     /// <summary>Divides a 128-bit value by a single normalised word.</summary>
     /// <remarks>
-    /// The estimate-and-correct division of Moller and Granlund. It replaces a
-    /// <see cref="UInt128"/> over a <see cref="ulong"/>, which the runtime lowers to a hardware
-    /// divide only while the high half is zero. Every step is modulo 2^64 by design - the
-    /// corrections read the wraparound of a subtraction that went too far - so the body is
-    /// <c>unchecked</c> and must stay so, or a Debug build throws on the first correction.
+    /// The estimate-and-correct division of Moller and Granlund, replacing a <see cref="UInt128"/>
+    /// over a <see cref="ulong"/> that the runtime lowers to hardware only while the high half is
+    /// zero. Every step is modulo 2^64 by design, so the body is <c>unchecked</c> and must stay
+    /// so. <paramref name="high"/> must be below the divisor and <paramref name="reciprocal"/>
+    /// must be the divisor's own, or the quotient is wrong rather than a failure.
     /// </remarks>
-    /// <param name="high">
-    /// The high half of the dividend, which must be below <paramref name="divisorNormalized"/>. The
-    /// quotient is a single word, so a caller whose high half reaches the divisor has to decide that
-    /// case for itself before calling.
-    /// </param>
-    /// <param name="low">The low half of the dividend.</param>
-    /// <param name="divisorNormalized">The divisor, whose most significant bit must be set.</param>
-    /// <param name="reciprocal">
-    /// The value <see cref="Reciprocal"/> returns for that divisor. Passing one belonging to another
-    /// divisor produces a wrong quotient rather than a failure.
-    /// </param>
-    /// <param name="remainder">Receives the remainder, which is below the divisor.</param>
-    /// <returns>The quotient.</returns>
     internal static ulong DivRem2By1(
         ulong high,
         ulong low,
@@ -250,8 +204,7 @@ internal static class Words
 
         unchecked
         {
-            // (reciprocal * high) + the dividend + 2^64: its high half is the quotient to within
-            // one either way, and the remainder below is what tells the two corrections apart.
+            // The high half of reciprocal * high + dividend + 2^64 is the quotient to within one.
             var estimate = Math.BigMul(reciprocal, high, out var estimateLow);
             estimateLow += low;
             if (estimateLow < low)
@@ -264,15 +217,14 @@ internal static class Words
 
             var rest = low - (estimate * divisorNormalized);
 
-            // Wrapping past the low half of the estimate is what an overshoot looks like from here.
+            // An overshoot wraps past the low half of the estimate.
             if (rest > estimateLow)
             {
                 estimate--;
                 rest += divisorNormalized;
             }
 
-            // Repairs an estimate one short: rarer, about one in a thousand on random operands, and
-            // the only step that moves the quotient up, so nothing else covers for it.
+            // An estimate one short: about one in a thousand on random operands.
             if (rest >= divisorNormalized)
             {
                 estimate++;
@@ -287,14 +239,9 @@ internal static class Words
 
     /// <summary>Returns the remainder of a magnitude divided by a single word, leaving it unchanged.</summary>
     /// <remarks>
-    /// The loop of <see cref="DivideBySmall"/> without the quotient stores. Written out rather
-    /// than shared: sharing would put a "is there a quotient to write" test inside the word loop,
-    /// on the one path that exists to answer a divisibility question without producing one.
+    /// The loop of <see cref="DivideBySmall"/> without the quotient stores, written out so the
+    /// word loop carries no "is there a quotient" test.
     /// </remarks>
-    /// <param name="value">The magnitude.</param>
-    /// <param name="length">The number of significant words in <paramref name="value"/>.</param>
-    /// <param name="divisor">The prepared divisor.</param>
-    /// <returns>The remainder.</returns>
     internal static ulong RemSmall(ReadOnlySpan<ulong> value, int length, in Divisor divisor)
     {
         unchecked
@@ -362,20 +309,13 @@ internal static class Words
         return 0;
     }
 
-    /// <summary>Counts the factors of five in a single word, up to a cap.</summary>
-    /// <remarks>
-    /// A binary search over the powers of five a word holds, not a division per five. This is
-    /// called on values that end in many fives by construction, so counting them one at a time put
-    /// a cost proportional to the trailing zeros straight back into a strip that had just had one
-    /// taken out of it. The cap is the caller's own bound on the answer, and it shortens the search
-    /// as well as the result.
-    /// </remarks>
+    // A binary search over the powers of five a word holds, not a division per five: the values
+    // this sees end in many fives by construction.
     private static int CountFives(ulong value, int cap)
     {
         var bound = Math.Min(cap, MaxFivesPerWord);
 
-        // The cap is usually the answer: a value widened to a column's scale carries as many fives
-        // as the zeros it was given, so one test settles it and the search below never runs.
+        // The cap is usually the answer: a value widened to a column's scale carries that many.
         if (bound <= 0 || value % Pow5Values[bound] == 0)
         {
             return bound;
@@ -401,15 +341,10 @@ internal static class Words
 
     /// <summary>Fills words that nothing is allowed to read with a sentinel, so that reading one shows.</summary>
     /// <remarks>
-    /// Words beyond a buffer's length are not readable state and are not zeroed on any hot path.
-    /// A helper that read past its length would find whatever zero the runtime left there, pass
-    /// the whole suite, and be wrong only for operands wide enough to reach those words; this
-    /// takes the zero away in Debug so it fails instead, and compiles to nothing in Release.
-    /// The write-side half is <see cref="DivRem"/>, which fills every quotient word it reports and
-    /// normalises the numerator down to its own, which is what lets <c>Divide</c> reuse one pair
-    /// of buffers three times without clearing them.
+    /// Words beyond a buffer's length are not zeroed on any hot path. A helper that read past its
+    /// length would find the runtime's zero and pass; this makes it fail in Debug instead, and
+    /// compiles to nothing in Release.
     /// </remarks>
-    /// <param name="value">The words to poison.</param>
     [Conditional("DEBUG")]
     internal static void Poison(Span<ulong> value) => value.Fill(PoisonWord);
 
@@ -523,17 +458,7 @@ internal static class Words
         }
     }
 
-    /// <summary>Divides a magnitude by a single word in place.</summary>
-    /// <remarks>
-    /// The divisor arrives prepared because preparing costs a division of its own: the callers
-    /// here divide by one of the two tables, and one holding an arbitrary divisor prepares it once
-    /// with <see cref="Divisor.For"/> rather than once per word.
-    /// </remarks>
-    /// <param name="acc">The magnitude, replaced by the quotient.</param>
-    /// <param name="accLen">The number of significant words in <paramref name="acc"/>.</param>
-    /// <param name="divisor">The prepared divisor.</param>
-    /// <param name="remainder">Receives the remainder.</param>
-    /// <returns>The number of significant words in the quotient.</returns>
+    /// <summary>Divides a magnitude by a single prepared word in place, returning the new length.</summary>
     internal static int DivRemSmall(Span<ulong> acc, int accLen, in Divisor divisor, out ulong remainder)
     {
         remainder = DivideBySmall(acc, accLen, divisor, acc);
@@ -541,19 +466,8 @@ internal static class Words
         return Normalize(acc[..accLen]);
     }
 
-    /// <summary>Divides a magnitude by a single prepared word, writing the quotient word by word.</summary>
-    /// <remarks>
-    /// The one place the shifted loop is written, so a correction to the shifting cannot reach one
-    /// caller and miss the other. Words go in shifted by the divisor's normalising shift and the
-    /// remainder is shifted back on the way out; the quotient needs no undoing, both sides having
-    /// been scaled alike. <paramref name="quotient"/> may be <paramref name="source"/> itself -
-    /// the loop reads the word below the one it writes - but no other overlap is safe.
-    /// </remarks>
-    /// <param name="source">The magnitude.</param>
-    /// <param name="length">The number of significant words in <paramref name="source"/>.</param>
-    /// <param name="divisor">The prepared divisor.</param>
-    /// <param name="quotient">Receives the quotient, and may be <paramref name="source"/> itself.</param>
-    /// <returns>The remainder.</returns>
+    // Words go in shifted by the divisor's normalising shift and the remainder is shifted back;
+    // the quotient needs no undoing. quotient may be source itself, but no other overlap is safe.
     private static ulong DivideBySmall(
         ReadOnlySpan<ulong> source,
         int length,
@@ -566,8 +480,7 @@ internal static class Words
             var normalized = divisor.Normalized;
             var reciprocal = divisor.Reciprocal;
 
-            // Shifting the magnitude left can push bits out of its top word. They are not lost:
-            // they are the first dividend's high half, which is zero when nothing was shifted.
+            // The bits the shift pushes out of the top word are the first dividend's high half.
             ulong rem = 0;
             if (shift != 0 && length > 0)
             {
@@ -737,18 +650,10 @@ internal static class Words
 
     /// <summary>Divides one magnitude by another, leaving the remainder in the numerator.</summary>
     /// <remarks>
-    /// Every quotient word this reports is one it wrote, and it reads none above that, so the
-    /// caller does not have to clear the quotient buffer first and nothing above the returned
-    /// length means anything. The numerator is consumed: the remainder is written over its low
-    /// words and the rest are cleared.
+    /// Every quotient word reported is one this wrote, so the quotient buffer need not be cleared
+    /// first. The numerator is consumed: the remainder is written over its low words and the rest
+    /// are cleared.
     /// </remarks>
-    /// <param name="numerator">The dividend, overwritten with the remainder.</param>
-    /// <param name="numLen">The number of significant words in <paramref name="numerator"/>.</param>
-    /// <param name="divisor">The divisor, normalized and non-zero.</param>
-    /// <param name="divLen">The number of significant words in <paramref name="divisor"/>.</param>
-    /// <param name="quotient">Receives the quotient. It need not be cleared.</param>
-    /// <param name="remainderLen">The number of significant words of the remainder.</param>
-    /// <returns>The number of significant words in <paramref name="quotient"/>.</returns>
     internal static int DivRem(
         Span<ulong> numerator,
         int numLen,
@@ -764,9 +669,8 @@ internal static class Words
             ulong rem;
             if (numLen <= 1)
             {
-                // One word over one word is a hardware divide and nothing else. Preparing the
-                // divisor costs a 128-bit division with nothing to amortise it over: 1.1x on
-                // net10.0 and 6.9x on net8.0. From two words up it wins 2x to 20x, hence the cut.
+                // A hardware divide: preparing the divisor costs a 128-bit division with nothing
+                // to amortise it over, 6.9x on net8.0. From two words up it wins 2x to 20x.
                 var single = numLen == 0 ? 0UL : numerator[0];
                 rem = single % divisor[0];
                 if (numLen == 1)
@@ -776,8 +680,6 @@ internal static class Words
             }
             else
             {
-                // The divisor is the caller's, so it is prepared here rather than read from a
-                // table: once per call, amortised over every word of the dividend.
                 rem = DivideBySmall(numerator, numLen, Divisor.For(divisor[0]), quotient);
             }
 
@@ -808,8 +710,7 @@ internal static class Words
             var vHigh = vn[divLen - 1];
             var vNext = vn[divLen - 2];
 
-            // The divisor was normalised above, which is exactly the precondition the primitive
-            // wants, so one reciprocal serves every quotient word of this division.
+            // One reciprocal serves every quotient word of this division.
             var vReciprocal = Reciprocal(vHigh);
 
             for (var j = qLen - 1; j >= 0; j--)
@@ -819,10 +720,8 @@ internal static class Words
                 ulong qhat;
                 UInt128 rhat;
 
-                // The true quotient is 2^64 exactly when the remainder's leading word equals the
-                // divisor's, which no single word holds, so the primitive cannot answer it. The
-                // partial remainder stays a UInt128: truncated to a ulong it looks small and the
-                // correction below fires on an estimate that was already right.
+                // A leading word equal to the divisor's means a quotient of 2^64, which no word
+                // holds, so the primitive cannot answer it. The partial remainder stays a UInt128.
                 if (topHigh >= vHigh)
                 {
                     qhat = ulong.MaxValue;
@@ -952,21 +851,11 @@ internal static class Words
     }
 
     /// <summary>
-    /// A divisor already in the form <see cref="DivRem2By1"/> needs it: shifted so that its most
+    /// A divisor in the form <see cref="DivRem2By1"/> needs it: shifted so that its most
     /// significant bit is set, with the shift that produced it and the reciprocal of the result.
     /// </summary>
-    /// <remarks>
-    /// The shift is carried here rather than at the call site because the dividend is fed in
-    /// shifted by the same amount and the remainder comes back needing it undone.
-    /// </remarks>
-    /// <param name="Normalized">The divisor shifted so that its most significant bit is set.</param>
-    /// <param name="Reciprocal">The reciprocal of <paramref name="Normalized"/>.</param>
-    /// <param name="Shift">The number of places the divisor was shifted left, from 0 to 63.</param>
     internal readonly record struct Divisor(ulong Normalized, ulong Reciprocal, int Shift)
     {
-        /// <summary>Prepares a divisor.</summary>
-        /// <param name="value">The divisor, which must not be zero.</param>
-        /// <returns>The prepared divisor.</returns>
         internal static Divisor For(ulong value)
         {
             Debug.Assert(value != 0, "divisor must be non-zero");

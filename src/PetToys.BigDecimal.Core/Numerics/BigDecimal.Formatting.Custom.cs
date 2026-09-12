@@ -7,18 +7,11 @@ namespace PetToys.BigDecimal.Numerics;
 /// Custom numeric format strings: every format string that is not a standard specifier.
 /// </summary>
 /// <remarks>
-/// <para>
-/// The engine runs twice over the chosen section, once measuring and once writing. Measuring by
-/// rendering rather than by arithmetic over the descriptor is deliberate: the length a formatter
-/// promises and the length it writes are then the same code, and that promise is what the caller's
-/// destination is checked against.
-/// </para>
-/// <para>
-/// Every rule here was read back from <see cref="decimal"/> rather than from documentation. The
-/// ones that surprise: <c>##.##</c> renders zero as the empty string, an explicit negative section
-/// suppresses the sign entirely, an empty negative section falls back to the positive one with a
-/// sign, and a custom format reads the number separators even when it scales by a percent.
-/// </para>
+/// The engine runs twice over the chosen section, once measuring and once writing, so the length
+/// promised and the length written are the same code. Every rule was read back from
+/// <see cref="decimal"/>: <c>##.##</c> renders zero as the empty string, an explicit negative
+/// section suppresses the sign, an empty one falls back to the positive section with a sign, and
+/// a custom format reads the number separators even when it scales by a percent.
 /// </remarks>
 public readonly partial struct BigDecimal
 {
@@ -37,10 +30,8 @@ public readonly partial struct BigDecimal
         Span<char> buffer = stackalloc char[DigitBufferLength];
         var digits = Prepare(buffer, spec, out var exponent);
 
-        // A non-zero value that rounds to zero is rendered as a zero, so the section is only
-        // settled after the rounding the section itself decides: "0.00;(0.00)" renders a
-        // ten-thousandth as 0.00, not (0.00). The digits are not prepared again - the framework
-        // rounds once, by the first section - so "0.0000;(0.00)" renders it as 0.0000, not 0.0001.
+        // A value that rounds to zero takes the zero section, rounded once by the first section:
+        // "0.00;(0.00)" renders a ten-thousandth as 0.00, "0.0000;(0.00)" as 0.0000.
         if (digits.IsZero && !IsZero)
         {
             section = ZeroFallbackSection(format);
@@ -66,7 +57,6 @@ public readonly partial struct BigDecimal
         return true;
     }
 
-    /// <summary>Decomposes the value and applies the scaling and rounding a section asks for.</summary>
     private DigitText Prepare(Span<char> buffer, scoped CustomSpec spec, out int exponent)
     {
         var digits = Decompose(buffer);
@@ -74,23 +64,20 @@ public readonly partial struct BigDecimal
 
         if (spec.Scientific)
         {
-            // Not clamped to one: ".0E+0" asks for no integer digit at all and renders 1234.5678
-            // as .1E+4, where clamping would render it as 1.2E+3.
+            // Not clamped to one: ".0E+0" renders 1234.5678 as .1E+4.
             var mantissaDigits = spec.IntegerPlaceholders;
             exponent = digits.IsZero ? 0 : digits.Point - mantissaDigits;
             digits.Shift(mantissaDigits - digits.Point);
             digits.RoundTo(spec.FractionPlaceholders);
 
-            // Rounding can carry, and a carry is one more place in the exponent rather than one
-            // more digit in the mantissa: 9.99 with "0.0e+00" is 1.0e+01, not 10.0e+00.
+            // A carry is one more place in the exponent: 9.99 with "0.0e+00" is 1.0e+01.
             if (!digits.IsZero && digits.Point != mantissaDigits)
             {
                 exponent += digits.Point - mantissaDigits;
                 digits.Shift(mantissaDigits - digits.Point);
             }
 
-            // A mantissa that rounded away to nothing takes the exponent with it, as it does for
-            // the standard specifier: "E+0" renders 1234.5678 as E+0, not as E+4.
+            // A mantissa that rounded away takes the exponent with it: "E+0" renders 1234.5678 as E+0.
             if (digits.IsZero)
             {
                 exponent = 0;
@@ -105,7 +92,6 @@ public readonly partial struct BigDecimal
         return digits;
     }
 
-    /// <summary>The section a value that rounded away to zero is rendered by.</summary>
     private static ReadOnlySpan<char> ZeroFallbackSection(ReadOnlySpan<char> format)
     {
         SplitSections(format, out var first, out var second);
@@ -125,13 +111,9 @@ public readonly partial struct BigDecimal
         return zeroSection.IsEmpty ? positive : zeroSection;
     }
 
-    /// <summary>Chooses the section a value is rendered by, and says whether a sign goes with it.</summary>
-    /// <remarks>
-    /// One section serves every value and takes a sign. Two make the second the negative one, and
-    /// three make the third the zero one. An empty section is not an empty rendering: the negative
-    /// one falling back to the positive one plus a sign is why <c>";;"</c> renders -0.5 as a lone
-    /// minus sign.
-    /// </remarks>
+    // One section serves every value with a sign; two make the second the negative one, three
+    // the third the zero one. An empty negative section falls back to the positive one plus a
+    // sign, which is why ";;" renders -0.5 as a lone minus.
     private static ReadOnlySpan<char> SelectSection(
         ReadOnlySpan<char> format,
         bool negative,
@@ -203,8 +185,7 @@ public readonly partial struct BigDecimal
         }
     }
 
-    // Returns the index of the closing quote, or the length when the literal is unterminated,
-    // which the framework treats as running to the end of the format.
+    // The index of the closing quote, or the length: an unterminated literal runs to the end.
     private static int SkipLiteral(ReadOnlySpan<char> format, int start)
     {
         var quote = format[start];
@@ -269,8 +250,7 @@ public readonly partial struct BigDecimal
 
                     continue;
                 case ',':
-                    // A comma before any digit placeholder is a literal, not a scale: ",.00"
-                    // renders 0.5 as .50, not as .00.
+                    // Before any placeholder a comma is a literal: ",.00" renders 0.5 as .50.
                     if (!seenPoint && sawIntegerPlaceholder)
                     {
                         pendingCommas++;
@@ -297,9 +277,7 @@ public readonly partial struct BigDecimal
                 case 'E' or 'e':
                     if (TryReadExponent(section, i, out var end, out var minDigits, out var alwaysSign))
                     {
-                        // A second exponent section is literal text - "0.0E+0E+0" renders 1.2E+3E+0
-                        // - while a first one is scientific even with no placeholder before it:
-                        // "E+0" renders -0.5 as -E+1.
+                        // A second exponent token is literal text: "0.0E+0E+0" renders 1.2E+3E+0.
                         if (spec.Scientific)
                         {
                             i = end - 1;
@@ -346,8 +324,7 @@ public readonly partial struct BigDecimal
             end++;
         }
 
-        // Zeros only. A '#' after the exponent is a mantissa placeholder, not part of the token:
-        // "0.0E+0#" renders 1.594e19 as 1.5E+199, the 9 being a mantissa digit.
+        // Zeros only: in "0.0E+0#" the '#' is a mantissa placeholder, and 1.594e19 renders 1.5E+199.
         while (end < section.Length && section[end] is '0')
         {
             minDigits++;
@@ -413,8 +390,7 @@ public readonly partial struct BigDecimal
                     }
                     else
                     {
-                        // The leftmost placeholder carries every digit the placeholders cannot,
-                        // which is what makes a lone "#" render a four-digit integer part in full.
+                        // The leftmost placeholder carries every digit the others cannot.
                         var overflow = integerPlaceholder == 0
                             ? Math.Max(integerDigits - spec.IntegerPlaceholders, 0)
                             : 0;
@@ -432,8 +408,7 @@ public readonly partial struct BigDecimal
                     {
                         seenPoint = true;
 
-                        // Integer digits with no placeholder to sit in are written here rather than
-                        // dropped: ".##" renders 1234.5678 as 1234.57, not as .57.
+                        // With no integer placeholder the digits go here: ".##" renders 1234.5678 as 1234.57.
                         if (spec.IntegerPlaceholders == 0)
                         {
                             WriteIntegerDigits(
@@ -470,8 +445,7 @@ public readonly partial struct BigDecimal
                         continue;
                     }
 
-                    // Any other exponent token is literal text, written whole so the placeholders
-                    // inside it are not filled. The parser skips the same range, so the two agree.
+                    // Any other exponent token is literal text, written whole so its zeros are not filled.
                     if (c is 'E' or 'e' && TryReadExponent(section, i, out var literalEnd, out _, out _))
                     {
                         foreach (var token in section[i..literalEnd])
@@ -550,9 +524,8 @@ public readonly partial struct BigDecimal
         }
     }
 
-    // How many digits the integer part writes: every significant one it has, but never fewer than
-    // the zero placeholders demand. A value below one has none of its own, which is why "##.##"
-    // renders zero as nothing at all.
+    // Every significant integer digit, but never fewer than the zero placeholders demand; a value
+    // below one has none of its own, so "##.##" renders zero as nothing.
     private static int IntegerDigitCount(scoped DigitText digits, scoped CustomSpec spec) =>
         Math.Max(digits.IsZero ? 0 : Math.Max(digits.Point, 0), spec.RequiredInteger);
 
@@ -570,8 +543,7 @@ public readonly partial struct BigDecimal
         return spec.RequiredFraction;
     }
 
-    // The digits are right-aligned against the integer part, so a part widened by zero
-    // placeholders reads its leading zeros from before the first significant digit.
+    // Right-aligned, so a part widened by zero placeholders reads leading zeros from DigitText.At.
     private static char IntegerDigit(scoped DigitText digits, int index, int integerDigits)
     {
         var offset = integerDigits - Math.Max(digits.Point, 0);
@@ -618,7 +590,7 @@ public readonly partial struct BigDecimal
         internal int ExponentEnd;
     }
 
-    /// <summary>Writes into a destination, or counts what it would write.</summary>
+    // Writes into a destination, or counts what it would write.
     private ref struct Emitter
     {
         private readonly Span<char> destination;

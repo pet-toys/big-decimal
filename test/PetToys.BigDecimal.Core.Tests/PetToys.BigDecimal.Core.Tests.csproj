@@ -5,8 +5,7 @@
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
-    <!-- Mirrors the namespace of the project under test, which is not the
-         project name: see the comment in PetToys.BigDecimal.Core.csproj. -->
+    <!-- Mirrors the namespace of the project under test, which is not the project name. -->
     <RootNamespace>PetToys.BigDecimal</RootNamespace>
   </PropertyGroup>
 
