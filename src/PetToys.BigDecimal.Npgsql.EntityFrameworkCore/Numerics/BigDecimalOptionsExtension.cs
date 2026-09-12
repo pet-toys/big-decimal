@@ -9,10 +9,8 @@ namespace PetToys.BigDecimal.Numerics;
 /// Registers the mapping plugin on a context's own service collection.
 /// </summary>
 /// <remarks>
-/// An options extension rather than an internal service provider. Reaching a plugin through
-/// <c>AddEntityFrameworkNpgsql().UseInternalServiceProvider(...)</c> works and is not a thing to
-/// hand a consumer: it turns off Entity Framework's own service provider caching and makes the
-/// caller own a container, for a package that adds one singleton.
+/// An options extension rather than <c>UseInternalServiceProvider</c>, which would make the caller
+/// own a container for a package that adds one singleton.
 /// </remarks>
 internal sealed class BigDecimalOptionsExtension : IDbContextOptionsExtension
 {
@@ -26,20 +24,11 @@ internal sealed class BigDecimalOptionsExtension : IDbContextOptionsExtension
     /// <inheritdoc/>
     public void Validate(IDbContextOptions options)
     {
-        // Nothing to validate: the extension carries no configuration, and the provider it needs
-        // is the one that supplies the builder the registration hangs off.
+        // Nothing to validate: the extension carries no configuration.
     }
 
-    /// <summary>
-    /// What Entity Framework reads about this extension when it decides whether two contexts can
-    /// share a service provider.
-    /// </summary>
-    /// <remarks>
-    /// The hash is constant and the comparison is by type because the extension carries no
-    /// configuration. Both move together the moment it gains an option: leaving them as they are
-    /// would let a context be served a provider built for the other configuration, which fails
-    /// nowhere near the option that changed.
-    /// </remarks>
+    // The hash is constant and the comparison is by type because the extension carries no
+    // configuration; both have to move the moment it gains an option.
     private sealed class ExtensionInfo(IDbContextOptionsExtension extension)
         : DbContextOptionsExtensionInfo(extension)
     {

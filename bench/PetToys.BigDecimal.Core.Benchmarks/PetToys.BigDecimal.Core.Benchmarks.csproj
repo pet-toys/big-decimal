@@ -4,11 +4,8 @@
     <TargetFrameworks>$(TargetFrameworkVersions)</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
-    <!-- Mirrors the namespace of the project under measurement, which is not the
-         project name. Inside a namespace such as PetToys.BigDecimal.Benchmarks the
-         identifier BigDecimal binds to the namespace rather than to the type, and a
-         using-alias does not override that; pinning RootNamespace is also what keeps
-         IDE0130 quiet. See the comment in PetToys.BigDecimal.Core.csproj. -->
+    <!-- Mirrors the namespace of the project under measurement: from any other namespace
+         under PetToys.BigDecimal the identifier BigDecimal binds to the namespace. -->
     <RootNamespace>PetToys.BigDecimal</RootNamespace>
   </PropertyGroup>
 

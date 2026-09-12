@@ -1,22 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Every framework is compiled against EF Core 9, which runs under EF Core 10 as well. The
-         mirror does not: an assembly built against EF Core 10 cannot be consumed on EF Core 9. -->
+    <!-- Every framework compiles against EF Core 9, which also runs under EF Core 10; an
+         assembly built against 10 cannot be consumed on 9. -->
     <TargetFrameworks>$(TargetFrameworkVersions)</TargetFrameworks>
-    <!-- Pinned so the Numerics/ folder lands in PetToys.BigDecimal.Numerics, where the type
-         is. From any other namespace under PetToys.BigDecimal the identifier BigDecimal binds
-         to the namespace instead - CS0118 at every mention, and a using alias does not fix it. -->
+    <!-- Puts Numerics/ in PetToys.BigDecimal.Numerics, where the type is; from any other
+         namespace under PetToys.BigDecimal the identifier BigDecimal binds to the namespace. -->
     <RootNamespace>PetToys.BigDecimal</RootNamespace>
   </PropertyGroup>
 
   <PropertyGroup Label="NuGet package">
     <Description>Entity Framework Core mapping that exposes PostgreSQL numeric columns as PetToys.BigDecimal.Core properties, over the handler PetToys.BigDecimal.Npgsql installs on the data source.</Description>
-    <PackageTags>bigdecimal;decimal;numeric;postgresql;postgres;npgsql;efcore;entityframeworkcore;trimmable</PackageTags>
-    <!-- Implies IsTrimmable and turns the trim, single-file and AOT analyzers into a build gate.
-         It marks this assembly and nothing else: of the four assemblies in this package's graph
-         only Npgsql is marked, and EF Core's query pipeline is not something an attribute can
-         vouch for. The README states what a trimmed or Native AOT consumer meets. -->
+    <PackageTags>bigdecimal;decimal;numeric;postgresql;postgres;npgsql;efcore;entityframeworkcore</PackageTags>
+    <!-- A build gate over this assembly's own code, not a claim about the closure: EF Core and
+         its provider carry no IsTrimmable, and the README says what a trimmed consumer meets. -->
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 
@@ -25,13 +22,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The provider buys one type, NpgsqlDbContextOptionsBuilder. Everything else compiles
-         against Microsoft.EntityFrameworkCore.Relational, which arrives with it. -->
+    <!-- For one type, NpgsqlDbContextOptionsBuilder; the rest compiles against Relational. -->
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The adapter installs the handler this mapping reads and writes through. -->
     <ProjectReference Include="..\PetToys.BigDecimal.Npgsql\PetToys.BigDecimal.Npgsql.csproj" />
   </ItemGroup>
 

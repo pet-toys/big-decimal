@@ -5,7 +5,7 @@ using ClickHouse.Driver.ADO.Readers;
 using PetToys.BigDecimal.Numerics;
 using DriverDecimal = ClickHouse.Driver.Numerics.ClickHouseDecimal;
 
-#pragma warning disable IDE0130 // See the remarks: the namespace is the driver's root on purpose.
+#pragma warning disable IDE0130 // The driver's namespace, the one a ClickHouse caller already imports.
 
 namespace ClickHouse.Driver;
 
@@ -15,28 +15,16 @@ namespace ClickHouse.Driver;
 /// </summary>
 /// <remarks>
 /// <para>
-/// In <c>ClickHouse.Driver</c> rather than in the namespace <see cref="ClickHouseDataReader"/>
-/// itself lives in. A caller reaches a reader through <c>ExecuteReaderAsync</c> and holds it in a
-/// <c>var</c>, so they never import <c>ClickHouse.Driver.ADO.Readers</c> and would not see these
-/// at all; the whole public surface of this package is in the one namespace a ClickHouse caller
-/// already has.
+/// Reading cannot fail - every ClickHouse decimal fits - so these accessors exist to explain a
+/// shape: <c>GetFieldValue&lt;BigDecimal&gt;</c> cannot work, because the driver casts its own
+/// value to the requested type before consulting the hook, and a column read where the mapping
+/// was not installed fails the same way. Both raise an <see cref="InvalidCastException"/> that
+/// names neither the column nor the registration; these do.
 /// </para>
 /// <para>
-/// These accessors are not here to catch an exception, because reading cannot fail: every
-/// ClickHouse decimal fits, at every width and every precision the server allows. They are here to
-/// explain a shape a caller will otherwise not understand.
-/// </para>
-/// <para>
-/// <c>GetFieldValue&lt;BigDecimal&gt;</c> cannot work and never will. The driver casts its own value
-/// to the requested type before consulting the hook that could have changed it, so the cast fails
-/// first; the same happens at any call site reading a column on a connection or query where the
-/// mapping was not installed. Both produce an <see cref="InvalidCastException"/> about the driver's
-/// decimal type that names neither the column nor the registration. These accessors do.
-/// </para>
-/// <para>
-/// There is no asynchronous form, and that is not an omission. The value is materialised by
-/// <see cref="DbDataReader.ReadAsync(System.Threading.CancellationToken)"/>, <c>GetValue</c> is
-/// synchronous after it, and <c>GetFieldValueAsync&lt;T&gt;</c> is the overload that cannot work.
+/// There is no asynchronous form: the value is materialised by
+/// <see cref="DbDataReader.ReadAsync(System.Threading.CancellationToken)"/> and <c>GetValue</c>
+/// is synchronous after it.
 /// </para>
 /// </remarks>
 public static class ClickHouseDataReaderBigDecimalExtensions
@@ -115,31 +103,19 @@ public static class ClickHouseDataReaderBigDecimalExtensions
         return reader.GetNullableBigDecimal(reader.GetOrdinal(name));
     }
 
-    /// <summary>Explains a column that is null where a value was asked for.</summary>
-    /// <param name="reader">The reader.</param>
-    /// <param name="ordinal">The column's ordinal.</param>
-    /// <returns>The exception to throw.</returns>
     private static InvalidCastException Null(ClickHouseDataReader reader, int ordinal) =>
         new(string.Create(
             CultureInfo.InvariantCulture,
             $"{Column(reader, ordinal)} is null. Use GetNullableBigDecimal, which answers null instead of throwing."));
 
-    /// <summary>Explains a column that did not arrive as a mapped value.</summary>
-    /// <param name="reader">The reader.</param>
-    /// <param name="ordinal">The column's ordinal.</param>
-    /// <param name="value">What arrived instead.</param>
-    /// <returns>The exception to throw.</returns>
-    /// <remarks>
-    /// The driver's own decimal arriving here means one thing and it is worth saying plainly: the
-    /// query ran without the mapping. Anything else means the column is not a decimal at all.
-    /// </remarks>
+    // The driver's own decimal arriving here means the query ran without the mapping; anything
+    // else means the column is not a decimal at all.
     private static InvalidCastException Unmapped(ClickHouseDataReader reader, int ordinal, object? value)
     {
         var arrived = value?.GetType().FullName ?? "null";
         var column = Column(reader, ordinal);
 
-        // Extracted rather than inlined into the conditional: `is T or T[]` followed by `?` is
-        // read as a nullable array pattern, which compiles and means something else.
+        // Not inlined: `is T or T[] ?` parses as a nullable array pattern.
         var unmapped = value is DriverDecimal or DriverDecimal[];
 
         var message = unmapped
@@ -153,10 +129,6 @@ public static class ClickHouseDataReaderBigDecimalExtensions
         return new InvalidCastException(message);
     }
 
-    /// <summary>Names a column the way a message should read.</summary>
-    /// <param name="reader">The reader.</param>
-    /// <param name="ordinal">The column's ordinal.</param>
-    /// <returns>The phrase a message opens with.</returns>
     private static string Column(ClickHouseDataReader reader, int ordinal) =>
         string.Create(
             CultureInfo.InvariantCulture,

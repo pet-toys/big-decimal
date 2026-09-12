@@ -10,18 +10,14 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
 {
     internal const int MaxCharsPlain = 1 + MaxDigits + 1 + MaxScale;
 
-    // The significand and nothing more. Scaling moves the point, which is an integer beside the
-    // digits, and an integer part wider than the significand reads its trailing zeros from
-    // DigitText.At rather than from the buffer, so no shift widens what has to be stored.
+    // The significand only: scaling moves the point, and DigitText.At answers the zeros beyond.
     private const int DigitBufferLength = MaxDigits + 1;
 
-    // What the framework accepts after a standard specifier: F999999999 renders a billion
-    // characters there, F1000000000 throws.
+    // What the framework accepts: F999999999 renders, F1000000000 throws.
     private const int MaxStandardPrecision = 999_999_999;
 
-    // The intermediate the UTF-8 overload and ToString format through. It covers every standard
-    // specifier at any precision a culture can carry - 99 decimal digits over a widest rendering
-    // of 334 characters - so only an explicit precision or a long custom format rents.
+    // Covers every standard specifier at any precision a culture carries, so only an explicit
+    // precision or a long custom format rents.
     private const int StackFormatChars = 512;
 
     /// <summary>Formats the value for the current culture, trailing zeros included.</summary>
@@ -66,8 +62,7 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
             return new string(buffer[..written]);
         }
 
-        // The failed call reported the length it needed, so the string is the only allocation and
-        // there is no cap on how long a format string may ask for.
+        // The failed call reported the length it needed, so the string is the only allocation.
         return string.Create(
             required,
             (Value: this, Format: format, Info: info),
@@ -110,9 +105,7 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
             return Encoding.UTF8.TryGetBytes(chars[..charsWritten], utf8Destination, out bytesWritten);
         }
 
-        // Longer than the stack bound, so the intermediate is rented rather than fixed. The
-        // caller's destination stays the only thing deciding success: this buffer is sized from
-        // the text, never from a constant the caller cannot see.
+        // Sized from the text, so the caller's destination stays the only thing deciding success.
         var rented = ArrayPool<char>.Shared.Rent(required);
         try
         {
@@ -125,9 +118,8 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
         }
     }
 
-    // The format string is never looked at, not even to reject it: double renders NaN for an
-    // invalid specifier where a finite value throws FormatException. Measured, not assumed. The
-    // symbol's length is culture data with no cap, so it is reported through `required`.
+    // The format string is not looked at, not even to reject it: double renders NaN for an
+    // invalid specifier where a finite value throws.
     private bool TryFormatNonFinite(
         Span<char> destination,
         out int charsWritten,
@@ -153,13 +145,8 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
     internal bool TryFormatInvariant(Span<char> destination, out int charsWritten) =>
         TryFormatCore(destination, out charsWritten, default, NumberFormatInfo.InvariantInfo, out _);
 
-    /// <summary>Formats the value, reporting the length the destination would have needed.</summary>
-    /// <remarks>
-    /// Every formatter computes its exact length before writing anything, so reporting it costs
-    /// nothing and is what sizes the buffers of the two callers that have to make one. A constant
-    /// in either of those places is how the UTF-8 overload came to decline destinations that were
-    /// long enough.
-    /// </remarks>
+    // Every formatter computes its exact length before writing, and `required` is what sizes
+    // the buffer of a caller that has to make one.
     private bool TryFormatCore(
         Span<char> destination,
         out int charsWritten,
@@ -203,12 +190,7 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
         }
     }
 
-    /// <summary>Renders the value with a fixed count of fractional digits, inside a pattern.</summary>
-    /// <remarks>
-    /// One formatter for <c>F</c>, <c>N</c>, <c>C</c>, <c>P</c> and the plain rendering of
-    /// <c>G</c>: they differ in the culture members they read, in how they lay the sign out and in
-    /// whether they group, and in nothing else.
-    /// </remarks>
+    // One formatter for F, N, C, P and plain G: they differ only in the culture members they read.
     private bool TryFormatFixed(
         Span<char> destination,
         out int charsWritten,
@@ -224,7 +206,6 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
         return TryWriteFixed(destination, out charsWritten, out required, ref digits, in style);
     }
 
-    /// <summary>Renders the value in scientific notation, which is what <c>E</c> does.</summary>
     private bool TryFormatExponential(
         Span<char> destination,
         out int charsWritten,
@@ -241,17 +222,8 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
             destination, out charsWritten, out required, ref digits, info, precision, lowercase, 3);
     }
 
-    /// <summary>
-    /// Renders the value to a count of significant digits, which is what <c>G</c> with a precision
-    /// does.
-    /// </summary>
-    /// <remarks>
-    /// Measured against <see cref="decimal"/> rather than read out of the documentation: the
-    /// rounding leaves trailing zeros and they are stripped, so <c>1.000</c> with <c>G3</c> is
-    /// <c>1</c>; the rendering is fixed-point while the decimal exponent is greater than -5 and
-    /// less than the precision, and scientific otherwise; and the scientific form here writes two
-    /// exponent digits where <c>E</c> writes three.
-    /// </remarks>
+    // G with a precision, measured against decimal: trailing zeros are stripped, the rendering is
+    // fixed-point while the exponent is in (-5, precision), and the exponent has two digits.
     private bool TryFormatSignificant(
         Span<char> destination,
         out int charsWritten,
@@ -412,7 +384,6 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
         return true;
     }
 
-    /// <summary>Counts what a layout writes besides the digits themselves.</summary>
     private static int LayoutLength(string layout, int signLength, int symbolLength)
     {
         var length = 0;
@@ -452,23 +423,10 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
         return pos;
     }
 
-    /// <summary>
-    /// Returns the group size at a position in the walk, the last entry standing in for every
-    /// position past the end of the list.
-    /// </summary>
-    /// <remarks>
-    /// A size of zero stops grouping and an empty list never groups, so both come back as zero and
-    /// the callers below treat that as the end of the walk. The framework's own setter rejects a
-    /// zero anywhere but last and rejects anything above nine, so no other value can arrive here.
-    /// </remarks>
+    // The last entry repeats; a zero, or an empty list, ends the walk.
     private static int GroupSizeAt(ReadOnlySpan<int> groupSizes, int index) =>
         groupSizes.IsEmpty ? 0 : groupSizes[Math.Min(index, groupSizes.Length - 1)];
 
-    /// <summary>Counts the separators that grouping an integer part of this length will write.</summary>
-    /// <remarks>
-    /// Needed before anything is written, because the destination-length check depends on it. The
-    /// walk runs once per group rather than once per digit, and it divides nothing.
-    /// </remarks>
     private static int CountGroupSeparators(int length, ReadOnlySpan<int> groupSizes)
     {
         var separators = 0;
@@ -487,13 +445,7 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
         }
     }
 
-    /// <summary>Writes the integer part, grouped, and returns how many characters it took.</summary>
-    /// <remarks>
-    /// Right to left, because that is how grouping is defined: the first entry of the size list
-    /// sizes the rightmost group. The digits come through <see cref="DigitText.At"/>, so an
-    /// integer part wider than the significand writes the trailing zeros it implies without them
-    /// having to be materialised anywhere.
-    /// </remarks>
+    // Right to left: the first entry of the size list sizes the rightmost group.
     private static int WriteGroupedInteger(
         Span<char> destination,
         scoped ref DigitText digits,
@@ -533,8 +485,7 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
         return written;
     }
 
-    // A value below one has no integer digits at all and renders a single zero, which is the only
-    // case where the position asked for is not a position among the digits.
+    // A value below one has no integer digits and renders a single zero.
     private static char IntegerDigit(scoped ref DigitText digits, int index) =>
         digits.Point <= 0 ? '0' : digits.At(index);
 
@@ -561,7 +512,6 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
 
     private const string DigitsOnly = "n";
 
-    /// <summary>The style of a value rendered as stored, which is what <c>G</c> and <c>R</c> do.</summary>
     private FixedStyle Stored(NumberFormatInfo info) => new()
     {
         DecimalSeparator = info.NumberDecimalSeparator,
@@ -665,12 +615,8 @@ public readonly partial struct BigDecimal : IFormattable, ISpanFormattable, IUtf
         return count;
     }
 
-    /// <summary>Decides whether a format string is a standard specifier, and reads its precision.</summary>
-    /// <remarks>
-    /// A letter followed only by digits is a standard specifier; anything else, including a letter
-    /// followed by anything but digits, is a custom numeric format string. That is the framework's
-    /// own rule and it is why <c>Z</c> throws while <c>ZZ</c> renders as literal text.
-    /// </remarks>
+    // A letter followed only by digits is a standard specifier; anything else is a custom format,
+    // which is the framework's rule and why Z throws while ZZ renders as literal text.
     private static bool IsStandardSpecifier(ReadOnlySpan<char> format, out char specifier, out int? precision)
     {
         specifier = 'G';

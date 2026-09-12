@@ -30,21 +30,12 @@ namespace PetToys.BigDecimal.Numerics;
 /// </para>
 /// <para>
 /// A value occupies four 64-bit magnitude words in little-endian order followed by a packed
-/// 32-bit field holding the sign in bit 31, the scale in bits 0 through 7, and the non-finite
-/// encoding in bits 8 and 9. Bit 8 marks a value that is not finite, bit 9 tells
-/// <see cref="NaN"/> from an infinity, and the sign bit says which infinity. Bits 10 through 30
-/// are reserved, have no meaning assigned to them, and are zero in every value the type
-/// produces. A non-finite value carries scale 0 and four zero magnitude words, so it shares its
-/// magnitude with zero and <see cref="IsZero"/> consults the encoding rather than the words
-/// alone.
-/// </para>
-/// <para>
-/// That makes a value 40 bytes wide against <see cref="decimal"/>'s 16, and every operator
-/// takes both operands by value. Nothing reaches the heap, but the working buffers are on the
-/// stack: counted across the whole call rather than one frame, a division, a parse and a
-/// <see cref="ToString()"/> each take between one and one and a half kilobytes. Ordinary for a
-/// call from application code, worth knowing on a deeply recursive path or in an <c>async</c>
-/// state machine whose stack is already hot.
+/// 32-bit field: the sign in bit 31, the scale in bits 0 through 7, and the non-finite encoding
+/// in bits 8 and 9 - bit 8 marks a value that is not finite, bit 9 tells <see cref="NaN"/> from
+/// an infinity, and the sign bit says which infinity. A non-finite value carries scale 0 and
+/// four zero magnitude words. That makes a value 40 bytes wide against <see cref="decimal"/>'s
+/// 16, passed by value; nothing reaches the heap, and a division, a parse or a
+/// <see cref="ToString()"/> takes between one and one and a half kilobytes of stack.
 /// </para>
 /// </remarks>
 [JsonConverter(typeof(BigDecimalJsonConverter))]
@@ -64,9 +55,7 @@ public readonly partial struct BigDecimal
     private const uint SignMask = 0x8000_0000u;
     private const uint ScaleMask = 0x0000_00FFu;
 
-    // Bit 8 says the value is not finite and bit 9 tells NaN from an infinity; the sign bit
-    // says which infinity. Never set on a finite value, so default is still Zero and every bit
-    // pattern the type produced before this encoding existed keeps its meaning.
+    // Never set on a finite value, so default is still Zero.
     private const uint NonFiniteMask = 0x0000_0100u;
     private const uint NaNMask = 0x0000_0200u;
 
@@ -110,16 +99,14 @@ public readonly partial struct BigDecimal
 
     /// <summary>The value that is not a number.</summary>
     /// <remarks>
-    /// There is one NaN: no payload, no quiet and signalling distinction, and no sign, so two
-    /// NaNs reached by different routes have identical bits. It exists because a PostgreSQL
-    /// <c>numeric</c> column can hold one, not as a result arithmetic produces: no operation over
-    /// finite operands yields it.
+    /// There is one NaN, with no payload and no sign. It exists because a PostgreSQL
+    /// <c>numeric</c> column can hold one; no operation over finite operands yields it.
     /// </remarks>
     public static BigDecimal NaN => new(NonFiniteMask | NaNMask);
 
     /// <summary>Positive infinity.</summary>
     /// <remarks>
-    /// Reachable from a PostgreSQL <c>numeric</c> column, from parsing and from a conversion, but
+    /// Reachable from a PostgreSQL <c>numeric</c> column, from parsing and from a conversion,
     /// never from arithmetic over finite operands: division by zero throws
     /// <see cref="DivideByZeroException"/> and an integer part that does not fit throws
     /// <see cref="OverflowException"/>, as they do for <see cref="decimal"/>.
@@ -144,15 +131,9 @@ public readonly partial struct BigDecimal
     /// The number of fractional digits this value carries, from 0 to <see cref="MaxScale"/>.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// The scale is part of the value's representational identity, not of its numeric value:
-    /// <c>1.0</c> and <c>1.00</c> are equal and hash alike but report 1 and 2 here, and the
-    /// difference survives formatting and the database wire formats.
-    /// </para>
-    /// <para>
-    /// A non-finite value reports 0. <see cref="double"/> has no counterpart to this property, so
-    /// that answer is a decision of this type rather than parity with anything.
-    /// </para>
+    /// The scale is part of the value's representation, not of its numeric value: <c>1.0</c> and
+    /// <c>1.00</c> are equal and hash alike but report 1 and 2 here, and the difference survives
+    /// formatting and the database wire formats. A non-finite value reports 0.
     /// </remarks>
     public int Scale => (int)(_flags & ScaleMask);
 
@@ -164,9 +145,7 @@ public readonly partial struct BigDecimal
 
     /// <summary>Whether the magnitude is zero, whatever the scale.</summary>
     /// <remarks>
-    /// The magnitude is tested first and the encoding second, because a non-finite value shares
-    /// its four zero words with zero. The order matters: the second test runs only when the
-    /// magnitude is already zero, which is the branch the arithmetic fast paths take least often.
+    /// A non-finite value shares its four zero words with zero, so the encoding is tested too.
     /// </remarks>
     public bool IsZero => (_l0 | _l1 | _l2 | _l3) == 0 && !IsNonFinite;
 
@@ -203,10 +182,8 @@ public readonly partial struct BigDecimal
     /// infinities.
     /// </summary>
     /// <exception cref="ArithmeticException">
-    /// The value is <see cref="NaN"/>, which has no sign. <see cref="Math.Sign(double)"/> and
-    /// <c>INumber&lt;double&gt;.Sign</c> both throw the same way for <see cref="double.NaN"/>, and
-    /// the interface implementation here has to, so the property does too rather than answering
-    /// differently from it.
+    /// The value is <see cref="NaN"/>, which has no sign, as <see cref="Math.Sign(double)"/>
+    /// throws for <see cref="double.NaN"/>.
     /// </exception>
     public int Sign
     {
@@ -223,8 +200,7 @@ public readonly partial struct BigDecimal
 
     internal bool IsNonFinite => (_flags & NonFiniteMask) != 0;
 
-    // The sign without the NaN check, for callers that have already answered the non-finite
-    // cases and would otherwise pay for the branch on every comparison.
+    // The sign without the NaN check, for callers that have already answered the non-finite cases.
     internal int FiniteSign => IsZero ? 0 : (IsNegative ? -1 : 1);
 
     /// <summary>
@@ -232,18 +208,11 @@ public readonly partial struct BigDecimal
     /// value and 0 for a non-finite one.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// Counted on the mantissa rather than on the value with its trailing zeros removed, because
-    /// this type preserves them and a database column counts stored digits: <c>1.00</c> reports 3
-    /// and <c>1</c> reports 1, while <c>0.001</c> reports 1 because the scale carries the leading
-    /// zeros. Together with <see cref="Scale"/> this is what decides whether a value fits a
-    /// <c>numeric(p,s)</c> or a <c>Decimal128(S)</c> column.
-    /// </para>
-    /// <para>
-    /// Zero reports 1 at every scale. The largest value reports 78, not 77: 77 is the width an
-    /// overflowing result is normalised to, while the magnitude itself holds 2^256-1, which has 78
-    /// digits.
-    /// </para>
+    /// Counted on the mantissa, trailing zeros included, as a database column counts stored
+    /// digits: <c>1.00</c> reports 3, <c>1</c> reports 1, and <c>0.001</c> reports 1 because the
+    /// scale carries the leading zeros. Together with <see cref="Scale"/> this decides whether a
+    /// value fits a <c>numeric(p,s)</c> or a <c>Decimal128(S)</c> column. Zero reports 1 at every
+    /// scale, and <see cref="MaxValue"/> reports 78.
     /// </remarks>
     public int Precision
     {
@@ -305,9 +274,7 @@ public readonly partial struct BigDecimal
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="destination"/> is shorter than four words.</exception>
     /// <exception cref="InvalidOperationException">
     /// The value is NaN or an infinity, which has no magnitude to copy. Test
-    /// <see cref="IsFinite"/> first. The alternative was reporting four zero words with a
-    /// sign and a scale, which <see cref="FromWords"/> reads back as <see cref="Zero"/>: a
-    /// NaN would reach a database column as 0 with nothing raised anywhere.
+    /// <see cref="IsFinite"/> first.
     /// </exception>
     public int GetWords(Span<ulong> destination, out bool isNegative, out int scale)
     {
@@ -335,9 +302,8 @@ public readonly partial struct BigDecimal
         destination[2] = _l2;
         destination[3] = _l3;
 
-        // A work buffer is wider than the magnitude it holds and nothing reads the words above it:
-        // every helper is bounded by the length it is given. Zeroing them cost a twenty-word fill
-        // per copy that the runtime had already done. Words.Poison is what keeps that true.
+        // Nothing reads above the length a helper is given, so the rest is not zeroed; Poison
+        // makes a Debug build fail if that ever stops being true.
         Words.Poison(destination[WordCount..]);
 
         return Words.Normalize(destination[..WordCount]);
@@ -355,10 +321,8 @@ public readonly partial struct BigDecimal
 
     /// <summary>Packs a magnitude and a scale into a value, reporting overflow rather than throwing.</summary>
     /// <remarks>
-    /// The reporting form exists for <c>TryParse</c>, whose contract is to return
-    /// <see langword="false"/> and allocate nothing; a <c>try</c>/<c>catch</c> around the throwing
-    /// form cost 464 bytes of exception there. The magnitude is consumed either way, so a caller
-    /// that gets <see langword="false"/> cannot reuse the buffer.
+    /// For <c>TryParse</c>, which allocates nothing and so cannot catch. The magnitude is consumed
+    /// either way.
     /// </remarks>
     internal static bool TryPack(Span<ulong> magnitude, int length, bool isNegative, int scale, out BigDecimal result)
     {
@@ -407,17 +371,9 @@ public readonly partial struct BigDecimal
     /// The reduction rule of the type, in one place: excess digits are fractional, they round half
     /// to even, and having none left to give is a failure rather than a truncated integer part.
     /// <see cref="TryPack"/> calls it at the mantissa's width and <see cref="Pow"/> at its
-    /// accumulator's, so the two cannot drift apart.
-    /// <para>
-    /// The three width arguments are a set a third caller has to keep consistent:
-    /// <paramref name="maxDigits"/> is the band every value of that width fits, so the pair must
-    /// satisfy "no wider than <paramref name="maxWords"/> means at most
-    /// <paramref name="maxDigits"/> + 1 digits", and <paramref name="maxScale"/> belongs to the
-    /// width rather than the type, since capping a working value at <see cref="MaxScale"/> would
-    /// round it twice. <paramref name="allowNegativeScale"/> separates a result, which has
-    /// overflowed once it is out of fractional digits, from a working value, which gives them up
-    /// anyway and records how many by going below zero; only <see cref="Pow"/> passes it.
-    /// </para>
+    /// accumulator's, where <paramref name="allowNegativeScale"/> lets a working value go below
+    /// scale 0 instead of failing. Every value no wider than <paramref name="maxWords"/> has at
+    /// most <paramref name="maxDigits"/> + 1 digits.
     /// </remarks>
     private static bool TryReduce(
         Span<ulong> magnitude,
@@ -465,14 +421,11 @@ public readonly partial struct BigDecimal
     internal static void ThrowMantissaOverflow() =>
         throw new OverflowException("Value was either too large or too small for a BigDecimal.");
 
-    // The base class library says "floating point Not-a-Number" here; this type is a fixed-width
-    // decimal, so repeating that would tell the caller something untrue about what they hold.
     [DoesNotReturn]
     internal static void ThrowNaNHasNoSign() =>
         throw new ArithmeticException("Function does not accept Not-a-Number values.");
 
-    // Not an OverflowException: the value is not too large for the destination, it has no
-    // magnitude at all, and the caller's fix is to test IsFinite rather than to widen anything.
+    // Not an OverflowException: the value has no magnitude at all, and the fix is to test IsFinite.
     [DoesNotReturn]
     internal static void ThrowNonFiniteHasNoMagnitude() =>
         throw new InvalidOperationException("NaN and the infinities have no magnitude. Test IsFinite first.");

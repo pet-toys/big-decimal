@@ -8,34 +8,20 @@ namespace PetToys.BigDecimal.Numerics;
 /// Renders a <see cref="BigDecimal"/> parameter as the decimal text a statement carries.
 /// </summary>
 /// <remarks>
-/// Beyond rescaling, this exists because the driver converts a value it does not recognise itself,
-/// through <see cref="IConvertible"/>, which <see cref="BigDecimal"/> does not implement: without
-/// this formatter the write raises <see cref="InvalidCastException"/> before the statement is sent,
-/// naming neither the column nor the value. Measured against ClickHouse.Driver 1.4.0. A value it
-/// does not handle is answered with <see langword="null"/>, as the driver's own
-/// <see cref="DictionaryParameterFormatter"/> does, because a formatter is consulted for every
-/// parameter on the connection. Stateless, so one instance serves every query.
+/// Without it the driver converts the value through <see cref="IConvertible"/>, which
+/// <see cref="BigDecimal"/> does not implement, and the write fails naming neither the column nor
+/// the value. A value it does not handle is answered with <see langword="null"/>, as the driver's
+/// own <see cref="DictionaryParameterFormatter"/> does.
 /// </remarks>
 internal sealed class BigDecimalParameterFormatter : IParameterFormatter
 {
-    /// <summary>The only instance there is any reason to have.</summary>
     internal static readonly BigDecimalParameterFormatter Instance = new();
 
     private BigDecimalParameterFormatter()
     {
     }
 
-    /// <summary>Renders one parameter.</summary>
-    /// <param name="value">The parameter's value.</param>
-    /// <param name="first">
-    /// The second argument the driver passes. See the remarks: it is the ClickHouse type, whatever
-    /// the interface calls it.
-    /// </param>
-    /// <param name="second">The third argument the driver passes, which is the parameter's name.</param>
-    /// <returns>
-    /// The value at the column's scale, in plain decimal notation, or <see langword="null"/> when
-    /// the value is not one this package maps.
-    /// </returns>
+    /// <summary>Renders one parameter at its column's scale, or answers <see langword="null"/> for a value this package does not map.</summary>
     /// <exception cref="InvalidOperationException">
     /// Neither argument names a decimal type, so the column's scale cannot be established.
     /// </exception>
@@ -46,18 +32,10 @@ internal sealed class BigDecimalParameterFormatter : IParameterFormatter
     /// <paramref name="value"/> is NaN or an infinity, which no ClickHouse decimal represents.
     /// </exception>
     /// <remarks>
-    /// <para>
-    /// <c>IParameterFormatter.Format</c> declares its arguments as <c>(value, name, type)</c> and
-    /// the driver passes <c>(value, type, name)</c>. The parameter names here are deliberately
-    /// neutral and the type is taken from whichever argument parses as one, so that this keeps
-    /// working whether or not the driver's signature is corrected. A test pins the order actually
-    /// observed, which is what would report the change.
-    /// </para>
-    /// <para>
-    /// When neither argument names a decimal type this raises rather than falling back to the
-    /// value's own scale. The fallback would be a value the server silently truncates, which is the
-    /// failure this package exists to prevent.
-    /// </para>
+    /// The interface declares <c>(value, name, type)</c> and the driver passes
+    /// <c>(value, type, name)</c>, so the type is taken from whichever argument parses as one; a
+    /// test pins the order observed. Falling back to the value's own scale would hand the server
+    /// a value it silently truncates, so an unannotated parameter is refused instead.
     /// </remarks>
     public string? Format(object value, string first, string second)
     {

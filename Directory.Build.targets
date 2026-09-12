@@ -1,9 +1,6 @@
 ﻿<Project>
 
-  <!-- Everything below is identical for every package in this repository; the
-       project files carry only what differs (Description, PackageTags, the
-       references, InternalsVisibleTo, and - where the project name and the
-       namespace diverge - RootNamespace). -->
+  <!-- Shared by every package; a project file carries only what differs. -->
 
   <PropertyGroup Label="NuGet package" Condition="'$(IsPackable)' != 'false'">
     <PackageReleaseNotes>(Please write the package release notes in "RELEASE-NOTES.txt".)</PackageReleaseNotes>
@@ -11,8 +8,7 @@
     <PackageIcon>icon.png</PackageIcon>
   </PropertyGroup>
 
-  <!-- Relative item paths in an imported file resolve against the project
-       directory, so every package packs its own README.md. -->
+  <!-- A relative path here resolves against the project, so each package packs its own README. -->
   <ItemGroup Condition="'$(IsPackable)' != 'false'">
     <None Include="$(MSBuildThisFileDirectory)assets\icon.png" Pack="true" Visible="false" PackagePath="/" />
     <None Include="README.md" Pack="true" PackagePath="/" />
@@ -20,14 +16,10 @@
 
   <PropertyGroup>
     <ReleaseNotesFile>$(MSBuildThisFileDirectory)assets\RELEASE-NOTES.txt</ReleaseNotesFile>
-    <!-- RELEASE-NOTES.txt is a cumulative changelog, newest version on top,
-         versions separated by a line of 3+ hyphens. Publish only the top
-         section. Read verbatim (not ReadLinesFromFile, which drops blank lines
-         and strips the indentation of wrapped bullets). -->
+    <!-- The top section of a newest-first changelog whose sections a line of 3+ hyphens
+         separates. Read verbatim: ReadLinesFromFile drops blank lines and indentation. -->
     <ReleaseNotesSeparatorPattern>(?s)\A.*?(?=\r?\n[ \t]*-{3,}[ \t]*\r?\n|\z)</ReleaseNotesSeparatorPattern>
-    <!-- Leading version header (version line + '=' underline + blank lines).
-         Stripped from the published notes; it lives only in RELEASE-NOTES.txt
-         (NuGet and the GitHub release already show the version). -->
+    <!-- The version line and its '=' underline, stripped: NuGet and the release show the version. -->
     <ReleaseNotesHeaderPattern>\A[^\r\n]*\r?\n=+[ \t]*\r?\n\s*</ReleaseNotesHeaderPattern>
   </PropertyGroup>
 
@@ -39,12 +31,9 @@
     </PropertyGroup>
   </Target>
 
-  <!-- Preview the notes the package will carry:
-       dotnet msbuild <project> -t:ExportPackageReleaseNotes
-       The destination defaults into obj/, so no caller has to invent a path:
-       MSBuild roots a POSIX one, which is what a Git Bash shell hands it, on
-       the current drive, and the file lands outside the repository.
-       CI overrides the property and reads the GitHub release body from it. -->
+  <!-- dotnet msbuild <project> -t:ExportPackageReleaseNotes previews the notes the package will
+       carry. The destination defaults into obj/; CI overrides it and composes the release body
+       from the file. -->
   <Target Name="ExportPackageReleaseNotes" DependsOnTargets="PreparePackageReleaseNotesFromFile">
     <PropertyGroup Condition="'$(ReleaseNotesExportPath)' == ''">
       <ReleaseNotesExportPath>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'release-notes.txt'))</ReleaseNotesExportPath>

@@ -48,10 +48,8 @@ jobs:
     - name: Test
       run: dotnet test big-decimal.tests.slnf --no-restore --configuration Release --filter Category!=Integration
 
-  # Debug turns on CheckForOverflowUnderflow, which Release does not, so a green
-  # Release suite is not a green suite: an arithmetic overflow that the Release
-  # build wraps past silently throws here. One leg is enough because the checks
-  # the configuration adds are platform independent.
+  # Debug turns on CheckForOverflowUnderflow, so an overflow Release wraps past throws here.
+  # One leg: the checks are platform independent.
   test-debug:
     name: test-debug
     runs-on: ubuntu-latest
@@ -71,11 +69,8 @@ jobs:
     - name: Test
       run: dotnet test big-decimal.tests.slnf --no-restore --configuration Debug --filter Category!=Integration
 
-  # The release path packs a different solution filter than the one CI tests,
-  # and it runs after the GitHub release is already published, where a failure
-  # cannot be undone. Packing it here means a break in the packaging targets,
-  # the release-notes export or a package's own README surfaces on the pull
-  # request that causes it.
+  # The release packs a different solution filter than CI tests, after the GitHub release is
+  # already published; packing here surfaces a packaging break on the pull request that causes it.
   pack:
     name: pack
     runs-on: ubuntu-latest
@@ -84,11 +79,8 @@ jobs:
     - name: Checkout
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-    # Mirrors the release gate so the script and the header's shape are
-    # exercised on every pull request rather than for the first time at a tag.
-    # A pull request packs 0.0.0-ci and has no version to compare against; the
-    # release run reaches this through workflow_call with the tag in the ref,
-    # and then the two have to agree.
+    # A pull request has no version to compare against and checks the header's shape; the
+    # release run reaches this through workflow_call with the tag in the ref.
     - name: Check the release notes header
       env:
         TAG_NAME: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
@@ -105,9 +97,7 @@ jobs:
     - name: Pack
       run: dotnet pack big-decimal.build.slnf --configuration Release --no-restore --include-symbols --output "${{ runner.temp }}/nuget" -p:Version=0.0.0-ci -p:PackageVersion=0.0.0-ci
 
-    # The packed <releaseNotes> and the GitHub release body both come from
-    # assets/RELEASE-NOTES.txt, and neither can be corrected after a publish, so
-    # both are checked on the pull request that changes the text.
+    # Neither the packed <releaseNotes> nor the release body can be corrected after a publish.
     - name: Check the release notes and the body they render into
       env:
         GH_TOKEN: ${{ github.token }}
@@ -122,10 +112,8 @@ jobs:
         echo "Release notes that would ship ($(wc -c < "$notes") bytes):"
         cat "$notes"
 
-        # The body build-deploy.yml would publish, put through the renderer the
-        # release page itself uses - GitHub Flavored Markdown in this
-        # repository's context, which is what turns a bare @word into a link to
-        # whoever owns that account - and compared with the notes line for line.
+        # The body build-deploy.yml would publish, rendered by GitHub's own GFM renderer in this
+        # repository's context and compared with the notes line for line.
         body="${{ runner.temp }}/release-body.md"
         bash .github/scripts/compose-release-body.sh "$notes" "$body"
         gh api --method POST markdown -f mode=gfm -f context="$GITHUB_REPOSITORY"           -F text=@"$body" > "${{ runner.temp }}/release-body.html"

@@ -5,8 +5,8 @@
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
-    <!-- The same pin the other suites carry: from any namespace under PetToys.BigDecimal that
-         does not hold the type itself, the identifier BigDecimal binds to the namespace. -->
+    <!-- From any other namespace under PetToys.BigDecimal the identifier BigDecimal binds to
+         the namespace rather than the type. -->
     <RootNamespace>PetToys.BigDecimal</RootNamespace>
   </PropertyGroup>
 
@@ -20,9 +20,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\PetToys.BigDecimal.Npgsql.Dapper\PetToys.BigDecimal.Npgsql.Dapper.csproj" />
-    <!-- For the PostgresServer fixture, as a library. A second fixture would be a second pinned
-         image digest to keep in step. xunit discovers tests in the assembly it runs, not in the
-         ones it references, so the adapter suite does not run twice from here. -->
+    <!-- For the PostgresServer fixture as a library; xunit discovers tests in the assembly it runs,
+         so the adapter suite does not run twice from here. -->
     <ProjectReference Include="..\PetToys.BigDecimal.Npgsql.Tests\PetToys.BigDecimal.Npgsql.Tests.csproj" />
   </ItemGroup>
 

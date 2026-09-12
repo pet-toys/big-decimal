@@ -15,27 +15,11 @@ namespace PetToys.BigDecimal.Numerics;
 /// the driver's own reader.
 /// </summary>
 /// <remarks>
-/// <para>
-/// Dapper's type handler is handed whatever <c>GetValue</c> already produced, so over a
-/// <c>numeric</c> column it receives a <see cref="decimal"/> and never sees a value wider than
-/// one. This reader is how the exact value reaches Dapper instead: it calls
-/// <c>GetFieldValue&lt;BigDecimal&gt;</c> on the columns it recognises, and Dapper's own
-/// materialiser runs over it unchanged. Nothing global is registered to make that happen, so a
-/// <c>numeric</c> column read anywhere else in the application is still a <see cref="decimal"/>.
-/// </para>
-/// <para>
-/// Recognition comes from <see cref="NpgsqlDataReader.GetPostgresType"/> rather than from a data
-/// type name. Measured against PostgreSQL 18: a bare column, a <c>numeric(12,4)</c> column, an
-/// aggregate over one and a domain over one all report the base type <c>numeric</c>, while
-/// <c>GetDataTypeName</c> renders the second as <c>numeric(12, 4)</c> - a name no equality test
-/// against <c>numeric</c> matches, and a column missed that way is read as <see cref="decimal"/>
-/// with nothing said.
-/// </para>
-/// <para>
-/// The type is internal because Dapper's materialiser is its only consumer.
-/// <c>AsBigDecimalReader</c> hands it out as a <see cref="DbDataReader"/>, which is the whole of
-/// the contract a caller needs.
-/// </para>
+/// Dapper's type handler is handed whatever <c>GetValue</c> produced, which over <c>numeric</c>
+/// is a <see cref="decimal"/>. This reader calls <c>GetFieldValue&lt;BigDecimal&gt;</c> on the
+/// columns it recognises and Dapper's materialiser runs over it unchanged; nothing global is
+/// registered. Recognition comes from <see cref="NpgsqlDataReader.GetPostgresType"/> rather than
+/// a data type name, which renders <c>numeric(12,4)</c> as a name no equality test matches.
 /// </remarks>
 internal sealed class BigDecimalDataReader : DbDataReader
 {
@@ -49,13 +33,8 @@ internal sealed class BigDecimalDataReader : DbDataReader
 
     private bool disposed;
 
-    /// <summary>Wraps a reader positioned before its first row.</summary>
-    /// <param name="inner">The driver's reader, which the recognised columns are read from.</param>
-    /// <param name="owner">
-    /// What the caller was handed and what this reader disposes: Dapper's <c>ExecuteReader</c>
-    /// returns a wrapper that also disposes the command, so disposing
-    /// <paramref name="inner"/> instead would leak it.
-    /// </param>
+    // owner is what this reader disposes: Dapper's ExecuteReader returns a wrapper that also
+    // disposes the command, so disposing inner instead would leak it.
     internal BigDecimalDataReader(NpgsqlDataReader inner, IDataReader owner)
     {
         this.inner = inner;
@@ -96,13 +75,8 @@ internal sealed class BigDecimalDataReader : DbDataReader
             : this.inner.GetFieldValue<BigDecimal>(ordinal);
     }
 
-    /// <summary>Answers the CLR type a column reads as.</summary>
-    /// <remarks>
-    /// Declaring the type is load bearing rather than cosmetic. Dapper builds a materialiser from
-    /// the field types and caches it by that shape; one built for <see cref="decimal"/> and then
-    /// handed a <see cref="BigDecimal"/> fails with a cast, which is what a member still typed
-    /// <see cref="decimal"/> in a result would hit.
-    /// </remarks>
+    // Load bearing: Dapper builds its materialiser from the field types, and one built for decimal
+    // then handed a BigDecimal fails with a cast.
     [return: DynamicallyAccessedMembers(
         DynamicallyAccessedMemberTypes.PublicFields
         | DynamicallyAccessedMemberTypes.PublicProperties)]
@@ -130,27 +104,14 @@ internal sealed class BigDecimalDataReader : DbDataReader
         return count;
     }
 
-    /// <summary>Reads a column as the type asked for.</summary>
-    /// <remarks>
-    /// The driver knows how to produce every type it can produce, this one included, so every
-    /// named type goes to it. <see cref="object"/> is the exception: there the driver answers the
-    /// column's default, which for a widened column is the <see cref="decimal"/> this reader
-    /// exists not to hand back. A NULL still goes to the driver, so its own refusal is what a
-    /// caller sees.
-    /// </remarks>
-    /// <typeparam name="T">The type to read the column as.</typeparam>
-    /// <param name="ordinal">The zero-based column ordinal.</param>
-    /// <returns>The value.</returns>
+    // Every named type goes to the driver. object is the exception: there the driver answers the
+    // column's default, which for a widened column is the decimal this reader exists not to hand
+    // back. A NULL still goes to the driver, so its own refusal is what a caller sees.
     public override T GetFieldValue<T>(int ordinal) =>
         this.AnswersObjectItself<T>(ordinal) && !this.inner.IsDBNull(ordinal)
             ? (T)this.GetValue(ordinal)
             : this.inner.GetFieldValue<T>(ordinal);
 
-    /// <summary>Reads a column as the type asked for, asynchronously.</summary>
-    /// <typeparam name="T">The type to read the column as.</typeparam>
-    /// <param name="ordinal">The zero-based column ordinal.</param>
-    /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>The value.</returns>
     public override async Task<T> GetFieldValueAsync<T>(int ordinal, CancellationToken cancellationToken)
     {
         if (this.AnswersObjectItself<T>(ordinal)
@@ -236,16 +197,9 @@ internal sealed class BigDecimalDataReader : DbDataReader
         return more;
     }
 
-    /// <summary>Enumerates the rows as records.</summary>
-    /// <remarks>
-    /// Over this reader rather than over the one underneath it: an enumerator built from the
-    /// driver's would answer <see cref="decimal"/> for the columns every other member of this
-    /// class answers as <see cref="BigDecimal"/>.
-    /// </remarks>
-    /// <returns>An enumerator over the remaining rows.</returns>
+    // Over this reader, not the driver's, so the widened columns are widened here too.
     public override IEnumerator GetEnumerator() => new DbEnumerator(this, closeReader: false);
 
-    /// <summary>Closes the reader this one was built over.</summary>
     public override void Close()
     {
         if (!this.disposed)
@@ -257,8 +211,7 @@ internal sealed class BigDecimalDataReader : DbDataReader
     /// <inheritdoc/>
     protected override void Dispose(bool disposing)
     {
-        // The base implementation calls Close, which closes the owner, so it runs before the owner
-        // is disposed rather than after it.
+        // The base calls Close, which closes the owner, so it runs before the owner is disposed.
         base.Dispose(disposing);
 
         if (disposing && !this.disposed)
@@ -268,16 +221,8 @@ internal sealed class BigDecimalDataReader : DbDataReader
         }
     }
 
-    /// <summary>
-    /// Disposes the reader this one was built over, asynchronously where it can be.
-    /// </summary>
-    /// <remarks>
-    /// The inherited implementation calls the synchronous dispose, and closing a reader with rows
-    /// left drains them from the socket, so an <c>await using</c> over this one would block on
-    /// network work. The flag is what keeps the inherited path, which still runs afterwards, from
-    /// closing and disposing an owner that is already gone.
-    /// </remarks>
-    /// <returns>Nothing.</returns>
+    // The inherited DisposeAsync calls the synchronous dispose, and closing a reader with rows left
+    // drains the socket; the flag keeps the inherited path from disposing the owner twice.
     public override async ValueTask DisposeAsync()
     {
         if (!this.disposed)
@@ -289,9 +234,6 @@ internal sealed class BigDecimalDataReader : DbDataReader
         await base.DisposeAsync().ConfigureAwait(false);
     }
 
-    /// <summary>Disposes a reader by its best available route.</summary>
-    /// <param name="reader">The reader to dispose.</param>
-    /// <returns>Nothing.</returns>
     internal static async ValueTask CloseOwnerAsync(IDataReader reader)
     {
         if (reader is IAsyncDisposable asynchronous)
@@ -304,9 +246,6 @@ internal sealed class BigDecimalDataReader : DbDataReader
         }
     }
 
-    /// <summary>
-    /// Works out which columns of the current result set are this package's to answer.
-    /// </summary>
     private void Describe()
     {
         var count = this.inner.FieldCount;
@@ -328,23 +267,10 @@ internal sealed class BigDecimalDataReader : DbDataReader
         }
     }
 
-    /// <summary>
-    /// Answers whether an untyped read of this column is this reader's to answer.
-    /// </summary>
-    /// <typeparam name="T">The type the caller asked for.</typeparam>
-    /// <param name="ordinal">The zero-based column ordinal.</param>
-    /// <returns>
-    /// <see langword="true"/> when the caller asked for <see cref="object"/> over a column this
-    /// reader widens.
-    /// </returns>
     private bool AnswersObjectItself<T>(int ordinal) =>
         typeof(T) == typeof(object) && this.widened[ordinal];
 
-    /// <summary>Answers whether a type is PostgreSQL's <c>numeric</c>.</summary>
-    /// <remarks>
-    /// A faceted column and a domain both report the base type they are built on, so this covers
-    /// <c>numeric(12,4)</c> and a domain over one without a rule of its own.
-    /// </remarks>
+    // A faceted column and a domain both report the base type, so numeric(12,4) is covered.
     private static bool IsNumeric(PostgresType type) =>
         type is PostgresBaseType
         && string.Equals(type.Name, "numeric", StringComparison.Ordinal)

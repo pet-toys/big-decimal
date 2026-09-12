@@ -9,37 +9,25 @@
     <RoslynatorVersion>[5.0.0,)</RoslynatorVersion>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Both ranges close at the major because both adapters sit on an extension point their
-         driver may reshape: Npgsql publishes the registration API as [Experimental("NPG9001")],
-         and ClickHouse.Driver passes IParameterFormatter its arguments in an order the interface
-         does not declare. A closed range breaks at restore here; an open one breaks at runtime in
-         a consumer's transitive resolution. Each floor is the version the extension point was
-         read from, on 2026-09-09, and the ceiling moves once the next major has been tested. -->
+    <!-- Closed at the major: both adapters sit on an extension point the driver may reshape
+         (Npgsql's is [Experimental("NPG9001")], ClickHouse.Driver passes IParameterFormatter its
+         arguments in an undeclared order), and a closed range fails at restore rather than in a
+         consumer at runtime. Each floor is the version the extension point was read from. -->
     <PackageVersion Include="ClickHouse.Driver" Version="[1.4.0,2.0.0)" />
     <PackageVersion Include="Npgsql" Version="[10.0.3,11.0.0)" />
   </ItemGroup>
   <ItemGroup>
-    <!-- EF Core's mapping extension point is public and unattributed, so the driver argument does
-         not close this range; a measurement does. On 2026-09-10 the 8.0.x provider restored and
-         compiled against Npgsql 10.0.3 and then threw TypeLoadException at first use, so an EF
-         Core major has already been observed to break this package's dependency outright. Floor
-         and ceiling bracket the two majors measured working, 9.0.4 and 10.x. -->
+    <!-- Brackets the two majors measured working, 9.0.4 and 10.x. The 8.0.x provider restores
+         against Npgsql 10.0.3 and throws TypeLoadException at first use. -->
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[9.0.4,11.0.0)" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Every member the two Dapper packages use is public and documented, so neither the driver
-         argument above nor EF Core's applies. What closes this range is two shapes Dapper
-         publishes rather than states as contracts: the PostgreSQL package's exact read depends on
-         ExecuteReader returning something implementing IWrappedDataReader over the driver's
-         reader, and the ClickHouse package's write side depends on a DynamicParameters built with
-         Add keeping a parameter the statement names in the server's syntax rather than Dapper's.
-         The floor is the version every measurement was taken on, on 2026-09-10. -->
+    <!-- Closed at the major over two shapes Dapper publishes without stating: ExecuteReader
+         returning an IWrappedDataReader over the driver's reader, and DynamicParameters.Add
+         keeping a parameter the statement names in the server's syntax. -->
     <PackageVersion Include="Dapper" Version="[2.1.79,3.0.0)" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Source Link is bundled in the .NET 8+ SDK; referencing the package
-         explicitly suppresses the SDK's Source Link / deterministic source
-         path target chain (no Source Link, non-deterministic PDB paths). -->
     <GlobalPackageReference Include="Roslynator.Analyzers" Version="$(RoslynatorVersion)" />
     <GlobalPackageReference Include="Roslynator.CodeAnalysis.Analyzers" Version="$(RoslynatorVersion)" />
     <GlobalPackageReference Include="Roslynator.CodeFixes" Version="$(RoslynatorVersion)" />

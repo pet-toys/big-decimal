@@ -4,7 +4,7 @@ using System.Globalization;
 using ClickHouse.Driver.Numerics;
 using PetToys.BigDecimal.Numerics;
 
-#pragma warning disable IDE0130 // See ClickHouseBigDecimalTypeHandler: the namespace is Dapper's.
+#pragma warning disable IDE0130 // Dapper's namespace, where a caller registering a handler already is.
 
 namespace Dapper;
 
@@ -12,10 +12,7 @@ namespace Dapper;
 /// Maps an <c>Array(Decimal...)</c> column onto <see cref="BigDecimal"/><c>[]</c> for Dapper.
 /// </summary>
 /// <remarks>
-/// A separate handler because Dapper looks one up by the member's exact type: without this,
-/// an array column reaches a <see cref="BigDecimal"/><c>[]</c> member as a failed cast from the
-/// driver's own array, which is loud but useless. The adapter maps the array form too, so
-/// declining it here would cost the same registration as supporting it.
+/// A separate handler because Dapper looks one up by the member's exact type.
 /// </remarks>
 public sealed class ClickHouseBigDecimalArrayTypeHandler : SqlMapper.TypeHandler<BigDecimal[]>
 {
@@ -36,8 +33,7 @@ public sealed class ClickHouseBigDecimalArrayTypeHandler : SqlMapper.TypeHandler
             element => BigDecimal.FromScaled(element.Mantissa, element.Scale)),
         BigDecimal[] wide => wide,
         decimal[] => throw ClickHouseBigDecimalTypeHandler.CustomDecimalsAreOff(),
-        // Defensive rather than reachable: a ClickHouse Array column is never NULL. It is here
-        // because the alternative is a NullReferenceException from the pattern below.
+        // Unreachable - a ClickHouse Array column is never NULL - but the alternative is a NullReferenceException.
         null or DBNull => throw new InvalidCastException(
             "A NULL column cannot be read as BigDecimal[]."),
         _ => throw new InvalidCastException(
@@ -54,9 +50,8 @@ public sealed class ClickHouseBigDecimalArrayTypeHandler : SqlMapper.TypeHandler
     /// <paramref name="parameter"/> is <see langword="null"/>.
     /// </exception>
     /// <remarks>
-    /// Writing an array parameter is not something this package supports and this method is here
-    /// because the base type declares it. Dapper expands a collection parameter into one scalar
-    /// parameter per element before a handler is consulted, so the array never arrives whole; the
+    /// Here because the base type declares it: Dapper expands a collection parameter into one
+    /// scalar per element before a handler is consulted, so the array never arrives whole. The
     /// many-rows path is <c>InsertBigDecimalAsync</c> on the adapter.
     /// </remarks>
     public override void SetValue(IDbDataParameter parameter, BigDecimal[]? value)
