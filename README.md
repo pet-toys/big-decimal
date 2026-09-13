@@ -217,6 +217,15 @@ BigDecimal.Pow(BigDecimal.Parse("10", invariant), 40);
 // 10000000000000000000000000000000000000000
 ```
 
+Where the exact power is not representable, the excess fractional digits are
+rounded half to even, once. The power is raised in a working width of 154 digits
+against the 77 a result keeps, so the digit the rounding reads is the exact
+power's unless the exact power sits nearer the midpoint than 1e-66 of a unit in
+the last place - its digits past the 77th being a 5 and then sixty-five zeros, or
+a 4 and then sixty-five nines. No input reaching that is known, and the suite asserts
+the rounded result against an exact `BigInteger` power over the cases it carries,
+chains of two multiplications and of twenty-five alike.
+
 A negative exponent is the reciprocal, to the precision a division without an
 explicit scale gives, and it answers wherever its own result fits even when the
 power it inverts does not: `Pow(2, -300)` is a value, though 2 to the 300th is

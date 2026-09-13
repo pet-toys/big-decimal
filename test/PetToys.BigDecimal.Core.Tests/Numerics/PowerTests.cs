@@ -2,20 +2,46 @@ using System;
 using System.Globalization;
 using System.Numerics;
 using AwesomeAssertions;
+using PetToys.BigDecimal.Numerics.Harness;
 using Xunit;
 
 namespace PetToys.BigDecimal.Numerics;
 
 /// <summary>
 /// The stated cases of <see cref="BigDecimal.Pow"/>: the scale rule, the trivial exponents, the
-/// boundaries the exactness guarantee turns on, and the reciprocal. The property over the whole
-/// corpus lives in <see cref="ArithmeticFuzzTests"/>.
+/// boundaries the exactness guarantee turns on, the depth of the chain, and the reciprocal. The
+/// property over the whole corpus lives in <see cref="ArithmeticFuzzTests"/>.
 /// </summary>
+/// <remarks>
+/// The depth cases stop at twenty-five multiplications because that is where the oracle stops, not
+/// where the interest does. Its cost follows the exact power's width, which grows with the exponent
+/// while the depth grows only with its logarithm: twenty-five multiplications is an exponent of 8191
+/// and an exact power of 24577 digits, raised in fourteen milliseconds, where forty would be an
+/// exponent near a million and some five million digits, and the sixty an <c>int</c> exponent allows
+/// would be ten billion. Beyond that depth the working width's margin is the guarantee, and
+/// <see cref="TheWidestNegativeExponent_DoesNotWrap"/> is what a full-depth chain can be asked:
+/// that it answers at all, not what its last digit is.
+/// </remarks>
 public sealed class PowerTests
 {
     private static BigDecimal Parse(string text) => BigDecimal.Parse(text, CultureInfo.InvariantCulture);
 
     private static string Text(BigDecimal value) => value.ToString(CultureInfo.InvariantCulture);
+
+    // Square and multiply, skipping the last squaring: one multiplication per set bit and one per
+    // bit below the top. Counted here rather than taken on trust, so a case says how deep it is.
+    private static int Depth(int exponent)
+    {
+        var bits = 0;
+        var ones = 0;
+
+        for (var remaining = exponent; remaining > 0; remaining >>= 1, bits++)
+        {
+            ones += remaining & 1;
+        }
+
+        return ones + Math.Max(bits - 1, 0);
+    }
 
     [Fact]
     public void APower_MultipliesTheScaleByTheExponent()
@@ -190,6 +216,53 @@ public sealed class PowerTests
             .Be(BigInteger.Parse(
                 "109547293418990783746199248957372052389243190677326517524758093283100022219556",
                 CultureInfo.InvariantCulture));
+    }
+
+    [Theory]
+    [InlineData("101", 2, 4095, 23)]
+    [InlineData("1001", 3, 8191, 25)]
+    [InlineData("-101", 2, 4095, 23)]
+    public void ADeepChain_IsStillTheOnceReducedExactPower(
+        string unscaled,
+        int scale,
+        int exponent,
+        int multiplications)
+    {
+        // Depth is what nothing else here reaches far into. The deepest case above raises 0.5 to
+        // the 700th, a chain of fifteen, and the randomised corpus stops at an exponent of 40, which
+        // is seven; these are twenty-three and twenty-five, and a squaring doubles the error it is
+        // handed, so each of the ten steps between is a doubling. The exponent is asserted to be
+        // that deep so a later edit cannot quietly shorten it.
+        Depth(exponent).Should().Be(multiplications, "the case is here for the depth of its chain");
+
+        var value = BigDecimal.FromScaled(BigInteger.Parse(unscaled, CultureInfo.InvariantCulture), scale);
+
+        var result = BigDecimal.Pow(value, exponent);
+
+        result.IsZero.Should().BeFalse("a result that underflowed to zero decides no rounding");
+        result.Precision.Should().Be(77, "a reduced power lands in the band that always fits");
+        OracleValue.Observe(result)
+            .Should()
+            .Be(BigIntegerOracle.Pow(OracleValue.Observe(value), exponent));
+    }
+
+    [Fact]
+    public void TheWorkingWidth_KeepsTheMarginTheRoundingRestsOn()
+    {
+        // The margin between the working width and a result's 77 digits is what makes the rounding
+        // of a reduced power the exact power's, and no case can check it: a case that would notice
+        // has to sit within the working error of a midpoint, and the nearest of 17707 generated
+        // cases came to one part in ten thousand. Narrowing the accumulator to five words leaves the
+        // suite green, so the width is read here instead. The floor is the 50 digits the
+        // requirement states, not the 77 the implementation carries.
+        const int Floor = BigIntegerOracle.MaxSignificantDigits + 50;
+
+        BigDecimal.PowWorkDigits.Should().BeGreaterThanOrEqualTo(Floor, "the stated margin is on the digits");
+        BigInteger.Pow(10, Floor)
+            .Should()
+            .BeLessThanOrEqualTo(
+                BigInteger.One << (64 * BigDecimal.PowWorkWords),
+                "the words have to hold the digits the margin claims");
     }
 
     [Fact]

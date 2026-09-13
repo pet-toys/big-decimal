@@ -10,12 +10,15 @@ public readonly partial struct BigDecimal
 
     private const int DivideWorkWords = 32;
 
-    // Five words hold any result plus a carry; three are guard digits. At most 62 multiplications
-    // each lose half an ulp of 154 digits, so the error stays below 1e-151 against 77 digits.
-    private const int PowWorkWords = 8;
+    // Five words hold any result plus a carry; three are guard digits. A squaring doubles the error
+    // it is handed rather than adding to it, so thirty of them over half an ulp of 154 digits bound
+    // the working value below 1e-143 - reasoned, not measured - leaving 66 digits of room against
+    // the 77 a result keeps. That margin is what makes a reduced power's rounding the exact power's,
+    // and no case can reach the edge of it, so these two are internal for a test to read.
+    internal const int PowWorkWords = 8;
 
     // Every 154-digit value fits eight words; only some 155-digit ones do.
-    private const int PowWorkDigits = 154;
+    internal const int PowWorkDigits = 154;
 
     // The chain's scale saturates here: it doubles on every squaring and would leave an int. A
     // value that reaches the floor is at least 1e562.
@@ -436,10 +439,18 @@ public readonly partial struct BigDecimal
     /// The exact power is returned whenever it is representable: when the unscaled magnitude
     /// raised to the exponent fits the 256-bit mantissa and the value's scale multiplied by the
     /// exponent is at most <see cref="MaxScale"/>. Otherwise the excess fractional digits are
-    /// rounded half to even, once, from the exact power, and <see cref="OverflowException"/> is
-    /// thrown only when no fractional digits remain to give up - the rule multiplication follows.
-    /// The result's scale is the value's scale multiplied by the exponent, capped at
-    /// <see cref="MaxScale"/>, so trailing zeros are preserved as multiplication preserves them.
+    /// rounded half to even, once, and <see cref="OverflowException"/> is thrown only when no
+    /// fractional digits remain to give up - the rule multiplication follows. The result's scale is
+    /// the value's scale multiplied by the exponent, capped at <see cref="MaxScale"/>, so trailing
+    /// zeros are preserved as multiplication preserves them.
+    /// <para>
+    /// A power that gives up digits is raised in a working width of 154 digits, not in the 77 a
+    /// result keeps, and reduced once from there. The digit the rounding reads is therefore the
+    /// exact power's, unless the exact power sits nearer the midpoint than 1e-66 of a unit in the
+    /// last place - its digits past the 77th being a 5 and then sixty-five zeros, or a 4 and then
+    /// sixty-five nines - where the working value may fall on the other side of it. No input
+    /// reaching that is known, and the depth of the chain is not otherwise visible in the answer.
+    /// </para>
     /// <para>
     /// A negative exponent is the reciprocal of the positive power, computed rather than composed,
     /// to the precision <see cref="Divide(BigDecimal, BigDecimal)"/> gives: <c>Pow(2, -300)</c>
