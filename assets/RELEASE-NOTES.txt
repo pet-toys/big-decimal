@@ -19,6 +19,15 @@ Fixed:
   change and after it - and rounding, rescaling and the database wire paths
   reach the same helper and stop the same way.
 
+Notes:
+- What GetHashCode costs is documented now, in the README and in the method's own
+  remarks. A hash has to agree with numeric equality, so it goes through the
+  value's shortest form: one carrying no trailing zeros costs 12.7x to 16.1x
+  decimal's hash, which strips them for the same reason, and one widened to a
+  database column's scale about 2x as much, because that one pays a division
+  pass over the magnitude. Nothing in the algorithm changed - the table of costs
+  covered arithmetic, parsing and formatting and simply did not reach hashing.
+
 ----------------------------------------------------------------------------
 
 1.0.0
