@@ -28,10 +28,11 @@ whenever the exact power is representable: 61 significant digits of `1.05` to
 the 30th come back digit for digit, where a hand-written multiplication loop
 would have rounded at every step. A power too wide to represent gives up
 fractional digits, rounded half to even once from a 154-digit working value
-against the 77 a result keeps - room enough that the digit the rounding reads is
-the exact power's, short of the near-tie the method's own remarks describe. A negative exponent is the reciprocal, to the
-same precision a division without an explicit scale gives, and it answers
-wherever its own result fits even when the power it inverts does not.
+against the 77 a result keeps - room enough that the digit the rounding reads
+is the exact power's, short of the near-tie the method's own remarks describe.
+A negative exponent is the reciprocal, to the same precision a division without
+an explicit scale gives, and it answers wherever its own result fits even when
+the power it inverts does not.
 
 Formatting matches `decimal` string for string: the `C`, `E`, `F`, `G`, `N`,
 `P` and `R` specifiers with an optional precision, custom numeric format
@@ -86,14 +87,14 @@ a budget rather than to publish a benchmark - an order of magnitude, not a
 specification. Division is the worst case and the one to measure yourself.
 
 `GetHashCode` carries no budget and is a larger multiple than anything above.
-Agreeing with numeric equality sends every hash through the value's shortest form:
-a copy of the magnitude, a test for trailing zeros, and a division pass over it
-only when there are zeros to remove. A value carrying none skips that pass, as
-`decimal` does for the same reason, and measures 12.7x to 16.1x `decimal`'s hash -
-the wider mantissa at the top of the range, against a baseline of a few
-instructions under a nanosecond. One widened to a database column's scale pays the
-pass and costs about 2x as much, which is a reason to hold dictionary keys at
-their shortest scale.
+Agreeing with numeric equality sends every hash through the value's shortest
+form: a copy of the magnitude, a test for trailing zeros, and a division pass
+over it only when there are zeros to remove. A value carrying none skips that
+pass, as `decimal` does for the same reason, and measures 12.7x to 16.1x
+`decimal`'s hash - the wider mantissa at the top of the range, against a
+baseline of a few instructions under a nanosecond. One widened to a database
+column's scale pays the pass and costs about 2x as much, which is a reason to
+hold dictionary keys at their shortest scale.
 
 The working buffers are on the stack: counted across the whole call rather than
 one frame, a division, a parse and a `ToString` each take between one and one
