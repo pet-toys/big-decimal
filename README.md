@@ -221,10 +221,10 @@ Where the exact power is not representable, the excess fractional digits are
 rounded half to even, once. The power is raised in a working width of 154 digits
 against the 77 a result keeps, so the digit the rounding reads is the exact
 power's unless the exact power sits nearer the midpoint than 1e-66 of a unit in
-the last place - its digits past the 77th being a 5 and then sixty-five zeros, or
-a 4 and then sixty-five nines. No input reaching that is known, and the suite asserts
-the rounded result against an exact `BigInteger` power over the cases it carries,
-chains of two multiplications and of twenty-five alike.
+the last place - its digits past the 77th being a 5 and then sixty-five zeros,
+or a 4 and then sixty-five nines. No input reaching that is known, and the suite
+asserts the rounded result against an exact `BigInteger` power over the cases it
+carries, chains of two multiplications and of twenty-five alike.
 
 A negative exponent is the reciprocal, to the precision a division without an
 explicit scale gives, and it answers wherever its own result fits even when the
@@ -328,15 +328,15 @@ yourself if it sits in a hot loop.
 
 **Hashing carries no budget and costs a larger multiple than anything in the
 table.** A hash has to agree with numeric equality, so `1.0` and `1.00` land in
-the same bucket, which sends every hash through the value's shortest form: a copy
-of the magnitude, a test for trailing zeros, and a division pass over it only when
-there are zeros to remove. A value that carries none skips that pass - `decimal`
-strips zeros for the same reason and skips it too - and measures between 12.7x and
-16.1x `decimal`'s hash, the wider mantissa at the top of the range and the
-baseline a few instructions under a nanosecond. A value widened to a database
-column's scale pays the pass, and costs about 2x what the same value costs at its
-shortest. Worth knowing before a `Dictionary<BigDecimal, T>` on a hot path, and a
-reason to hold keys at their shortest scale.
+the same bucket, which sends every hash through the value's shortest form: a
+copy of the magnitude, a test for trailing zeros, and a division pass over it
+only when there are zeros to remove. A value that carries none skips that pass -
+`decimal` strips zeros for the same reason and skips it too - and measures
+between 12.7x and 16.1x `decimal`'s hash, the wider mantissa at the top of the
+range and the baseline a few instructions under a nanosecond. A value widened to
+a database column's scale pays the pass, and costs about 2x what the same value
+costs at its shortest. Worth knowing before a `Dictionary<BigDecimal, T>` on a
+hot path, and a reason to hold keys at their shortest scale.
 
 **The stack is where the working buffers live.** Counted across the whole call
 rather than one frame, a division, a parse and a `ToString` each take between

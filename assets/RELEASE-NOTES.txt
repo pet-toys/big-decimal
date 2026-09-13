@@ -12,17 +12,17 @@ Fixed:
   "1e-99999" asked the pack to drop 99744 decimal positions and it divided for
   every one of them, thousands of times over after the magnitude had already
   become zero. The parser caps an exponent at 100000, which is what bounds the
-  worst case rather than what creates it. Read on .NET 10 before and after the
-  change on one machine, that input took 48 microseconds and now takes 0.5,
-  against 0.2 for an ordinary parse such as "123.456". Every parsed value,
-  scale and sign is unchanged - those literals are zero at scale 255 before the
+  worst case rather than what creates it. That input took 48 microseconds on
+  .NET 10 before the change; after it, the benchmark reads the same literal at
+  1.2x a parse that drops nothing, such as "1e-200". Every parsed value, scale
+  and sign is unchanged - those literals are zero at scale 255 before the
   change and after it - and rounding, rescaling and the database wire paths
   reach the same helper and stop the same way.
 
 Notes:
-- What GetHashCode costs is documented now, in the README and in the method's own
-  remarks. A hash has to agree with numeric equality, so it goes through the
-  value's shortest form: one carrying no trailing zeros costs 12.7x to 16.1x
+- What GetHashCode costs is documented now, in the README and in the method's
+  own remarks. A hash has to agree with numeric equality, so it goes through
+  the value's shortest form: one carrying no trailing zeros costs 12.7x to 16.1x
   decimal's hash, which strips them for the same reason, and one widened to a
   database column's scale about 2x as much, because that one pays a division
   pass over the magnitude. Nothing in the algorithm changed - the table of costs
@@ -32,10 +32,10 @@ Notes:
   chains that back it. The power is raised in a working width of 154 digits
   against the 77 a result keeps, so the rounding reads the digit the exact power
   reads unless the exact power sits nearer the midpoint than 1e-66 of a unit in
-  the last place, which takes a 5 and then sixty-five zeros past the 77th digit, or a 4
-  and then sixty-five nines. Nothing in the algorithm changed and no value moved;
-  what changed
-  is that the documents no longer read as though the exact power were carried.
+  the last place, which takes a 5 and then sixty-five zeros past the 77th
+  digit, or a 4 and then sixty-five nines. Nothing in the algorithm changed and
+  no value moved; what changed is that the documents no longer read as though
+  the exact power were carried.
 
 ----------------------------------------------------------------------------
 
