@@ -26,7 +26,10 @@ The type implements `INumber<T>`, `ISignedNumber<T>`, `IMinMaxValue<T>`, the
 `Pow(value, exponent)` raises a value to an integer power, and it is exact
 whenever the exact power is representable: 61 significant digits of `1.05` to
 the 30th come back digit for digit, where a hand-written multiplication loop
-would have rounded at every step. A negative exponent is the reciprocal, to the
+would have rounded at every step. A power too wide to represent gives up
+fractional digits, rounded half to even once from a 154-digit working value
+against the 77 a result keeps - room enough that the digit the rounding reads is
+the exact power's, short of the near-tie the method's own remarks describe. A negative exponent is the reciprocal, to the
 same precision a division without an explicit scale gives, and it answers
 wherever its own result fits even when the power it inverts does not.
 

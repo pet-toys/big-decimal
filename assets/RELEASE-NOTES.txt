@@ -27,6 +27,15 @@ Notes:
   database column's scale about 2x as much, because that one pays a division
   pass over the magnitude. Nothing in the algorithm changed - the table of costs
   covered arithmetic, parsing and formatting and simply did not reach hashing.
+- What Pow guarantees for a power it cannot represent exactly is stated now, in
+  the method's own remarks and in the README, and the suite carries the deep
+  chains that back it. The power is raised in a working width of 154 digits
+  against the 77 a result keeps, so the rounding reads the digit the exact power
+  reads unless the exact power sits nearer the midpoint than 1e-66 of a unit in
+  the last place, which takes a 5 and then sixty-five zeros past the 77th digit, or a 4
+  and then sixty-five nines. Nothing in the algorithm changed and no value moved;
+  what changed
+  is that the documents no longer read as though the exact power were carried.
 
 ----------------------------------------------------------------------------
 
