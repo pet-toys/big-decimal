@@ -89,7 +89,7 @@ only when there are zeros to remove. A value carrying none skips that pass, as
 `decimal` does for the same reason, and measures 12.7x to 16.1x `decimal`'s hash -
 the wider mantissa at the top of the range, against a baseline of a few
 instructions under a nanosecond. One widened to a database column's scale pays the
-pass and costs about twice again, which is a reason to hold dictionary keys at
+pass and costs about 2x as much, which is a reason to hold dictionary keys at
 their shortest scale.
 
 The working buffers are on the stack: counted across the whole call rather than

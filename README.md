@@ -325,9 +325,9 @@ there are zeros to remove. A value that carries none skips that pass - `decimal`
 strips zeros for the same reason and skips it too - and measures between 12.7x and
 16.1x `decimal`'s hash, the wider mantissa at the top of the range and the
 baseline a few instructions under a nanosecond. A value widened to a database
-column's scale pays the pass and costs about twice again. Worth knowing before a
-`Dictionary<BigDecimal, T>` on a hot path, and a reason to hold keys at their
-shortest scale.
+column's scale pays the pass, and costs about 2x what the same value costs at its
+shortest. Worth knowing before a `Dictionary<BigDecimal, T>` on a hot path, and a
+reason to hold keys at their shortest scale.
 
 **The stack is where the working buffers live.** Counted across the whole call
 rather than one frame, a division, a parse and a `ToString` each take between

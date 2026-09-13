@@ -54,7 +54,7 @@ public readonly partial struct BigDecimal : IEquatable<BigDecimal>, IComparable<
     /// Values that are equal but differ in scale hash alike, so <c>1.0</c> and <c>1.00</c> land in
     /// the same dictionary bucket. That agreement sends every hash through the shortest form, so a
     /// value with no trailing zeros costs 12.7x to 16.1x <see cref="decimal"/>'s hash, which strips
-    /// them for the same reason, and one widened to a database column's scale about twice again.
+    /// them for the same reason, and one widened to a database column's scale about 2x as much.
     /// </remarks>
     /// <returns>The hash code.</returns>
     public override int GetHashCode()
