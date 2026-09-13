@@ -258,6 +258,28 @@ public sealed class ParsingTests
         Text(BigDecimal.Parse("1.5e-3", CultureInfo.InvariantCulture)).Should().Be("0.0015");
     }
 
+    [Theory]
+    [InlineData("1e-99999")]
+    [InlineData("-1e-99999")]
+    [InlineData("1.5e-99999")]
+    [InlineData("9.99e-99999")]
+    [InlineData("1e-100000")]
+    [InlineData("1e-100001")]
+    public void AnExponentFarBelowTheFloor_ParsesToTheSameZero(string text)
+    {
+        // Each reaches the pack with a scale far above MaxScale, so every digit is dropped. The
+        // last two also exercise the exponent cap at 100000, which bounds the work rather than
+        // creating it. The answer is a literal just below the floor's, whatever the sign.
+        var expected = BigDecimal.Parse("1e-300", CultureInfo.InvariantCulture);
+
+        var value = BigDecimal.Parse(text, CultureInfo.InvariantCulture);
+
+        value.Should().Be(expected);
+        value.IsZero.Should().BeTrue();
+        value.Scale.Should().Be(BigDecimal.MaxScale);
+        Text(value).Should().Be(Text(expected));
+    }
+
     [Fact]
     public void TheNonFiniteSymbols_ParseUnderEveryStyle()
     {

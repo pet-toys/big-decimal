@@ -1,3 +1,26 @@
+1.0.1
+=====
+
+A patch release over 1.0.0. One tag versions every package in the repository, so
+all six are published together; what each of them carries is below.
+
+PetToys.BigDecimal.Core
+
+Fixed:
+- Parsing a literal whose exponent is far below the scale floor no longer costs
+  one division per digit it drops. A scale above 255 is reduced to it, so
+  "1e-99999" asked the pack to drop 99744 decimal positions and it divided for
+  every one of them, thousands of times over after the magnitude had already
+  become zero. The parser caps an exponent at 100000, which is what bounds the
+  worst case rather than what creates it. Read on .NET 10 before and after the
+  change on one machine, that input took 48 microseconds and now takes 0.5,
+  against 0.2 for an ordinary parse such as "123.456". Every parsed value,
+  scale and sign is unchanged - those literals are zero at scale 255 before the
+  change and after it - and rounding, rescaling and the database wire paths
+  reach the same helper and stop the same way.
+
+----------------------------------------------------------------------------
+
 1.0.0
 =====
 
