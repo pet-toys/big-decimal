@@ -563,7 +563,7 @@ internal static class Words
 
         var sticky = false;
         var remaining = power - 1;
-        while (remaining > 0)
+        while (remaining > 0 && accLen > 0)
         {
             var chunk = Math.Min(remaining, 19);
             accLen = DivRemSmall(acc, accLen, Pow10Divisors[chunk], out var rem);
@@ -571,7 +571,13 @@ internal static class Words
             remaining -= chunk;
         }
 
-        accLen = DivRemSmall(acc, accLen, Pow10Divisors[1], out var lastDigit);
+        // An exhausted magnitude divides to zero however many positions are left, so the digit the
+        // rounding reads is zero and the sticky flag already gathered is the whole of the rest.
+        ulong lastDigit = 0;
+        if (accLen > 0)
+        {
+            accLen = DivRemSmall(acc, accLen, Pow10Divisors[1], out lastDigit);
+        }
 
         var roundUp = mode switch
         {

@@ -173,6 +173,26 @@ public sealed class ScaleAndRoundingTests
         value.Scale.Should().Be(BigDecimal.MaxScale);
     }
 
+    [Theory]
+    [InlineData(false, MidpointRounding.ToEven, "0")]
+    [InlineData(false, MidpointRounding.AwayFromZero, "0")]
+    [InlineData(false, MidpointRounding.ToZero, "0")]
+    [InlineData(false, MidpointRounding.ToNegativeInfinity, "0")]
+    [InlineData(false, MidpointRounding.ToPositiveInfinity, "1")]
+    [InlineData(true, MidpointRounding.ToEven, "0")]
+    [InlineData(true, MidpointRounding.AwayFromZero, "0")]
+    [InlineData(true, MidpointRounding.ToZero, "0")]
+    [InlineData(true, MidpointRounding.ToNegativeInfinity, "-1")]
+    [InlineData(true, MidpointRounding.ToPositiveInfinity, "0")]
+    public void RoundingBelowTheFloor_HonoursTheMode(bool negative, MidpointRounding mode, string expected)
+    {
+        // Every digit is gone before the last position is reached, so the digit the mode reads is
+        // zero and the two directed modes are decided by the dropped digits alone.
+        var value = Parse((negative ? "-0." : "0.") + new string('0', 254) + "1");
+
+        Text(BigDecimal.Round(value, 0, mode)).Should().Be(expected);
+    }
+
     [Fact]
     public void WithScale_WideningPadsWithZeros()
     {

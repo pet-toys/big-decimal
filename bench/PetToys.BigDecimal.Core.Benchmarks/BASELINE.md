@@ -32,6 +32,11 @@ Runs Q and R were taken on the same machine after a Windows update, at build
 recorded rather than rewritten, because it is the record for runs A to P and
 those runs did not happen on the newer build. Nothing else in it moved.
 
+Run AB was taken at the same `10.0.26200.9445`, on SDK 10.0.401 with the host and
+job at .NET 10.0.12 rather than the 10.0.400 and 10.0.11 above. Its own ratios are
+between rows of that run, so the runtime it was taken on decides nothing in them;
+what it does decide is that AB's nanoseconds and run N's are not each other's.
+
 ## Runs behind these rows
 
 | Run | Date       | Scope                    | Code                       | Cost   |
@@ -63,6 +68,7 @@ those runs did not happen on the newer build. Nothing else in it moved.
 | Y   | 2026-09-09 | `*PowerUnderOne*`        | `ab80267`, the code being replaced | 1 min  |
 | Z   | 2026-09-09 | `*MultiplyBenchmarks*`   | `pow-rounds-once`, as it ships | 3 min  |
 | AA  | 2026-09-09 | `*DivideBenchmarks*`     | `pow-rounds-once`, as it ships | 3 min  |
+| AB  | 2026-09-13 | `*.ParseExponentBenchmarks.*`, `*.ParseBenchmarks.*`, `*.FormatBenchmarks.*` | `stop-divpow10round-when-exhausted`, as it ships | 15 min |
 
 Run A was taken on the `formatting-parity` work before it merged, which differs
 from `c33486b` only in the formatting path, so the rows below that are not
@@ -182,11 +188,11 @@ because a discarded run that goes unnamed is a run somebody repeats.
 | `Multiply`                         |   3.5x |  3.21 |       0.03 | one word, aligned     | met     | O   |
 | `Divide`                           |    10x |  5.33 |       0.09 | two words, aligned    | met     | O   |
 | `Remainder`                        |    10x |  2.80 |       0.03 | one word, aligned     | met     | N   |
-| `Parse`, `char`                    |     3x |  1.10 |          - | one word              | met     | N   |
+| `Parse`, `char`                    |     3x |  1.12 |          - | one word              | met     | AB  |
 | `Parse`, UTF-8                     |     3x |  1.28 |          - | one word              | met     | N   |
 | `TryParse`, `char`                 |     3x |  1.08 |       0.01 | one word              | met     | N   |
 | `TryParse`, UTF-8                  |     3x |  1.25 |          - | one word              | met     | N   |
-| `TryFormat`, `char`                |     3x |  2.77 |       0.02 | two words, `#,##0.00` | met     | N   |
+| `TryFormat`, `char`                |     3x |  2.78 |       0.03 | two words, `#,##0.00` | met     | AB  |
 | `TryFormat`, UTF-8                 |     3x |  2.66 |       0.02 | two words, `#,##0.00` | met     | N   |
 | Exact division against inexact     |    1.0 |  0.25 |       0.00 | `100 / 10` vs `/ 3`   | met     | N   |
 | Hashing, widened against narrow    |   2.5x |  2.17 |          - | two words, aligned    | met     | N   |
@@ -197,7 +203,8 @@ because a discarded run that goes unnamed is a run somebody repeats.
 | PostgreSQL read against `Parse`    |   1.5x |  0.67 |       0.01 | one word              | met     | S   |
 | ClickHouse read against `Parse`    |   1.5x |  0.18 |       0.00 | one word              | met     | S   |
 | PostgreSQL write, scale 255 over 0 |   1.5x |  1.07 |          - | one word              | met     | S   |
-| Zero allocations                   | always |     - |          - | every row             | met     | N, O, S |
+| Parse at the exponent ceiling      |     2x |  1.20 |          - | `1e-99999` over `1e-200` | met     | AB  |
+| Zero allocations                   | always |     - |          - | every row             | met     | N, O, S, AB |
 
 Three of the four parsing classes carry no `RatioSD` in run N: BenchmarkDotNet dropped the
 column. Their rows' own standard deviations are between 0.5% and 1.4% of their means, which
@@ -224,6 +231,40 @@ Both codecs get *cheaper* against the text path as the mantissa widens - the tex
 pays per character and a codec pays per digit group - so the tightest ratio is at the
 narrow end for the readers and at the wide end for the PostgreSQL writer, where the
 group divisions accumulate.
+
+Run AB grades one added criterion and carries a control. The parse rows of
+`ParseExponentBenchmarks`, against its own non-dropping baseline of 48.03 ns: 1.04 at
+forty-five dropped positions, 1.09 at 2745 and 1.20 at 99744, the last being what the
+parser's exponent ceiling allows. BenchmarkDotNet dropped the `RatioSD` column; every
+row's own standard deviation is between 0.6% and 0.9% of its mean, which bounds
+`r + 2s` for the worst of them at 1.23 against a 2x budget.
+
+The requirement carries a second bound, over the dropping rows alone: the most distant of
+them against the nearest, which is 2745 positions at 1.05 and 99744 at **1.15** against
+the 49.84 ns of the 45-position row. Both bounds are 2x and both are met; the table
+carries the larger of the two ratios, which is the one nearer the budget.
+
+AB dropped the `RatioSD` column for its two parse classes the way run N did. The rows
+behind `Parse`, `char` have standard deviations of 0.58% and 1.15% of their means, which
+bounds its `r + 2s` at 1.15 against a 3x budget. `TryFormat`, `char` reported its
+`RatioSD` and it is in the table.
+
+The criterion is a relationship between rows of one run rather than a measurement of the
+old implementation beside the new one, and deliberately: what it replaces is a chunk loop
+inside an internal helper that only the public parse reaches, so carrying both would mean
+two parse chains in one process. That is the case the requirement on measuring an
+improvement names, and the answer it prescribes. A stopwatch probe outside the suite read
+the same literal at 48 us before and 0.5 us after; that is an indication of the size, not
+evidence under that requirement, and no verdict here rests on it.
+
+`FormatBenchmarks` is the control: formatting drops no digits and reaches the helper the
+change edits at no point. Its worst row is 2.78 against the 2.77 run N recorded, which is
+0.4% and inside the band where no direction may be claimed. `Parse`, `char` moved from
+1.10 to 1.12 on the same footing. The comparison the change adds to the chunk loop is
+therefore not measurable on the callers whose positions are bounded by the scale ceiling.
+
+`Parse`, UTF-8 is still run N's. AB filtered to the `char` class, and the guard sits in a
+helper below both paths, so the char row is what says whether it costs anything.
 
 ## What the numbers do not say
 
