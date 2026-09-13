@@ -317,6 +317,18 @@ budget rather than to publish a benchmark; read them as an order of magnitude,
 not a specification. Division is the worst case, and it is the one to measure
 yourself if it sits in a hot loop.
 
+**Hashing carries no budget and costs a larger multiple than anything in the
+table.** A hash has to agree with numeric equality, so `1.0` and `1.00` land in
+the same bucket, which sends every hash through the value's shortest form: a copy
+of the magnitude, a test for trailing zeros, and a division pass over it only when
+there are zeros to remove. A value that carries none skips that pass - `decimal`
+strips zeros for the same reason and skips it too - and measures between 12.7x and
+16.1x `decimal`'s hash, the wider mantissa at the top of the range and the
+baseline a few instructions under a nanosecond. A value widened to a database
+column's scale pays the pass and costs about twice again. Worth knowing before a
+`Dictionary<BigDecimal, T>` on a hot path, and a reason to hold keys at their
+shortest scale.
+
 **The stack is where the working buffers live.** Counted across the whole call
 rather than one frame, a division, a parse and a `ToString` each take between
 one and one and a half kilobytes: the entry method's buffers plus the ones the

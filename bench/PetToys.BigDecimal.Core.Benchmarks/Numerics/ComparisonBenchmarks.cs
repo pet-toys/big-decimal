@@ -10,7 +10,11 @@ namespace PetToys.BigDecimal.Numerics;
 /// Equality is not measured separately: <c>Equals</c> is <c>CompareTo(other) == 0</c>, so a row for
 /// it would report the cost of the comparison a second time. The misaligned pairing is the
 /// interesting one here - comparing two values of different scale is what forces the alignment
-/// that the aligned pairing skips.
+/// that the aligned pairing skips - for the hashing rows it varies nothing, because they read the
+/// left operand alone. The widened rows have no <c>decimal</c> counterpart: <c>decimal</c> strips
+/// trailing zeros for the same reason, so a fair widened pairing would need a second reference
+/// row, and the requirement on normalising a scale away reads the widened-against-narrow ratio of
+/// this type instead.
 /// </remarks>
 [BenchmarkCategory(BenchmarkCategories.Budget)]
 public class ComparisonBenchmarks

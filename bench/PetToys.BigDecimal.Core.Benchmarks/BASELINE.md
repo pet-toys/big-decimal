@@ -215,6 +215,34 @@ The two hashing rows carry no dispersion because their class has no `[Baseline]`
 the ratio is computed here from two of its rows, so BenchmarkDotNet reports no `RatioSD`
 for it. Both rows' own standard deviations are under 1% of their means.
 
+The README publishes hashing's cost against `decimal` although no budget applies to it, so
+the figures it cites are recorded here: `Hash` against `HashReference` in run N is 12.74 and
+14.08 at one word, 15.74 and 16.05 at two. Every row behind them has a standard deviation
+under 2.9% of its own mean, the widest being the `decimal` reference row rather than ours.
+
+**The pairing does not vary a hash row, so the four rows are two values measured twice.**
+`Hash` and the widened rows read the left operand, which is the same string in both
+pairings; only `Compare` sees the second one. The widened pairs agree within 1%, and the
+one-word `Hash` pair reads 9.77 and 10.71 ns - 9.6% apart on identical work, with
+deviations of 1.2% and 0.5%, which is what a disturbance outlasting a whole case looks like:
+every iteration inflated equally and nothing in the report marking it. So the range above is
+two mantissa widths and a repeat rather than four shapes, and it bounds how finely any
+hashing figure here can be read.
+
+Run N measured `c2b1e3b`, and the hash path is unchanged in code at `6e5cce7`, comments
+aside: `GetHashCode`, `CopyMagnitude`, `Normalize`, `StripTrailingZeros`,
+`TrailingDecimalZeros`, `TrailingBinaryZeros`, `RemSmall`, `CountFives`, `DivRemSmall`,
+`Poison` and both divisor tables were compared member by member, `Poison` compiling to
+nothing in Release either way. Nothing was re-measured to publish the figures.
+
+**The widened case is published as the internal ratio, not against `decimal`.** Our widened
+value measures 26.50 to 34.54 against `HashReference`, and that pairing varies two things at
+once: the reference row hashes the narrow operand, never a widened one. `decimal` strips
+trailing zeros for the same reason we do - `1.0m` and `1.00m` hash alike, probed on
+2026-09-13 - so a fair pairing would need a widened `decimal` row the class does not
+declare. What the documents say instead is the widened-against-narrow ratio already graded
+above, which is between two rows of one run on one type.
+
 The power row is the same shape and for the same reason: its class declares no baseline,
 because `System.Decimal` has no power for one to be declared against. The two rows it is
 computed from carry standard deviations of 0.7% and 1.0% of their means.

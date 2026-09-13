@@ -82,6 +82,16 @@ ones either way. One machine, one shape per row, taken to grade
 a budget rather than to publish a benchmark - an order of magnitude, not a
 specification. Division is the worst case and the one to measure yourself.
 
+`GetHashCode` carries no budget and is a larger multiple than anything above.
+Agreeing with numeric equality sends every hash through the value's shortest form:
+a copy of the magnitude, a test for trailing zeros, and a division pass over it
+only when there are zeros to remove. A value carrying none skips that pass, as
+`decimal` does for the same reason, and measures 12.7x to 16.1x `decimal`'s hash -
+the wider mantissa at the top of the range, against a baseline of a few
+instructions under a nanosecond. One widened to a database column's scale pays the
+pass and costs about twice again, which is a reason to hold dictionary keys at
+their shortest scale.
+
 The working buffers are on the stack: counted across the whole call rather than
 one frame, a division, a parse and a `ToString` each take between one and one
 and a half kilobytes. Ordinary for a call from application code, worth knowing
