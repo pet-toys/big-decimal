@@ -11,3 +11,13 @@ updates:
       actions:
         patterns:
           - "*"
+
+  # Version updates stay off: Dependabot rewrites ranges to bare versions.
+  # The entry is what makes Automatic Dependency Submission run for .NET,
+  # since a root .slnx is not a manifest it recognises.
+  - package-ecosystem: "nuget"
+    directory: "/"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
