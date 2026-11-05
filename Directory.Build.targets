@@ -44,4 +44,17 @@
     <Message Importance="high" Text="Release notes exported to $(ReleaseNotesExportPath)" />
   </Target>
 
+  <!-- Not in Directory.Build.props: $(Configuration) is still empty there, because MSBuild
+       defaults it to Debug only after importing that file. A per-project restore or build
+       without -c therefore read '' and turned every warning, NuGet audit included, into an
+       error, while a solution restore passes Configuration and read 'Debug'. -->
+  <PropertyGroup Condition="'$(Configuration)'!='Debug'">
+    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+    <Optimize>True</Optimize>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
+  </PropertyGroup>
+
 </Project>
